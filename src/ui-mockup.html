@@ -40,8 +40,13 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .cards{display:block}
 .cards .card{margin-bottom:8px}
 .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;margin:0 0 7px}
-.slot{display:flex;align-items:center;gap:4px;width:100%;height:36px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:#1c1c1c;color:#fff;font:inherit;text-align:left;overflow:hidden}
-.slot > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Height follows the star control: 26px glyphs in 34px buttons need room, and
+   `overflow:hidden` on a pill this shape would clip the glow rather than let it spill. */
+.slot{display:flex;align-items:center;gap:4px;width:100%;height:44px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:#1c1c1c;color:#fff;font:inherit;text-align:left}
+/* 16px, up from the inherited 13px: at 13px the tag name looked undersized next to a
+   26px star and a 25px remove button. Sized to the controls, not to the body text. */
+.slot > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:16px;line-height:1.2}
 .empty{border:1px solid #3a3a3a;color:#4f4f4f;cursor:default}
 .full{border:1px solid #fff;cursor:pointer}
 .rb{width:25px;height:25px;flex:none;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;background:#2e2e2e;color:#fff;cursor:pointer;padding:0}
@@ -245,15 +250,59 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    full-height target means you hit it without aiming, and fixing the width also stops
    the dots drifting left and right as tag names change length. */
 .dots{display:inline-flex;gap:5px;align-items:center;justify-content:flex-end;
-      width:46px;height:100%;min-height:28px;padding:0 8px 0 4px;flex:none;
-      cursor:pointer;border-radius:6px}
-.dots:hover{background:rgba(255,255,255,.10)}
-.dots i{width:7px;height:7px;border-radius:50%;border:1px solid #8a8a8a;display:block;flex:none}
-.dots i.on{background:#fff;border-color:#fff}
-.covrow .dots{width:36px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default}
-.covrow .dots:hover{background:none}
-.covrow .dots i{border-color:#5f5f5f;width:6px;height:6px}
-.covrow .dots i.on{background:#8a8a8a;border-color:#8a8a8a}
+      height:100%;min-height:28px;flex:none;border-radius:6px}
+/* Three 30px buttons, edge to edge: a 26px glyph in a 30px button leaves a small gap
+   between stars while the hit areas still touch. 40px was too airy -- the cluster read
+   as three separate controls rather than one rating. */
+/* 26px of right padding -- one star-width of breathing room before the remove button,
+   so the rating and the destructive control don't read as one cluster. Padding rather
+   than a margin keeps the 90px of hit area intact. */
+.dots.pick{width:90px;padding:0 26px 0 0;box-sizing:content-box;cursor:default}
+/* Stars, not dots. It's a constellation tree -- the metaphor is right there, and a
+   filled star reads as "more" without needing to be explained. Glyphs come from the
+   Tabler font already loaded for the icons. */
+/* Unicode star characters, not the icon font. `ti-star-filled` is absent from the
+   Tabler webfont build loaded here, so every filled star rendered as nothing -- a
+   three-star tag showed no stars at all, and raising a tag to 3 made its last visible
+   star vanish. Characters have no such dependency. */
+.dots span{display:block;flex:none;font-size:26px;line-height:1;color:#5a5a5a}
+
+/* Colour carries the level, so you read it without counting: red low, amber medium,
+   green high. Applied from the container's w1/w2/w3 class rather than per star, so all
+   the filled stars agree -- two amber stars, not one red and one amber. */
+.dots.w1 span.on{color:#e5484d;text-shadow:0 0 7px rgba(229,72,77,.75)}
+.dots.w2 span.on{color:#e8c15a;text-shadow:0 0 7px rgba(232,193,90,.75)}
+.dots.w3 span.on{color:#4ade80;text-shadow:0 0 7px rgba(74,222,128,.7)}
+
+/* Interactive version on the target pill: click the star you mean. Each is a 20x26
+   button so the hit area is comfortably bigger than the 12px glyph -- the lesson from
+   the old three-dot control, which was fiddly for exactly this reason. */
+/* Buttons widen with the glyph so the gap between stars doubles too -- spacing comes
+   from the button width, not a flex gap, which keeps the hit areas touching with no
+   dead pixels between them. */
+.dots.pick{gap:0}
+.dots.pick .star{width:30px;height:34px;padding:0;border:0;background:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+/* Centre the GLYPH, not just its line box. With line-height:1 a 26px star sits high in
+   its own em box, so the button looked centred while the star didn't. Making the span a
+   full-height flex box centres the ink instead of the metrics. */
+.dots.pick .star span{display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;line-height:1}
+.dots.pick .star:hover span{color:#cfcfcf}
+.dots.pick.w1 .star:hover span{color:#ff7a7d}
+.dots.pick.w2 .star:hover span{color:#f3d585}
+.dots.pick.w3 .star:hover span{color:#7ff0a8}
+.dots.pick .star:focus-visible{outline:1px solid #fff;outline-offset:-2px;border-radius:4px}
+
+/* Coverage repeats the colour but drops the glow -- five glowing rows would be noise,
+   and nothing there is clickable. */
+/* Coverage keeps small stars on purpose: up to five rows of them beside the bars, and
+   nothing there is clickable. Doubling these would make the readout shout. */
+.covrow .dots{width:44px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default;gap:2px}
+.covrow .dots span{font-size:12px;color:#3f3f3f}
+.covrow .dots.w1 span.on{color:#a34b4e;text-shadow:none}
+.covrow .dots.w2 span.on{color:#a38c4a;text-shadow:none}
+.covrow .dots.w3 span.on{color:#4f9a68;text-shadow:none}
 .covrow.under .cv{color:#e8c15a}
 .actions{display:flex;gap:8px;margin-top:8px;align-items:center}
 .status{flex:1;font-size:11px;color:#8a8a8a;display:flex;align-items:center;gap:7px;min-height:20px}
@@ -566,8 +615,8 @@ function coverageHtml() {
           ? `${c.label} secured -- ${c.cost} of ${c.cons}'s ${c.size} stars`
           : `${c.label} could not be fitted alongside your other picks`;
         return `<div class="covrow pow${c.got ? ' maxed' : ' zero'}" title="${esc(note)}">
-        <span class="dots">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
-          `<i class="${d < c.weight ? 'on' : ''}"></i>`).join('')}</span>
+        <span class="dots w${c.weight}">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
+          `<span class="${d < c.weight ? 'on' : ''}">${d < c.weight ? '\u2605' : '\u2606'}</span>`).join('')}</span>
         <span class="cn">${esc(c.label)} <span class="cpc">CP</span></span>
         <span class="cb pow">${c.got
           ? `<span class="powcons">${esc(c.cons)} ${c.cost}/${c.size}</span>`
@@ -596,8 +645,8 @@ function coverageHtml() {
           : `${c.stars} of a possible ${ceiling} · you asked for ${
               Math.round(100 * c.weight / totalWeight)}% of the emphasis`;
       return `<div class="covrow${cls}" title="${esc(note)}">
-      <span class="dots">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
-        `<i class="${d < c.weight ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="dots w${c.weight}">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
+        `<span class="${d < c.weight ? 'on' : ''}">${d < c.weight ? '\u2605' : '\u2606'}</span>`).join('')}</span>
       <span class="cn">${esc(c.label)}${c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
       <span class="cb"><i style="width:${Math.round(100 * pct)}%"></i></span>
       <span class="cv">${c.stars}/${ceiling}</span>
@@ -1174,11 +1223,22 @@ function render() {
     // worse than showing none, so a power gets a fixed target marker instead.
     const control = isPower
       ? `<span class="tgt" title="Celestial powers are targets, not priorities -- you either secure it or it's reported as not fitting"><i class="ti ti-crosshair"></i>target</span>`
-      : `<span class="dots" data-weight="${i}" role="button"
-             aria-label="Priority ${state.weights[i]} of ${MAX_WEIGHT}, click to change"
-             title="How much this matters (${state.weights[i]}/${MAX_WEIGHT}) -- click to cycle">${
-         Array.from({ length: MAX_WEIGHT }, (_, d) =>
-           `<i class="${d < state.weights[i] ? 'on' : ''}"></i>`).join('')
+      // Each star is its own target: click the second star to mean two, rather than
+      // clicking repeatedly to walk up and wrapping round at the top. Setting a value
+      // directly is one click from anywhere to anywhere.
+      : `<span class="dots pick w${state.weights[i]}">${
+         Array.from({ length: MAX_WEIGHT }, (_, d) => {
+           const level = d + 1;
+           const on = level <= state.weights[i];
+           // Unicode stars, not the icon font: `ti-star-filled` renders nothing in the
+           // Tabler webfont build we load, so every FILLED star was invisible and a
+           // three-star tag showed no stars at all.
+           return `<button class="star" data-setw="${i}:${level}"
+             aria-label="Set priority to ${level} of ${MAX_WEIGHT}"
+             aria-pressed="${state.weights[i] === level}"
+             title="${['low', 'medium', 'high'][d] ?? level} priority"
+             ><span class="${on ? 'on' : ''}">${on ? '\u2605' : '\u2606'}</span></button>`;
+         }).join('')
        }</span>`;
     h += `<div class="slot full${isPower ? ' pow' : ''}">
        <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:11px;opacity:.6">pet</span>' : ''}${
@@ -1344,11 +1404,14 @@ app.addEventListener('click', e => {
   const rs = e.target.closest('[data-reset]');
   if (rs && app.contains(rs)) { reset(); return; }
 
-  const wt = e.target.closest('[data-weight]');
-  if (wt && app.contains(wt)) {
-    const slot = +wt.dataset.weight;
-    // Cycle 1 -> 2 -> 3 -> 1. A slider would imply precision nobody has.
-    state.weights[slot] = state.weights[slot] >= MAX_WEIGHT ? 1 : state.weights[slot] + 1;
+  // Click the star you mean. This replaced a cycle-upward control, which needed two
+  // clicks to go from 3 to 2 and wrapped round at the top -- fine for a toggle, poor
+  // for a value. Setting directly is one click from anywhere to anywhere.
+  const sw = e.target.closest('[data-setw]');
+  if (sw && app.contains(sw)) {
+    const [slot, level] = sw.dataset.setw.split(':').map(Number);
+    if (!Number.isInteger(slot) || state.sel[slot] == null) return;
+    state.weights[slot] = clampWeight(level);
     dropCustom(); scheduleBuild();
     return;
   }

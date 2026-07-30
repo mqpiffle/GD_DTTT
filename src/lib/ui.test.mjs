@@ -60,7 +60,7 @@ globalThis.window = {
 // Selector -> the dataset key it would match. Enough of closest() for this handler.
 const SEL = {
   '[data-score]': 'score', '[data-plain]': 'plain', '[data-reset]': 'reset',
-  '[data-weight]': 'weight', '[data-star]': 'star', '[data-step]': 'step',
+  '[data-setw]': 'setw', '[data-star]': 'star', '[data-step]': 'step',
   '[data-undo]': 'undo', '[data-reorder]': 'reorder', '[data-add]': 'add',
   '[data-keepticks]': 'keepticks',
 };
@@ -996,6 +996,72 @@ function planWith(entries, mode = 1) {
   return ui.state.plan;
 }
 
+test('clicking a star sets that weight directly', () => {
+  // Replaced a cycle-upward control. Cycling needed two clicks to go from 3 to 2 and
+  // wrapped at the top, so the move this asserts -- 3 straight down to 1 in one click --
+  // was the one it could not do.
+  const idx = ui.chips.findIndex(c => c.label === 'Cold Damage' && c.ns === 'character');
+  ui.state.sel = ui.state.sel.map(() => null);
+  ui.state.sel[0] = idx;
+  ui.state.weights[0] = 3;
+  ui.state.mode = 1; ui.build(); ui.render();
+
+  assert.match(app.innerHTML, /class="dots pick w3"/, 'should start at three stars');
+
+  click({ setw: '0:1' });
+  assert.equal(ui.state.weights[0], 1, 'clicking the first star should set weight 1');
+  ui.render();
+  assert.match(app.innerHTML, /class="dots pick w1"/, 'colour class should follow the weight');
+
+  click({ setw: '0:3' });
+  assert.equal(ui.state.weights[0], 3, 'clicking the third star should set weight 3');
+  ui.render();
+  // The bug that started this: at weight 3 every star is filled, and if the filled
+  // glyph renders as nothing the tag shows no stars at all.
+  const pill = /<span class="dots pick w3">([\s\S]*?)<\/span>\s*<button class="rb"/
+    .exec(app.innerHTML);
+  assert.ok(pill, 'no star control at weight 3');
+  assert.equal((pill[1].match(/★/g) ?? []).length, 3,
+    'a three-star tag must show three visible stars');
+
+  // Out of range and empty slots must not corrupt state.
+  click({ setw: '0:9' });
+  assert.equal(ui.state.weights[0], 3, 'an out-of-range level should clamp, not apply');
+  const before = [...ui.state.weights];
+  click({ setw: '4:2' });
+  assert.deepEqual([...ui.state.weights], before, 'an empty slot should be ignored');
+});
+
+test('every star in the picker is its own click target', () => {
+  // One button per star, not one for the row -- otherwise "click the star you mean"
+  // silently degrades back to a single toggle.
+  const idx = ui.chips.findIndex(c => c.label === 'Armor' && c.ns === 'character');
+  ui.state.sel = ui.state.sel.map(() => null);
+  ui.state.sel[0] = idx;
+  ui.state.weights[0] = 2;
+  ui.state.mode = 1; ui.build(); ui.render();
+
+  // Anchored on the remove button that follows: the stars are spans too, so a
+  // non-greedy match would stop at the first nested closing tag.
+  const pill = /<span class="dots pick w2">([\s\S]*?)<\/span>\s*<button class="rb"/
+    .exec(app.innerHTML);
+  assert.ok(pill, 'no interactive star control rendered');
+  const targets = (pill[1].match(/data-setw="0:\d"/g) ?? []);
+  assert.equal(targets.length, 3, `expected 3 star targets, got ${targets.length}`);
+  assert.deepEqual(targets, ['data-setw="0:1"', 'data-setw="0:2"', 'data-setw="0:3"']);
+  // Assert the GLYPH, not a class name. The first version of this checked for
+  // `ti-star-filled`, which is absent from the Tabler webfont build the page loads --
+  // so the markup was "right" and every filled star rendered as nothing. A test that
+  // only reads class names cannot see that; counting the actual characters can.
+  assert.equal((pill[1].match(/★/g) ?? []).length, 2, 'two filled stars at weight 2');
+  assert.equal((pill[1].match(/☆/g) ?? []).length, 1, 'one empty star at weight 2');
+  assert.doesNotMatch(pill[1], /ti-star/,
+    'back on the icon font, whose filled star does not exist in this build');
+  // The colour rules target `span.on`; putting `on` anywhere else silently kills them.
+  assert.equal((pill[1].match(/<span class="on">/g) ?? []).length, 2,
+    'the on class must sit on the span the CSS targets');
+});
+
 test('a power pill shows a fixed target, not a weight control', () => {
   // Measured: a power tag's weight produces a byte-identical build at 1 dot and 3.
   // A control that does nothing is worse than no control.
@@ -1005,7 +1071,7 @@ test('a power pill shows a fixed target, not a weight control', () => {
   assert.match(h, /class="tgt"/, 'no target marker on the power pill');
   const slot = /<div class="slot full pow">[\s\S]*?<\/div>/.exec(h);
   assert.ok(slot, 'the power pill did not get its own styling');
-  assert.doesNotMatch(slot[0], /data-weight/,
+  assert.doesNotMatch(slot[0], /data-setw/,
     'a power pill still offers a weight control');
 });
 

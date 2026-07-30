@@ -54,9 +54,18 @@ don't fight: "Passives only" means *don't chase procs you didn't ask for*, and n
 is asking. Ask for Targo's Hammer on a passives build and you get exactly that — the
 hammer, and otherwise raw stats.
 
-**Set what matters most.** Each chosen tag has three dots — click to cycle 1, 2, 3.
-This is *relative* weight, so 1/1/1 and 3/3/3 give the same build; what counts is one
-tag being heavier than another. Two dots is the default.
+**Set what matters most.** Each chosen tag has three stars — **click the star you mean**.
+Click the first for low, the third for high; there's no cycling through.
+
+The colour tells you the level at a glance: **red** low, **amber** medium, **green** high.
+
+This is *relative* weight, so ★★★ / ★★★ / ★★★ gives the same build as ★☆☆ / ★☆☆ / ★☆☆.
+What counts is one tag being heavier than another. Two stars is the default.
+
+Treat it as emphasis rather than a ranking. Three levels is genuinely all the resolution
+there is — the planner buys whole constellations of four to seven stars at a time, so it
+can't finely trade one tag against another the way a slider would suggest. Nudging a tag
+up often helps; expecting a strict pecking order will disappoint.
 
 Fewer tags means a more focused build. Five tags spread across a 55-point budget give
 each one roughly five stars of support; three give each about seven. Neither is wrong,

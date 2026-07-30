@@ -126,6 +126,44 @@ Still open on this:
   pet powers or item skills are ever added it'll want a cheaper pre-filter — e.g. sum
   the minimum points of the chosen set and reject anything that cannot possibly fit.
 
+## Why the weight scale stays at three stars
+
+Asked whether to widen it to five, one per tag, so a build could express a strict
+ranking. Measured first, and the answer was no — the mechanism can't carry that much
+precision.
+
+Ordering 5 tags with distinct weights 1–5, then checking whether a heavier tag actually
+came out ahead (share of its own ceiling, so availability is normalised out):
+
+| weight gap | heavier tag ahead |
+|---|---|
+| +1 | **53%** |
+| +2 | 61% |
+| +3 | 68% |
+| +4 | 60% |
+
+A coin flip is 50%. Adjacent steps are noise, and widening to five would make each step
+*smaller* in relative terms — more false precision, not more control.
+
+**Why.** The objective maximises a weighted sum, and constellations are lumpy: no
+constellation carries both Cold Damage and Casting Speed, so weighting Casting Speed 5×
+still buys less total value than one more cold constellation. Weight competes with
+availability and availability wins.
+
+**A concave objective was prototyped** — swap `w × n` for `w × √n` so the tenth star of a
+served tag is worth less than the first of a starved one. It moved +1 from 53% to 56% and
+cut tags-on-zero from 15 to 12. Real but small, and not worth the complexity on its own.
+
+**The deeper reason it can't work.** The solver buys whole constellations of 4–7 stars,
+affinity-gated. That decision granularity is far coarser than a 5-level preference, so no
+amount of weight resolution survives it.
+
+**If a tag genuinely must be prominent, that wants a different control — a floor, not a
+weight.** Celestial power targeting already proves the pattern works: a named power is
+always delivered or explicitly reported as unmet, because it's a hard constraint rather
+than a term in a sum. The same shape would work for "this keyword must reach at least N
+stars", and it would do what more weight levels cannot.
+
 ## Smaller open questions
 
 - **Ticks returning with a constellation.** Progress is keyed constellation:star, so if
