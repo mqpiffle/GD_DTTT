@@ -1,0 +1,29 @@
+# --- Grim Dawn game data ------------------------------------------------------
+# devotions.raw.json is a verbatim extract of Crate Entertainment's DBR records.
+# Crate's stated position is that shipping core game databases copied out of the
+# install is not on, while your own derived records built with their toolset are
+# fine -- so the raw dump stays local and the derived index is committed.
+#
+# Regenerate it from your own legally owned installation:
+#   node scripts/extract.mjs <folder containing records/ and text/>
+devotions.raw.json
+
+# --- private working notes ----------------------------------------------------
+# The handoff doc: local paths, full bug narrative, internal reasoning.
+RESUME-HERE.md
+
+# --- build byproducts, not inputs ---------------------------------------------
+# Written by reconcile-labels.mjs and analyse-gaps.mjs while curating keywords.
+# Useful while working, meaningless to a reader.
+label-review.json
+gap-analysis.json
+*.lp
+devotion.sol
+
+# --- the usual ----------------------------------------------------------------
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

@@ -1,0 +1,161 @@
+# Future plans
+
+Ideas deliberately deferred. Near-term work lives in `RESUME-HERE.md` under **Next**;
+this is the further-out list, with enough reasoning recorded that a decision doesn't
+have to be re-derived later.
+
+---
+
+## Saved state: profiles and shareable builds
+
+Right now the tool keeps a single saved state in `localStorage` under
+`gd-devotion-planner:v1`, so planning a second character overwrites the first.
+
+Two ways forward, not mutually exclusive:
+
+**Named profiles.** Key saves by a user-supplied name (`gd-devotion-planner:v1:<slug>`)
+with a picker in the header. Solves the overwrite problem, stays offline, no URL
+length limits. Doesn't help anyone share a build.
+
+**URL-encoded builds.** Encode inputs — three chip ids, scoring mode, point cap — into
+the hash, so a build is a link. Shareable, bookmarkable, survives a cleared browser,
+and costs no storage. Progress ticks should stay in `localStorage` rather than the
+URL: a link is *the plan*, not *how far you've got*, and nobody wants to re-share a
+URL every time they buy a star.
+
+The likely answer is both: URL carries the plan, `localStorage` carries progress,
+keyed by the plan's hash so switching between two shared builds keeps each one's ticks.
+
+**Why it's safe to defer:** the storage key is versioned and `load()` ignores any
+payload whose `v` it doesn't recognise, so adding profiles later won't break saves
+already in the wild. Verified against a future-version payload in testing.
+
+---
+
+## Levelling-aware planning ("split constellation building")
+
+Take three stars of a constellation early for the passives, go elsewhere, come back
+later to complete it for the affinity.
+
+Worth being precise about what this does and doesn't buy:
+
+- **Not needed to reach a final 55-point build.** Partial takes grant no affinity, so
+  taking stars early unlocks nothing you couldn't unlock later — it only ties up
+  points sooner. Same endpoint either way.
+- **Genuinely valuable while levelling**, which is the actual use case. At level 30 you
+  have ~20 points, and one strong star from a constellation you'll finish at 80 often
+  beats committing six points now.
+
+What blocks it isn't the scheduler — `schedulePath()` already handles partial takes and
+the affinity-on-completion rule. It's that the objective has no notion of "value at 20
+points versus at 55". Cleanest route: solve at successive budgets (15/30/45/55) and
+merge. Each solve's set is usually a superset of the last; where it isn't, that's
+exactly where a split belongs.
+
+---
+
+## Time-indexed MILP (modelling Crossroads refunds)
+
+`milp.mjs` is a static set and can't represent a Crossroads bought to cross an affinity
+threshold and refunded once the constellations behind it stand alone. It therefore
+overpays by 1–3 points; `schedulePath()` recovers them afterwards.
+
+Doing it properly means indexing variables by time step, which multiplies the model
+size by the number of steps. Only worth it if the 1–3 point conservatism turns out to
+matter — measure before building.
+
+---
+
+## Showing actual stat values
+
+~66 fields have no literal label string. iagd composes them at runtime from
+`customtag_damage_13%` plus `DamageTypeTranslation`. Keyword *chips* already work
+(`fields.mjs` has `damageKeyword`), but printing "+42% Fire Damage" on a star needs
+that composition reimplemented, plus per-level stat values carried into the index.
+
+This also unlocks the honest version of power scoring: the real §7.5 objective is
+`frequency × stat value at level`, and having the values would let `power.mjs` drop its
+log-compression stand-in.
+
+---
+
+## Tag count
+
+Raised from 3 to 5 after measuring: coverage held (86% of requested tags served at 3
+tags, 91% at 5) and runtime grew sub-linearly (123ms to 177ms). The real cost is
+dilution — each tag gets ~7 stars of support at 3 tags, ~5.7 at 5 — which is
+arithmetic, not a flaw. The Coverage readout exists so that tradeoff is visible
+rather than hidden.
+
+Going beyond 5 is a one-line change (`MAX` in the UI; nothing in the libraries assumes
+a count). At 6 tags coverage was still 89%, so the ceiling is a judgement about how
+thin a build should be spread, not a technical limit.
+
+## Weighted target tags — DONE
+
+Implemented with a 1-3 dot control on each target pill (default 2, click to cycle).
+`src/lib/wanted.mjs` holds the shape and clamping; `score()`, `starValuer()` and the
+MILP's `starValue()` all multiply hits by weight.
+
+Both input shapes are accepted — `['id']` still works at the default weight — so the
+MILP scripts and older saved states didn't have to change in lockstep.
+
+Coverage is weight-aware: each row shows its dots, and a tag whose share of the stars
+falls well below its share of the total weight is flagged amber. That surfaces the case
+where a keyword simply can't be served proportionally — Contagion exists on two
+constellations in the whole tree, so weighting it 3/3 still returns 2 stars, and the
+amber says "swap the tag", not "the solver ignored you".
+
+Still open: **the bars count stars, not magnitude.** A star granting +2% counts the same
+as one granting +40%. Needs per-level stat values (see "Showing actual stat values");
+the two compound — weights say what you care about, magnitudes say what you got.
+
+## Celestial powers as target tags — DONE
+
+Implemented. 62 chips in a `Celestial Powers` category under Character, named after the
+power. See `RESUME-HERE.md` for how the two kinds of tag differ and why `min` matters.
+
+Still open on this:
+
+- **Powers have no ceiling row.** Coverage shows a tick rather than a bar, which is
+  right, but there's no sense of *how much* of the budget a power ate. "Fetid Pool: 3
+  points" would be more useful than "Affliction 3/7".
+- **Weights on power tags only break ties.** They decide which power is given up when
+  several can't fit, and nothing else. That's defensible but undocumented in the UI.
+- **`blockedPowers()` is O(candidates x schedule).** Fine at 62 and deferred, but if
+  pet powers or item skills are ever added it'll want a cheaper pre-filter — e.g. sum
+  the minimum points of the chosen set and reject anything that cannot possibly fit.
+
+## Smaller open questions
+
+- **Ticks returning with a constellation.** Progress is keyed constellation:star, so if
+  a rebuild drops a constellation and a later one brings it back, its ticks return.
+  Right if you genuinely bought those stars, wrong if you were only exploring. A
+  "clear progress" control separate from "reset" would settle it — worth using the
+  tool for a while first.
+- **Unspent points on sparse keywords.** "Requirement Reduction" only reaches 28/55
+  because nothing else scores. Needs a secondary objective to spend the remainder on
+  general stats once the chosen keywords are exhausted.
+- **`POWER_PRESSURE = 7.7`** now lives in `power.mjs` (was duplicated at 12 in three
+  files). Still a tuning knob, but no longer an arbitrary one: it was rescaled by the
+  measured 1.56x change in average power weight so that switching to tier scoring
+  altered the RATIO between tiers without altering how much powers matter overall.
+- **Within-tier power ranking is flat.** Every tier-2 power scores the same. Ranking
+  them against each other needs effect magnitudes per rank, which is the same blocker
+  as "Showing actual stat values" above. Until then, chance and cooldown are
+  deliberately ignored -- measured against tier they track it weakly or backwards.
+- **The tier weights are a judgement.** 1 : 1.66 : 2.30 is the geometric mean of flat
+  and cost-proportional; the reasoning is in `RESUME-HERE.md`. If real builds suggest
+  deep powers are still under- or over-valued, this is the table to move.
+- **Pet stats are quarantined** in `grants.petOwnStats` and ignored. Scoring an actual
+  pet build would mean converting them into player-facing value — a different objective,
+  not a bug.
+
+---
+
+## Repo hygiene, before anything goes public
+
+- `labels.json` derives from iagd's `StatTranslator/EnglishLanguage.cs`, which is MIT.
+  MIT requires carrying its copyright notice — add it.
+- `devotions.raw.json` and `ui-index.json` are extracted from Crate's game files.
+  Consider gitignoring them and having people generate from their own install.

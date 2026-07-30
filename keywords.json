@@ -1,0 +1,3264 @@
+{
+ "character": [
+  {
+   "id": "characterOffensiveAbility",
+   "keyword": "Offensive Ability",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Offensive Ability"
+   ],
+   "fields": [
+    "characterOffensiveAbility",
+    "characterOffensiveAbilityModifier"
+   ],
+   "starCount": 99,
+   "constellationCount": 52,
+   "passiveStarCount": 95,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterDefensiveAbility",
+   "keyword": "Defensive Ability",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Defensive Ability"
+   ],
+   "fields": [
+    "characterDefensiveAbility",
+    "characterDefensiveAbilityModifier"
+   ],
+   "starCount": 97,
+   "constellationCount": 61,
+   "passiveStarCount": 95,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterLife",
+   "keyword": "Health",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Health"
+   ],
+   "fields": [
+    "characterLife",
+    "characterLifeModifier"
+   ],
+   "starCount": 83,
+   "constellationCount": 53,
+   "passiveStarCount": 83,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "skillCooldownTime",
+   "keyword": "Skill Recharge",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Skill Recharge"
+   ],
+   "fields": [
+    "skillCooldownTime"
+   ],
+   "starCount": 57,
+   "constellationCount": 56,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveProtection",
+   "keyword": "Armor",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Armor"
+   ],
+   "fields": [
+    "defensiveProtection",
+    "defensiveProtectionModifier"
+   ],
+   "starCount": 48,
+   "constellationCount": 29,
+   "passiveStarCount": 43,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterStrength",
+   "keyword": "Physique",
+   "namespace": "character",
+   "category": "Attributes",
+   "merged": false,
+   "searchTerms": [
+    "Physique"
+   ],
+   "fields": [
+    "characterStrength",
+    "characterStrengthModifier"
+   ],
+   "starCount": 38,
+   "constellationCount": 31,
+   "passiveStarCount": 38,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensivePhysical",
+   "keyword": "Physical Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Physical Damage"
+   ],
+   "fields": [
+    "offensivePhysicalMax",
+    "offensivePhysicalMin",
+    "offensivePhysicalModifier"
+   ],
+   "starCount": 37,
+   "constellationCount": 17,
+   "passiveStarCount": 27,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "skillActiveDuration",
+   "keyword": "Skill Duration",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Skill Duration"
+   ],
+   "fields": [
+    "skillActiveDuration"
+   ],
+   "starCount": 33,
+   "constellationCount": 33,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "characterIntelligence",
+   "keyword": "Spirit",
+   "namespace": "character",
+   "category": "Attributes",
+   "merged": false,
+   "searchTerms": [
+    "Spirit"
+   ],
+   "fields": [
+    "characterIntelligence",
+    "characterIntelligenceModifier"
+   ],
+   "starCount": 31,
+   "constellationCount": 28,
+   "passiveStarCount": 31,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "retaliationTotalDamage",
+   "keyword": "Total Retaliation Damage",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Total Retaliation Damage"
+   ],
+   "fields": [
+    "retaliationTotalDamageModifier"
+   ],
+   "starCount": 29,
+   "constellationCount": 16,
+   "passiveStarCount": 26,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowBleeding",
+   "keyword": "Bleeding Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Damage"
+   ],
+   "fields": [
+    "offensiveSlowBleedingMin",
+    "offensiveSlowBleedingModifier"
+   ],
+   "starCount": 26,
+   "constellationCount": 11,
+   "passiveStarCount": 22,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterDexterity",
+   "keyword": "Cunning",
+   "namespace": "character",
+   "category": "Attributes",
+   "merged": false,
+   "searchTerms": [
+    "Cunning"
+   ],
+   "fields": [
+    "characterDexterity",
+    "characterDexterityModifier"
+   ],
+   "starCount": 26,
+   "constellationCount": 20,
+   "passiveStarCount": 26,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterManaRegen",
+   "keyword": "Energy Regeneration",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Energy Regeneration"
+   ],
+   "fields": [
+    "characterManaRegen",
+    "characterManaRegenModifier"
+   ],
+   "starCount": 24,
+   "constellationCount": 19,
+   "passiveStarCount": 22,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterLifeRegen",
+   "keyword": "Health Regeneration",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Health Regeneration"
+   ],
+   "fields": [
+    "characterLifeRegen",
+    "characterLifeRegenModifier"
+   ],
+   "starCount": 24,
+   "constellationCount": 13,
+   "passiveStarCount": 20,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensivePierce",
+   "keyword": "Pierce Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Pierce Damage"
+   ],
+   "fields": [
+    "offensivePierceMax",
+    "offensivePierceMin",
+    "offensivePierceModifier"
+   ],
+   "starCount": 24,
+   "constellationCount": 11,
+   "passiveStarCount": 20,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveLife",
+   "keyword": "Vitality Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Vitality Damage"
+   ],
+   "fields": [
+    "offensiveLifeMax",
+    "offensiveLifeMin",
+    "offensiveLifeModifier"
+   ],
+   "starCount": 23,
+   "constellationCount": 10,
+   "passiveStarCount": 16,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveAether",
+   "keyword": "Aether Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Aether Damage"
+   ],
+   "fields": [
+    "offensiveAetherMin",
+    "offensiveAetherModifier"
+   ],
+   "starCount": 22,
+   "constellationCount": 9,
+   "passiveStarCount": 18,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveFire",
+   "keyword": "Fire Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Fire Damage"
+   ],
+   "fields": [
+    "offensiveFireMax",
+    "offensiveFireMin",
+    "offensiveFireModifier"
+   ],
+   "starCount": 22,
+   "constellationCount": 8,
+   "passiveStarCount": 15,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowPhysical",
+   "keyword": "Internal Trauma Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Internal Trauma Damage"
+   ],
+   "fields": [
+    "offensiveSlowPhysicalMin",
+    "offensiveSlowPhysicalModifier"
+   ],
+   "starCount": 22,
+   "constellationCount": 11,
+   "passiveStarCount": 16,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveCold",
+   "keyword": "Cold Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Cold Damage"
+   ],
+   "fields": [
+    "offensiveColdMax",
+    "offensiveColdMin",
+    "offensiveColdModifier"
+   ],
+   "starCount": 21,
+   "constellationCount": 8,
+   "passiveStarCount": 17,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveChaos",
+   "keyword": "Chaos Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Chaos Damage"
+   ],
+   "fields": [
+    "offensiveChaosMax",
+    "offensiveChaosMin",
+    "offensiveChaosModifier"
+   ],
+   "starCount": 20,
+   "constellationCount": 7,
+   "passiveStarCount": 15,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveElemental",
+   "keyword": "Elemental Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Elemental Damage"
+   ],
+   "fields": [
+    "offensiveElementalMax",
+    "offensiveElementalMin",
+    "offensiveElementalModifier"
+   ],
+   "starCount": 20,
+   "constellationCount": 9,
+   "passiveStarCount": 18,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "projectileExplosionRadius",
+   "keyword": "Meter Radius",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Meter Radius"
+   ],
+   "fields": [
+    "projectileExplosionRadius"
+   ],
+   "starCount": 20,
+   "constellationCount": 20,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowPoison",
+   "keyword": "Poison Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Poison Damage"
+   ],
+   "fields": [
+    "offensiveSlowPoisonMin",
+    "offensiveSlowPoisonModifier"
+   ],
+   "starCount": 20,
+   "constellationCount": 7,
+   "passiveStarCount": 16,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "weaponDamagePct",
+   "keyword": "Weapon Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Weapon Damage"
+   ],
+   "fields": [
+    "weaponDamagePct"
+   ],
+   "starCount": 20,
+   "constellationCount": 20,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "characterRunSpeed",
+   "keyword": "Movement Speed",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Movement Speed"
+   ],
+   "fields": [
+    "characterRunSpeedModifier"
+   ],
+   "starCount": 19,
+   "constellationCount": 17,
+   "passiveStarCount": 17,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveLife",
+   "keyword": "Vitality Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Vitality Resistance"
+   ],
+   "fields": [
+    "defensiveLife"
+   ],
+   "starCount": 19,
+   "constellationCount": 19,
+   "passiveStarCount": 18,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowFire",
+   "keyword": "Burn Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Burn Damage"
+   ],
+   "fields": [
+    "offensiveSlowFireMin",
+    "offensiveSlowFireModifier"
+   ],
+   "starCount": 18,
+   "constellationCount": 11,
+   "passiveStarCount": 11,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowCold",
+   "keyword": "Frostburn Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Frostburn Damage"
+   ],
+   "fields": [
+    "offensiveSlowColdMin",
+    "offensiveSlowColdModifier"
+   ],
+   "starCount": 18,
+   "constellationCount": 11,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveLightning",
+   "keyword": "Lightning Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Lightning Damage"
+   ],
+   "fields": [
+    "offensiveLightningMax",
+    "offensiveLightningMin",
+    "offensiveLightningModifier"
+   ],
+   "starCount": 18,
+   "constellationCount": 7,
+   "passiveStarCount": 14,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensivePhysical",
+   "keyword": "Physical Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Physical Resistance"
+   ],
+   "fields": [
+    "defensivePhysical"
+   ],
+   "starCount": 18,
+   "constellationCount": 18,
+   "passiveStarCount": 16,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensivePoison",
+   "keyword": "Acid Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Acid Damage"
+   ],
+   "fields": [
+    "offensivePoisonMin",
+    "offensivePoisonModifier"
+   ],
+   "starCount": 17,
+   "constellationCount": 7,
+   "passiveStarCount": 14,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveBleeding",
+   "keyword": "Bleeding Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Resistance"
+   ],
+   "fields": [
+    "defensiveBleeding"
+   ],
+   "starCount": 17,
+   "constellationCount": 17,
+   "passiveStarCount": 16,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveElementalResistance",
+   "keyword": "Elemental Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Elemental Resistance"
+   ],
+   "fields": [
+    "defensiveElementalResistance"
+   ],
+   "starCount": 17,
+   "constellationCount": 17,
+   "passiveStarCount": 17,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveChaos",
+   "keyword": "Chaos Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Chaos Resistance"
+   ],
+   "fields": [
+    "defensiveChaos"
+   ],
+   "starCount": 16,
+   "constellationCount": 16,
+   "passiveStarCount": 15,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveCritDamage",
+   "keyword": "Crit Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Crit Damage"
+   ],
+   "fields": [
+    "offensiveCritDamageModifier"
+   ],
+   "starCount": 16,
+   "constellationCount": 15,
+   "passiveStarCount": 14,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "Crowd Control",
+   "keyword": "Crowd Control",
+   "namespace": "character",
+   "category": "Crowd Control",
+   "merged": true,
+   "searchTerms": [
+    "Crowd Control",
+    "Stun",
+    "Confuse",
+    "Petrify",
+    "Impaired Aim",
+    "Fumble",
+    "Knockdown",
+    "Freeze",
+    "Fear"
+   ],
+   "members": [
+    {
+     "family": "offensiveStun",
+     "keyword": "Stun"
+    },
+    {
+     "family": "offensiveConfusion",
+     "keyword": "Confuse"
+    },
+    {
+     "family": "offensivePetrify",
+     "keyword": "Petrify"
+    },
+    {
+     "family": "offensiveProjectileFumble",
+     "keyword": "Impaired Aim"
+    },
+    {
+     "family": "offensiveFumble",
+     "keyword": "Fumble"
+    },
+    {
+     "family": "offensiveKnockdown",
+     "keyword": "Knockdown"
+    },
+    {
+     "family": "offensiveFreeze",
+     "keyword": "Freeze"
+    },
+    {
+     "family": "retaliationFear",
+     "keyword": "Fear"
+    }
+   ],
+   "fields": [
+    "offensiveConfusionChance",
+    "offensiveConfusionMin",
+    "offensiveFreezeChance",
+    "offensiveFreezeMin",
+    "offensiveFumbleMin",
+    "offensiveKnockdownChance",
+    "offensiveKnockdownMax",
+    "offensiveKnockdownMin",
+    "offensivePetrifyChance",
+    "offensivePetrifyMin",
+    "offensiveProjectileFumbleMin",
+    "offensiveStunChance",
+    "offensiveStunMin",
+    "retaliationFearChance",
+    "retaliationFearMin"
+   ],
+   "starCount": 16,
+   "constellationCount": 16,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowLightning",
+   "keyword": "Electrocute Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Electrocute Damage"
+   ],
+   "fields": [
+    "offensiveSlowLightningMin",
+    "offensiveSlowLightningModifier"
+   ],
+   "starCount": 15,
+   "constellationCount": 10,
+   "passiveStarCount": 10,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveLifeLeech",
+   "keyword": "Life Steal",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Life Steal"
+   ],
+   "fields": [
+    "offensiveLifeLeechMin"
+   ],
+   "starCount": 15,
+   "constellationCount": 11,
+   "passiveStarCount": 9,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "skillTargetRadius",
+   "keyword": "Skill Radius",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Skill Radius"
+   ],
+   "fields": [
+    "skillTargetRadius"
+   ],
+   "starCount": 15,
+   "constellationCount": 15,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowLife",
+   "keyword": "Vitality Decay Damage",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Vitality Decay Damage"
+   ],
+   "fields": [
+    "offensiveSlowLifeMin",
+    "offensiveSlowLifeModifier"
+   ],
+   "starCount": 15,
+   "constellationCount": 7,
+   "passiveStarCount": 12,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterAttackSpeed",
+   "keyword": "Attack Speed",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Attack Speed"
+   ],
+   "fields": [
+    "characterAttackSpeedModifier"
+   ],
+   "starCount": 14,
+   "constellationCount": 11,
+   "passiveStarCount": 12,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensivePierce",
+   "keyword": "Pierce Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Pierce Resistance"
+   ],
+   "fields": [
+    "defensivePierce"
+   ],
+   "starCount": 14,
+   "constellationCount": 14,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveAether",
+   "keyword": "Aether Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Aether Resistance"
+   ],
+   "fields": [
+    "defensiveAether"
+   ],
+   "starCount": 13,
+   "constellationCount": 13,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowFireDuration",
+   "keyword": "Burn Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Burn Duration"
+   ],
+   "fields": [
+    "offensiveSlowFireDurationMin",
+    "offensiveSlowFireDurationModifier"
+   ],
+   "starCount": 13,
+   "constellationCount": 9,
+   "passiveStarCount": 6,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowPhysicalDuration",
+   "keyword": "Internal Trauma Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Internal Trauma Duration"
+   ],
+   "fields": [
+    "offensiveSlowPhysicalDurationMin",
+    "offensiveSlowPhysicalDurationModifier"
+   ],
+   "starCount": 13,
+   "constellationCount": 9,
+   "passiveStarCount": 8,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveTotalDamage",
+   "keyword": "Total Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Total Damage"
+   ],
+   "fields": [
+    "offensiveTotalDamageModifier"
+   ],
+   "starCount": 13,
+   "constellationCount": 10,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowBleedingDuration",
+   "keyword": "Bleeding Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Duration"
+   ],
+   "fields": [
+    "offensiveSlowBleedingDurationMin",
+    "offensiveSlowBleedingDurationModifier"
+   ],
+   "starCount": 12,
+   "constellationCount": 9,
+   "passiveStarCount": 8,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterSpellCastSpeed",
+   "keyword": "Casting Speed",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Casting Speed"
+   ],
+   "fields": [
+    "characterSpellCastSpeedModifier"
+   ],
+   "starCount": 12,
+   "constellationCount": 10,
+   "passiveStarCount": 10,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterMana",
+   "keyword": "Energy",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Energy"
+   ],
+   "fields": [
+    "characterMana",
+    "characterManaModifier"
+   ],
+   "starCount": 12,
+   "constellationCount": 10,
+   "passiveStarCount": 12,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveTotalSpeedResistance",
+   "keyword": "Slow Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Slow Resistance"
+   ],
+   "fields": [
+    "defensiveTotalSpeedResistance"
+   ],
+   "starCount": 12,
+   "constellationCount": 11,
+   "passiveStarCount": 10,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensivePoison",
+   "keyword": "Acid Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Acid Resistance"
+   ],
+   "fields": [
+    "defensivePoison"
+   ],
+   "starCount": 11,
+   "constellationCount": 11,
+   "passiveStarCount": 10,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "Enemy Debuffs",
+   "keyword": "Enemy Debuffs",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": true,
+   "searchTerms": [
+    "Enemy Debuffs",
+    "Reduce Enemy Defensive Ability",
+    "Reduce Enemy Offensive Ability",
+    "Slow Enemies",
+    "Slow Enemy Total Speed",
+    "Reduce Enemy Damage",
+    "Reduce Enemy Attack Speed"
+   ],
+   "members": [
+    {
+     "family": "offensiveSlowDefensiveAbility",
+     "keyword": "Reduce Enemy Defensive Ability"
+    },
+    {
+     "family": "offensiveSlowOffensiveAbility",
+     "keyword": "Reduce Enemy Offensive Ability"
+    },
+    {
+     "family": "offensiveSlowRunSpeed",
+     "keyword": "Slow Enemies"
+    },
+    {
+     "family": "offensiveSlowTotalSpeed",
+     "keyword": "Slow Enemy Total Speed"
+    },
+    {
+     "family": "offensiveTotalDamageReductionPercent",
+     "keyword": "Reduce Enemy Damage"
+    },
+    {
+     "family": "offensiveSlowAttackSpeed",
+     "keyword": "Reduce Enemy Attack Speed"
+    }
+   ],
+   "fields": [
+    "offensiveSlowAttackSpeedMin",
+    "offensiveSlowDefensiveAbilityMin",
+    "offensiveSlowOffensiveAbilityMin",
+    "offensiveSlowRunSpeedMin",
+    "offensiveSlowTotalSpeedMin",
+    "offensiveTotalDamageReductionPercentMin"
+   ],
+   "starCount": 11,
+   "constellationCount": 11,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveBlockAmount",
+   "keyword": "Shield Damage Blocked",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Shield Damage Blocked"
+   ],
+   "fields": [
+    "defensiveBlockAmountModifier"
+   ],
+   "starCount": 11,
+   "constellationCount": 6,
+   "passiveStarCount": 10,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveStun",
+   "keyword": "Stun Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Stun Resistance"
+   ],
+   "fields": [
+    "defensiveStun"
+   ],
+   "starCount": 11,
+   "constellationCount": 11,
+   "passiveStarCount": 11,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowColdDuration",
+   "keyword": "Frostburn Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Frostburn Duration"
+   ],
+   "fields": [
+    "offensiveSlowColdDurationMin",
+    "offensiveSlowColdDurationModifier"
+   ],
+   "starCount": 10,
+   "constellationCount": 7,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "projectilePiercing",
+   "keyword": "Pass Through Enemies",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Pass Through Enemies"
+   ],
+   "fields": [
+    "projectilePiercingChance"
+   ],
+   "starCount": 10,
+   "constellationCount": 10,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "retaliationPoison",
+   "keyword": "Acid Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Acid Retaliation"
+   ],
+   "fields": [
+    "retaliationPoisonMin",
+    "retaliationPoisonModifier"
+   ],
+   "starCount": 9,
+   "constellationCount": 4,
+   "passiveStarCount": 9,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "racialBonusPercentDamage",
+   "keyword": "Damage to Creature Type",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Damage to Creature Type"
+   ],
+   "fields": [
+    "racialBonusPercentDamage"
+   ],
+   "starCount": 9,
+   "constellationCount": 8,
+   "passiveStarCount": 8,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterHealIncreasePercent",
+   "keyword": "Healing Effects",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Healing Effects"
+   ],
+   "fields": [
+    "characterHealIncreasePercent"
+   ],
+   "starCount": 9,
+   "constellationCount": 9,
+   "passiveStarCount": 8,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowPoisonDuration",
+   "keyword": "Poison Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Poison Duration"
+   ],
+   "fields": [
+    "offensiveSlowPoisonDurationMin",
+    "offensiveSlowPoisonDurationModifier"
+   ],
+   "starCount": 9,
+   "constellationCount": 6,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowLightningDuration",
+   "keyword": "Electrocute Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Electrocute Duration"
+   ],
+   "fields": [
+    "offensiveSlowLightningDurationMin",
+    "offensiveSlowLightningDurationModifier"
+   ],
+   "starCount": 8,
+   "constellationCount": 7,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveFreeze",
+   "keyword": "Freeze Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Freeze Resistance"
+   ],
+   "fields": [
+    "defensiveFreeze"
+   ],
+   "starCount": 8,
+   "constellationCount": 8,
+   "passiveStarCount": 8,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "retaliationPhysical",
+   "keyword": "Physical Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Physical Retaliation"
+   ],
+   "fields": [
+    "retaliationPhysicalMax",
+    "retaliationPhysicalMin",
+    "retaliationPhysicalModifier"
+   ],
+   "starCount": 8,
+   "constellationCount": 6,
+   "passiveStarCount": 6,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensivePercentReflectionResistance",
+   "keyword": "Reflect Reduction",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Reflect Reduction"
+   ],
+   "fields": [
+    "defensivePercentReflectionResistance"
+   ],
+   "starCount": 7,
+   "constellationCount": 7,
+   "passiveStarCount": 7,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterTotalSpeed",
+   "keyword": "Total Speed",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Total Speed"
+   ],
+   "fields": [
+    "characterTotalSpeedModifier"
+   ],
+   "starCount": 7,
+   "constellationCount": 7,
+   "passiveStarCount": 6,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowLifeDuration",
+   "keyword": "Vitality Decay Duration",
+   "namespace": "character",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Vitality Decay Duration"
+   ],
+   "fields": [
+    "offensiveSlowLifeDurationMin",
+    "offensiveSlowLifeDurationModifier"
+   ],
+   "starCount": 7,
+   "constellationCount": 4,
+   "passiveStarCount": 6,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveTrap",
+   "keyword": "Entrapment Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Entrapment Resistance"
+   ],
+   "fields": [
+    "defensiveTrap"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "retaliationFire",
+   "keyword": "Fire Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Fire Retaliation"
+   ],
+   "fields": [
+    "retaliationFireMin",
+    "retaliationFireModifier"
+   ],
+   "starCount": 6,
+   "constellationCount": 2,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "Requirement Reduction",
+   "keyword": "Requirement Reduction",
+   "namespace": "character",
+   "category": "Requirement Reduction",
+   "merged": true,
+   "searchTerms": [
+    "Requirement Reduction",
+    "Armor Physique Req.",
+    "Jewelry Spirit Req.",
+    "Weapon Spirit Req.",
+    "Ranged Cunning Req.",
+    "Melee Cunning Req.",
+    "Melee Physique Req.",
+    "Shield Physique Req."
+   ],
+   "members": [
+    {
+     "family": "characterArmorStrengthReqReduction",
+     "keyword": "Armor Physique Req."
+    },
+    {
+     "family": "characterJewelryIntelligenceReqReduction",
+     "keyword": "Jewelry Spirit Req."
+    },
+    {
+     "family": "characterWeaponIntelligenceReqReduction",
+     "keyword": "Weapon Spirit Req."
+    },
+    {
+     "family": "characterHuntingDexterityReqReduction",
+     "keyword": "Ranged Cunning Req."
+    },
+    {
+     "family": "characterMeleeDexterityReqReduction",
+     "keyword": "Melee Cunning Req."
+    },
+    {
+     "family": "characterMeleeStrengthReqReduction",
+     "keyword": "Melee Physique Req."
+    },
+    {
+     "family": "characterShieldStrengthReqReduction",
+     "keyword": "Shield Physique Req."
+    }
+   ],
+   "fields": [
+    "characterArmorStrengthReqReduction",
+    "characterHuntingDexterityReqReduction",
+    "characterJewelryIntelligenceReqReduction",
+    "characterMeleeDexterityReqReduction",
+    "characterMeleeStrengthReqReduction",
+    "characterShieldStrengthReqReduction",
+    "characterWeaponIntelligenceReqReduction"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 6,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "Resistance Reduction",
+   "keyword": "Resistance Reduction",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": true,
+   "searchTerms": [
+    "Resistance Reduction",
+    "Elemental Resist Reduction (%)",
+    "Elemental Resist Reduction (flat)",
+    "Resistance Reduction (flat)",
+    "Physical Resist Reduction"
+   ],
+   "members": [
+    {
+     "family": "offensiveElementalResistanceReductionPercent",
+     "keyword": "Elemental Resist Reduction (%)"
+    },
+    {
+     "family": "offensiveElementalResistanceReductionAbsolute",
+     "keyword": "Elemental Resist Reduction (flat)"
+    },
+    {
+     "family": "offensiveTotalResistanceReductionAbsolute",
+     "keyword": "Resistance Reduction (flat)"
+    },
+    {
+     "family": "offensivePhysicalReductionPercent",
+     "keyword": "Physical Resist Reduction"
+    }
+   ],
+   "fields": [
+    "offensiveElementalResistanceReductionAbsoluteMin",
+    "offensiveElementalResistanceReductionPercentMin",
+    "offensivePhysicalReductionPercentMin",
+    "offensiveTotalResistanceReductionAbsoluteMin"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "Damage Absorption",
+   "keyword": "Damage Absorption",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": true,
+   "searchTerms": [
+    "Damage Absorption"
+   ],
+   "members": [
+    {
+     "family": "damageAbsorption",
+     "keyword": "Damage Absorption"
+    },
+    {
+     "family": "damageAbsorptionPercent",
+     "keyword": "Damage Absorption"
+    }
+   ],
+   "fields": [
+    "damageAbsorption",
+    "damageAbsorptionPercent"
+   ],
+   "starCount": 5,
+   "constellationCount": 5,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "characterDodgePercent",
+   "keyword": "Melee Dodge",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Melee Dodge"
+   ],
+   "fields": [
+    "characterDodgePercent"
+   ],
+   "starCount": 5,
+   "constellationCount": 5,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "skillProjectileNumber",
+   "keyword": "Projectile",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Projectile"
+   ],
+   "fields": [
+    "skillProjectileNumber"
+   ],
+   "starCount": 5,
+   "constellationCount": 5,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveBlock",
+   "keyword": "Shield Block Chance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Shield Block Chance"
+   ],
+   "fields": [
+    "defensiveBlockModifier"
+   ],
+   "starCount": 5,
+   "constellationCount": 4,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "retaliationDamagePct",
+   "keyword": "Weapon Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Weapon Retaliation"
+   ],
+   "fields": [
+    "retaliationDamagePct"
+   ],
+   "starCount": 5,
+   "constellationCount": 5,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "Health Restored",
+   "keyword": "Health Restored",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": true,
+   "searchTerms": [
+    "Health Restored"
+   ],
+   "members": [
+    {
+     "family": "skillLifeBonus",
+     "keyword": "Health Restored"
+    },
+    {
+     "family": "skillLifePercent",
+     "keyword": "Health Restored"
+    }
+   ],
+   "fields": [
+    "skillLifeBonus",
+    "skillLifePercent"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveSlowLifeLeach",
+   "keyword": "Life Leech Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Life Leech Resistance"
+   ],
+   "fields": [
+    "defensiveSlowLifeLeach"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "characterDeflectProjectile",
+   "keyword": "Projectile Deflect",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Projectile Deflect"
+   ],
+   "fields": [
+    "characterDeflectProjectile"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "characterDefensiveBlockRecoveryReduction",
+   "keyword": "Shield Recovery Time",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Shield Recovery Time"
+   ],
+   "fields": [
+    "characterDefensiveBlockRecoveryReduction"
+   ],
+   "starCount": 4,
+   "constellationCount": 3,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "DoT Duration Resistance",
+   "keyword": "DoT Duration Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": true,
+   "searchTerms": [
+    "DoT Duration Resistance",
+    "Bleeding Duration Resist",
+    "Poison Duration Resist",
+    "Frost Duration Resist",
+    "Burn Duration Resist",
+    "Vitality Decay Duration Resist",
+    "Electrocute Duration Resist",
+    "Trauma Duration Resist",
+    "Life Leech Duration Resist"
+   ],
+   "members": [
+    {
+     "family": "defensiveBleedingDuration",
+     "keyword": "Bleeding Duration Resist"
+    },
+    {
+     "family": "defensivePoisonDuration",
+     "keyword": "Poison Duration Resist"
+    },
+    {
+     "family": "defensiveColdDuration",
+     "keyword": "Frost Duration Resist"
+    },
+    {
+     "family": "defensiveFireDuration",
+     "keyword": "Burn Duration Resist"
+    },
+    {
+     "family": "defensiveLifeDuration",
+     "keyword": "Vitality Decay Duration Resist"
+    },
+    {
+     "family": "defensiveLightningDuration",
+     "keyword": "Electrocute Duration Resist"
+    },
+    {
+     "family": "defensivePhysicalDuration",
+     "keyword": "Trauma Duration Resist"
+    },
+    {
+     "family": "defensiveSlowLifeLeachDuration",
+     "keyword": "Life Leech Duration Resist"
+    }
+   ],
+   "fields": [
+    "defensiveBleedingDuration",
+    "defensiveColdDuration",
+    "defensiveFireDuration",
+    "defensiveLifeDuration",
+    "defensiveLightningDuration",
+    "defensivePhysicalDuration",
+    "defensivePoisonDuration",
+    "defensiveSlowLifeLeachDuration"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterEnergyAbsorptionPercent",
+   "keyword": "Energy Absorption",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Energy Absorption"
+   ],
+   "fields": [
+    "characterEnergyAbsorptionPercent"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowManaLeach",
+   "keyword": "Energy Leech",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Energy Leech"
+   ],
+   "fields": [
+    "offensiveSlowManaLeachChance",
+    "offensiveSlowManaLeachMin"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowManaLeachDuration",
+   "keyword": "Energy Leech for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Energy Leech for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowManaLeachDurationMin"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePetrify",
+   "keyword": "Petrify Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Petrify Resistance"
+   ],
+   "fields": [
+    "defensivePetrify"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowDefensiveAbilityDuration",
+   "keyword": "Reduced Defensive Ability for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Defensive Ability for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowDefensiveAbilityDurationMin"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveAbsorption",
+   "keyword": "Armor Absorption",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Armor Absorption"
+   ],
+   "fields": [
+    "defensiveAbsorptionModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "characterConstitution",
+   "keyword": "Constitution",
+   "namespace": "character",
+   "category": "Attributes",
+   "merged": false,
+   "searchTerms": [
+    "Constitution"
+   ],
+   "fields": [
+    "characterConstitutionModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "Contagion",
+   "keyword": "Contagion",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": true,
+   "searchTerms": [
+    "Contagion",
+    "Contagion Interval",
+    "Contagion Targets",
+    "Contagion Spread",
+    "Contagion Radius"
+   ],
+   "members": [
+    {
+     "family": "contagionInterval",
+     "keyword": "Contagion Interval"
+    },
+    {
+     "family": "contagionLimit",
+     "keyword": "Contagion Targets"
+    },
+    {
+     "family": "contagionMaxSpread",
+     "keyword": "Contagion Spread"
+    },
+    {
+     "family": "contagionRadius",
+     "keyword": "Contagion Radius"
+    }
+   ],
+   "fields": [
+    "contagionInterval",
+    "contagionLimit",
+    "contagionMaxSpread",
+    "contagionRadius"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveProjectileFumbleDuration",
+   "keyword": "Impaired Aim for Seconds",
+   "namespace": "character",
+   "category": "Crowd Control",
+   "merged": false,
+   "searchTerms": [
+    "Impaired Aim for Seconds"
+   ],
+   "fields": [
+    "offensiveProjectileFumbleDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "racialBonusPercentDefense",
+   "keyword": "Less Damage From",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Less Damage From"
+   ],
+   "fields": [
+    "racialBonusPercentDefense"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "characterRunSpeedMax",
+   "keyword": "Maximum Movement Speed",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Movement Speed"
+   ],
+   "fields": [
+    "characterRunSpeedMaxModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 1,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePierceMaxResist",
+   "keyword": "Maximum Pierce Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Pierce Resistance"
+   ],
+   "fields": [
+    "defensivePierceMaxResist"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveTotalDamageReductionPercentDuration",
+   "keyword": "Reduced Damage for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Damage for Seconds"
+   ],
+   "fields": [
+    "offensiveTotalDamageReductionPercentDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveElementalResistanceReductionPercentDuration",
+   "keyword": "Reduced Elemental Resistance for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Elemental Resistance for Seconds"
+   ],
+   "fields": [
+    "offensiveElementalResistanceReductionPercentDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowOffensiveAbilityDuration",
+   "keyword": "Reduced Offensive Ability for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Offensive Ability for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowOffensiveAbilityDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveTotalResistanceReductionAbsoluteDuration",
+   "keyword": "Reduced Resistances for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Resistances for Seconds"
+   ],
+   "fields": [
+    "offensiveTotalResistanceReductionAbsoluteDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveDisruption",
+   "keyword": "Skill Disruption Protection",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Skill Disruption Protection"
+   ],
+   "fields": [
+    "defensiveDisruption"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowRunSpeedDuration",
+   "keyword": "Slowed for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Slowed for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowRunSpeedDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowTotalSpeedDuration",
+   "keyword": "Slowed Total Speed for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Slowed Total Speed for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowTotalSpeedDurationMin"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "spark",
+   "keyword": "Chain Targets",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Chain Targets"
+   ],
+   "fields": [
+    "sparkChance"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveLightningModifier",
+   "keyword": "Chance of Lightning Damage",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Chance of Lightning Damage"
+   ],
+   "fields": [
+    "offensiveLightningModifierChance"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "retaliationChaos",
+   "keyword": "Chaos Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Chaos Retaliation"
+   ],
+   "fields": [
+    "retaliationChaosMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "dispelDamageOverTime",
+   "keyword": "Cleanse DoT",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Cleanse DoT"
+   ],
+   "fields": [
+    "dispelDamageOverTime"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensiveCold",
+   "keyword": "Cold Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Cold Resistance"
+   ],
+   "fields": [
+    "defensiveCold"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "conversionPercentage",
+   "keyword": "Damage Conversion",
+   "namespace": "character",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Damage Conversion"
+   ],
+   "fields": [
+    "conversionPercentage"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "skillManaCostReduction",
+   "keyword": "Energy Cost",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Energy Cost"
+   ],
+   "fields": [
+    "skillManaCostReduction"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveSlowManaLeach",
+   "keyword": "Energy Leech Resistance",
+   "namespace": "character",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Energy Leech Resistance"
+   ],
+   "fields": [
+    "defensiveSlowManaLeach"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveFire",
+   "keyword": "Fire Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Fire Resistance"
+   ],
+   "fields": [
+    "defensiveFire"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveFumbleDuration",
+   "keyword": "Fumble for Seconds",
+   "namespace": "character",
+   "category": "Crowd Control",
+   "merged": false,
+   "searchTerms": [
+    "Fumble for Seconds"
+   ],
+   "fields": [
+    "offensiveFumbleDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "retaliationLightning",
+   "keyword": "Lightning Retaliation",
+   "namespace": "character",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Lightning Retaliation"
+   ],
+   "fields": [
+    "retaliationLightningMax",
+    "retaliationLightningMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePoisonMaxResist",
+   "keyword": "Maximum Acid Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Acid Resistance"
+   ],
+   "fields": [
+    "defensivePoisonMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveAetherMaxResist",
+   "keyword": "Maximum Aether Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Aether Resistance"
+   ],
+   "fields": [
+    "defensiveAetherMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveBleedingMaxResist",
+   "keyword": "Maximum Bleeding Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Bleeding Resistance"
+   ],
+   "fields": [
+    "defensiveBleedingMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveChaosMaxResist",
+   "keyword": "Maximum Chaos Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Chaos Resistance"
+   ],
+   "fields": [
+    "defensiveChaosMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveColdMaxResist",
+   "keyword": "Maximum Cold Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Cold Resistance"
+   ],
+   "fields": [
+    "defensiveColdMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveFireMaxResist",
+   "keyword": "Maximum Fire Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Fire Resistance"
+   ],
+   "fields": [
+    "defensiveFireMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveLightningMaxResist",
+   "keyword": "Maximum Lightning Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Lightning Resistance"
+   ],
+   "fields": [
+    "defensiveLightningMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveLifeMaxResist",
+   "keyword": "Maximum Vitality Resistance",
+   "namespace": "character",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Maximum Vitality Resistance"
+   ],
+   "fields": [
+    "defensiveLifeMaxResist"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowAttackSpeedDuration",
+   "keyword": "Reduced Attack Speed for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Attack Speed for Seconds"
+   ],
+   "fields": [
+    "offensiveSlowAttackSpeedDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveElementalResistanceReductionAbsoluteDuration",
+   "keyword": "Reduced Elemental Resistance for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Elemental Resistance for Seconds"
+   ],
+   "fields": [
+    "offensiveElementalResistanceReductionAbsoluteDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensivePhysicalReductionPercentDuration",
+   "keyword": "Reduced Physical Resistance for Seconds",
+   "namespace": "character",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Physical Resistance for Seconds"
+   ],
+   "fields": [
+    "offensivePhysicalReductionPercentDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "skillTargetNumber",
+   "keyword": "Target Cap",
+   "namespace": "character",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Target Cap"
+   ],
+   "fields": [
+    "skillTargetNumber"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  }
+ ],
+ "pet": [
+  {
+   "id": "offensiveTotalDamage",
+   "keyword": "Total Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Total Damage"
+   ],
+   "fields": [
+    "offensiveTotalDamageModifier"
+   ],
+   "starCount": 31,
+   "constellationCount": 17,
+   "passiveStarCount": 30,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterOffensiveAbility",
+   "keyword": "Offensive Ability",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Offensive Ability"
+   ],
+   "fields": [
+    "characterOffensiveAbility",
+    "characterOffensiveAbilityModifier"
+   ],
+   "starCount": 15,
+   "constellationCount": 11,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterLife",
+   "keyword": "Health",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Health"
+   ],
+   "fields": [
+    "characterLifeModifier"
+   ],
+   "starCount": 13,
+   "constellationCount": 10,
+   "passiveStarCount": 13,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveCritDamage",
+   "keyword": "Crit Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Crit Damage"
+   ],
+   "fields": [
+    "offensiveCritDamageModifier"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterDefensiveAbility",
+   "keyword": "Defensive Ability",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Defensive Ability"
+   ],
+   "fields": [
+    "characterDefensiveAbility",
+    "characterDefensiveAbilityModifier"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "petLimit",
+   "keyword": "Summon Limit",
+   "namespace": "pet",
+   "category": "Summons",
+   "merged": false,
+   "searchTerms": [
+    "Summon Limit"
+   ],
+   "fields": [
+    "petLimit"
+   ],
+   "starCount": 6,
+   "constellationCount": 6,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "defensivePoison",
+   "keyword": "Acid Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Acid Resistance"
+   ],
+   "fields": [
+    "defensivePoison"
+   ],
+   "starCount": 5,
+   "constellationCount": 5,
+   "passiveStarCount": 5,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensiveSlowBleeding",
+   "keyword": "Bleeding Damage",
+   "namespace": "pet",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Damage"
+   ],
+   "fields": [
+    "offensiveSlowBleedingMin",
+    "offensiveSlowBleedingModifier"
+   ],
+   "starCount": 5,
+   "constellationCount": 3,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveElementalResistance",
+   "keyword": "Elemental Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Elemental Resistance"
+   ],
+   "fields": [
+    "defensiveElementalResistance"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "characterLifeRegen",
+   "keyword": "Health Regeneration",
+   "namespace": "pet",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Health Regeneration"
+   ],
+   "fields": [
+    "characterLifeRegen",
+    "characterLifeRegenModifier"
+   ],
+   "starCount": 4,
+   "constellationCount": 2,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveStun",
+   "keyword": "Stun Resistance",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Stun Resistance"
+   ],
+   "fields": [
+    "defensiveStun"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveLife",
+   "keyword": "Vitality Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Vitality Resistance"
+   ],
+   "fields": [
+    "defensiveLife"
+   ],
+   "starCount": 4,
+   "constellationCount": 4,
+   "passiveStarCount": 4,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveBleeding",
+   "keyword": "Bleeding Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Resistance"
+   ],
+   "fields": [
+    "defensiveBleeding"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensiveChaos",
+   "keyword": "Chaos Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Chaos Resistance"
+   ],
+   "fields": [
+    "defensiveChaos"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensivePhysical",
+   "keyword": "Physical Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Physical Damage"
+   ],
+   "fields": [
+    "offensivePhysicalMin",
+    "offensivePhysicalModifier"
+   ],
+   "starCount": 3,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "defensivePierce",
+   "keyword": "Pierce Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Pierce Resistance"
+   ],
+   "fields": [
+    "defensivePierce"
+   ],
+   "starCount": 3,
+   "constellationCount": 3,
+   "passiveStarCount": 3,
+   "procOnly": false,
+   "browsable": true
+  },
+  {
+   "id": "offensivePoison",
+   "keyword": "Acid Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Acid Damage"
+   ],
+   "fields": [
+    "offensivePoisonModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 1,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveAether",
+   "keyword": "Aether Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Aether Damage"
+   ],
+   "fields": [
+    "offensiveAetherModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 1,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveAether",
+   "keyword": "Aether Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Aether Resistance"
+   ],
+   "fields": [
+    "defensiveAether"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveProtection",
+   "keyword": "Armor",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Armor"
+   ],
+   "fields": [
+    "defensiveProtection"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveTrap",
+   "keyword": "Entrapment Resistance",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Entrapment Resistance"
+   ],
+   "fields": [
+    "defensiveTrap"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveFreeze",
+   "keyword": "Freeze Resistance",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Freeze Resistance"
+   ],
+   "fields": [
+    "defensiveFreeze"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePhysical",
+   "keyword": "Physical Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Physical Resistance"
+   ],
+   "fields": [
+    "defensivePhysical"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowPoison",
+   "keyword": "Poison Damage",
+   "namespace": "pet",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Poison Damage"
+   ],
+   "fields": [
+    "offensiveSlowPoisonModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 1,
+   "passiveStarCount": 2,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "petBurstSpawn",
+   "keyword": "Summoned",
+   "namespace": "pet",
+   "category": "Summons",
+   "merged": false,
+   "searchTerms": [
+    "Summoned"
+   ],
+   "fields": [
+    "petBurstSpawn"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "characterTotalSpeed",
+   "keyword": "Total Speed",
+   "namespace": "pet",
+   "category": "Utility",
+   "merged": false,
+   "searchTerms": [
+    "Total Speed"
+   ],
+   "fields": [
+    "characterTotalSpeedModifier"
+   ],
+   "starCount": 2,
+   "constellationCount": 2,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "characterAttackSpeed",
+   "keyword": "Attack Speed",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Attack Speed"
+   ],
+   "fields": [
+    "characterAttackSpeedModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveSlowBleedingDuration",
+   "keyword": "Bleeding Duration",
+   "namespace": "pet",
+   "category": "Damage over Time",
+   "merged": false,
+   "searchTerms": [
+    "Bleeding Duration"
+   ],
+   "fields": [
+    "offensiveSlowBleedingDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveChaos",
+   "keyword": "Chaos Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Chaos Damage"
+   ],
+   "fields": [
+    "offensiveChaosModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensiveConvert",
+   "keyword": "Conversion Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Conversion Resistance"
+   ],
+   "fields": [
+    "defensiveConvert"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "Crowd Control",
+   "keyword": "Crowd Control",
+   "namespace": "pet",
+   "category": "Crowd Control",
+   "merged": true,
+   "searchTerms": [
+    "Crowd Control",
+    "Taunt"
+   ],
+   "members": [
+    {
+     "family": "offensiveTaunt",
+     "keyword": "Taunt"
+    }
+   ],
+   "fields": [
+    "offensiveTauntMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "offensiveElemental",
+   "keyword": "Elemental Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Elemental Damage"
+   ],
+   "fields": [
+    "offensiveElementalModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveFire",
+   "keyword": "Fire Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Fire Damage"
+   ],
+   "fields": [
+    "offensiveFireModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePercentCurrentLife",
+   "keyword": "Life Reduction Resistance",
+   "namespace": "pet",
+   "category": "Resistances",
+   "merged": false,
+   "searchTerms": [
+    "Life Reduction Resistance"
+   ],
+   "fields": [
+    "defensivePercentCurrentLife"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveLifeLeech",
+   "keyword": "Life Steal",
+   "namespace": "pet",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Life Steal"
+   ],
+   "fields": [
+    "offensiveLifeLeechMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveLightning",
+   "keyword": "Lightning Damage",
+   "namespace": "pet",
+   "category": "Offense",
+   "merged": false,
+   "searchTerms": [
+    "Lightning Damage"
+   ],
+   "fields": [
+    "offensiveLightningModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "defensivePetrify",
+   "keyword": "Petrify Resistance",
+   "namespace": "pet",
+   "category": "Defense",
+   "merged": false,
+   "searchTerms": [
+    "Petrify Resistance"
+   ],
+   "fields": [
+    "defensivePetrify"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 1,
+   "procOnly": false,
+   "browsable": false
+  },
+  {
+   "id": "offensiveTotalResistanceReductionAbsoluteDuration",
+   "keyword": "Reduced Resistances for Seconds",
+   "namespace": "pet",
+   "category": "Debuffs",
+   "merged": false,
+   "searchTerms": [
+    "Reduced Resistances for Seconds"
+   ],
+   "fields": [
+    "offensiveTotalResistanceReductionAbsoluteDurationMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "Resistance Reduction",
+   "keyword": "Resistance Reduction",
+   "namespace": "pet",
+   "category": "Debuffs",
+   "merged": true,
+   "searchTerms": [
+    "Resistance Reduction",
+    "Resistance Reduction (flat)"
+   ],
+   "members": [
+    {
+     "family": "offensiveTotalResistanceReductionAbsolute",
+     "keyword": "Resistance Reduction (flat)"
+    }
+   ],
+   "fields": [
+    "offensiveTotalResistanceReductionAbsoluteMin"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
+   "id": "retaliationTotalDamage",
+   "keyword": "Total Retaliation Damage",
+   "namespace": "pet",
+   "category": "Retaliation",
+   "merged": false,
+   "searchTerms": [
+    "Total Retaliation Damage"
+   ],
+   "fields": [
+    "retaliationTotalDamageModifier"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  }
+ ]
+}

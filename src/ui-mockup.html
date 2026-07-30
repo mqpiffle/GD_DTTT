@@ -1,0 +1,1426 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GD_DTTT — Grim Dawn Devotion Theory-craft and Tracker Tool</title>
+<!--
+  Standalone mockup of the keyword picker. Reads ui-index.json (built by
+  scripts/build-ui-index.mjs) rather than inlining data, so it stays in sync
+  with the extraction.
+
+  Serve it, don't open with file:// -- fetch() needs an origin:
+      cd devotion-planner && python3 -m http.server 8080
+      open http://localhost:8080/src/ui-mockup.html
+
+  From WSL, the repo lives on the Windows drive:
+      cd /mnt/d/gd-extract/devotion-planner && python3 -m http.server 8080
+  and localhost is forwarded, so the URL above works in the Windows browser unchanged.
+  Hard-refresh (Ctrl+Shift+R) after a rebuild -- ui-index.json is cached.
+
+  The right panel is a real ordered path: lib/select.mjs picks a legal set of
+  constellations, lib/schedule.mjs orders them and inserts/refunds Crossroads.
+  Steps are numbered in the order you click them in game; click one to tick it off.
+
+  There is no Build button: any change to the tags, their weights or the scoring mode
+  re-solves automatically, debounced, with a status line that shows when it's working.
+  The solve is synchronous, so its time budget is capped at a level measured to give
+  the same answer as a much longer one (see SOLVE_BUDGET_MS).
+
+  Selection is lib/solver.mjs -- local search, good but not proven optimal. Swap in
+  the MILP (lib/milp.mjs + glpk.js) for a certificate; it returns the same
+  [{id, starsTaken}] shape the scheduler consumes.
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+:root{color-scheme:dark}
+body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sans-serif}
+*{box-sizing:border-box}
+.wrap{max-width:900px;margin:0 auto}
+.col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+/* Back to a single column: the three-across grid coupled card heights within a row,
+   and the slack that created was worse than the space it saved. */
+.cards{display:block}
+.cards .card{margin-bottom:8px}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;margin:0 0 7px}
+.slot{display:flex;align-items:center;gap:4px;width:100%;height:36px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:#1c1c1c;color:#fff;font:inherit;text-align:left;overflow:hidden}
+.slot > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{border:1px solid #3a3a3a;color:#4f4f4f;cursor:default}
+.full{border:1px solid #fff;cursor:pointer}
+.rb{width:25px;height:25px;flex:none;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;background:#2e2e2e;color:#fff;cursor:pointer;padding:0}
+.chip .rb{pointer-events:none}
+.empty .rb{background:#232323;color:#3f3f3f}
+.full .rb:hover{background:#f2f2f2;color:#111}
+.tab{flex:1;height:31px;border-radius:6px;border:1px solid #333;background:#111;color:#9a9a9a;font-size:12px;cursor:pointer}
+.tab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
+.cat{border-top:1px solid #262626}
+.cath{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 2px;background:none;border:0;color:#cfcfcf;font-size:12px;cursor:pointer;text-align:left}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 4px 0 10px;margin:0 5px 5px 0;border-radius:999px;background:#161616;border:1px solid #333;color:#e6e6e6;font:inherit;font-size:12px;cursor:pointer}
+.chip .rb{width:20px;height:20px}
+.chip:hover:not(.used){background:#242424;border-color:#6a6a6a}
+.chip:hover:not(.used) .rb{background:#f2f2f2;color:#111}
+.chip.used{opacity:.35;cursor:default}
+/* Blocked: this power cannot share 55 points with the ones already chosen. Struck
+   through rather than merely faded, so it reads as "not available" instead of "already
+   taken" -- the .used styling above means the opposite thing. */
+.chip.blocked{opacity:.4;cursor:not-allowed;text-decoration:line-through;
+  border-color:#3a2a2a;color:#8a7070}
+.chip.blocked .rb{background:#241a1a;color:#6a4a4a}
+/* Coverage row for a celestial power: binary, so no bar and no got/ceiling. */
+.covrow.pow .cb{background:none;height:auto}
+.covrow.pow .powcons{font-size:10px;color:#8a8a8a;white-space:nowrap}
+.covrow.pow .cv{color:#4ade80}
+.covrow.pow.zero .cv{color:#6a6a6a}
+.cpc{display:inline-block;font-size:9px;line-height:1;padding:2px 5px;border-radius:999px;
+  background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4;vertical-align:1px}
+/* Where the weight dots would be on a power pill: a fixed marker, not a control. */
+.tgt{display:flex;align-items:center;gap:3px;flex:none;font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:#7fffd4;opacity:.75;cursor:default;padding:0 2px}
+.tgt i{font-size:12px}
+.slot.full.pow{border-color:#7fffd4}
+.row{border-bottom:1px solid #1f1f1f;padding:9px 2px}
+.n{font-size:11px;color:#8a8a8a}
+.card{background:#1c1c1c;border:1px solid #fff;border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.card:hover{background:#242424}
+/* Completed: recede via border and a check, NOT opacity -- the text has to stay
+   readable because you still need to see what a finished constellation gave you. */
+.card.done{border-color:#3f6047;background:#161b17}
+.card.done:hover{background:#1c231d}
+/* The one you're on. */
+.card.current{border-color:#e8c15a;box-shadow:0 0 0 1px rgba(232,193,90,.35),0 0 14px rgba(232,193,90,.18)}
+.card.refund{border-color:#3a3a3a;background:#131313;cursor:default}
+.card.refund:hover{background:#131313}
+.card.refund .nm{color:#8a8a8a;font-size:12px}
+.step{display:flex;align-items:baseline;gap:9px;padding:9px 11px}
+.step .num{font-variant-numeric:tabular-nums;font-size:11px;color:#8a8a8a;min-width:18px}
+.step .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.step .nm{font-size:13px}
+.step .run{font-variant-numeric:tabular-nums}
+.stars{border-top:1px solid #2e2e2e;padding:4px 0 5px}
+.star{display:flex;gap:7px;padding:4px 10px;font-size:11px;color:#8a8a8a;cursor:pointer;align-items:flex-start}
+.star:hover{background:#2a2a2a}
+/* Bought stars. A strike-through inside a 10px rounded pill is invisible, so the
+   line dims and a green check closes it instead -- the same signal as the tick box,
+   read the same way. The check is excluded from the dimming rather than the whole
+   line being faded, or the one element that says "done" would be the faintest. */
+.star.sdone .stxt > *:not(.sck){opacity:.4}
+.star.sdone .sn{opacity:.5}
+.sck{color:#4ade80;font-size:11px;line-height:1;margin-left:1px}
+/* The next star to buy. Same hue as the current card's border (#e8c15a) taken down
+   to a fill the text still reads on -- flat, no glow, because the card is already
+   glowing and two glows on screen stop meaning "here". */
+.star.snext{background:#3a3018}
+.star.snext:hover{background:#463a1d}
+.star.snext .sn{color:#e8c15a;font-weight:600}
+.star .sn{color:#5f5f5f;min-width:12px;font-variant-numeric:tabular-nums;padding-top:2px}
+/* Tree gutter: one monospace character per level, so it lines up down the column
+   without needing a fixed width per row. Empty on the root, which costs nothing. */
+.star .stree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  line-height:1.35;color:#4a4a4a;white-space:pre;padding-top:2px;letter-spacing:0}
+.star.snext .stree{color:#8a6f2a}
+.star.sdone .stree{opacity:.45}
+.star .stxt{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.star .nm2{color:#e6e6e6;margin-right:2px}
+.tg{display:inline-block;font-size:10px;line-height:1;padding:3px 7px;border-radius:999px;background:#2b2b2b;border:1px solid #3d3d3d;color:#e6e6e6}
+.tg.other{background:none;border-style:dashed;color:#6f6f6f}
+/* The celestial power reads as its own name, not a badge bolted onto one. */
+.cpname{display:inline-block;font-size:10px;line-height:1;padding:3px 8px;border-radius:999px;
+        background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4}
+.cp{display:inline-block;font-size:10px;line-height:1;padding:3px 8px;border-radius:999px;
+    background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4;vertical-align:1px}
+.nm .cp{margin-left:6px}
+.affs{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.af{font-size:10px;line-height:1;padding:3px 6px;border-radius:999px;border:1px solid #3a3a3a;color:#cfcfcf}
+.card.done .af{border-color:#3f6047}
+.af.none{border-style:dashed;color:#5f5f5f}
+.held{font-size:10px;color:#6f6f6f;margin-top:3px}
+.total{padding:10px 2px;font-size:12px;color:#cfcfcf;border-top:1px solid #333;margin-top:4px}
+/* Overview. Fixed columns and a monospace gutter so the eye can run straight down
+   the numbers -- proportional digits defeat the whole point of a scan view. */
+.plainbtn{background:transparent;border:1px solid #3a3a3a;color:#8a8a8a;border-radius:6px;
+  font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 9px;cursor:pointer}
+.plainbtn:hover:not([disabled]){border-color:#666;color:#ddd}
+.plainbtn.on{border-color:#fff;color:#fff}
+.plainbtn[disabled]{opacity:.35;cursor:default}
+.plainbtn i{font-size:12px;vertical-align:-2px;margin-right:1px}
+/* The re-order question, as a modal over the devotions list.
+   It interrupts because it is a fork, not a nicety: until it's answered the numbers
+   below describe a different playthrough from yours. Both ways out are explicit --
+   with the list covered, "ignore it" can't be how you decline. */
+.dwrap{position:relative}
+.modal{position:absolute;inset:0;z-index:5;display:flex;align-items:center;
+  justify-content:center;padding:14px;overflow:auto;
+  background:rgba(6,6,6,.82);backdrop-filter:blur(2px);border-radius:10px}
+/* Red is the OUTLINE only. The box itself stays the same dark grey as everything else,
+   so the red reads as "answer this" rather than tinting the content as an error. */
+.mbox{width:100%;max-width:400px;padding:16px 17px;border-radius:12px;
+  border:1px solid #e5484d;background:#151515;
+  box-shadow:0 0 0 3px rgba(229,72,77,.14),0 14px 34px rgba(0,0,0,.65)}
+.mtitle{margin:0 0 5px;font-size:13.5px;font-weight:600;color:#fff}
+.mtext{margin:0 0 12px;font-size:12px;line-height:1.5;color:#a8a8a8}
+.mopts{display:flex;flex-direction:column;gap:7px}
+.mbtn{display:block;width:100%;text-align:left;padding:9px 11px;border-radius:8px;
+  border:1px solid #3a3a3a;background:#111;color:#cfcfcf;font:inherit;cursor:pointer}
+.mbtn b{display:block;font-size:12.5px;font-weight:600;color:#fff;margin-bottom:1px}
+.mbtn span{display:block;font-size:11px;line-height:1.4;color:#8a8a8a}
+.mbtn:hover{border-color:#8a8a8a;background:#191919}
+/* Primary action uses the app's existing white-border treatment, not more red. */
+.mbtn.go{border-color:#fff;background:#1c1c1c}
+.mbtn.go:hover{background:#262626}
+/* The devotions list is the tall part of the page; capped to the viewport at render
+   time (fitDevotions) rather than a guessed vh, because everything above it -- the
+   coverage panel especially -- changes height with the number of tags. */
+.dscroll{overflow-y:auto;overflow-x:hidden;padding-right:8px}
+.dscroll::-webkit-scrollbar{width:9px}
+.dscroll::-webkit-scrollbar-track{background:#141414;border-radius:6px}
+.dscroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px}
+.dscroll::-webkit-scrollbar-thumb:hover{background:#5a5a5a}
+.dscroll{scrollbar-width:thin;scrollbar-color:#3a3a3a #141414}
+.plain{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
+.prow,.phead{display:grid;grid-template-columns:26px 24px 14px 1fr 26px 34px 34px;
+  align-items:center;gap:6px;padding:3px 10px;font-size:12.5px;color:#cfcfcf}
+.phead{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#6a6a6a;
+  background:#161616;border-bottom:1px solid #2a2a2a}
+.prow+.prow{border-top:1px solid #222}
+.prow .pn,.prow .pp,.prow .pr,.prow .ph{font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#7a7a7a}
+.phead .pp,.phead .pr,.phead .ph{text-align:right}
+.prow .pp,.prow .pr,.prow .ph{text-align:right}
+.prow .pd{color:#3a3a3a;font-size:9px}
+.prow.phit .pd{color:#4ade80}
+.prow.phit .pnm{color:#fff}
+.prow.phit .ph{color:#4ade80}
+.prow.pfirst{background:#1a2418}
+.prow.pref{color:#5f5f5f}
+.prow.pref .pnm{color:#5f5f5f}
+.prow .pnm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .ppart{color:#8a8a8a;font-size:10.5px;margin-left:6px}
+/* Tick box. The visible square is 17px but the button is 24x26 and fills the row
+   height, so the hit area is comfortably bigger than the thing you aim at -- the
+   same lesson the weight dots taught. */
+.pck{width:24px;height:26px;padding:0;margin:0;background:transparent;border:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:#3f3f3f}
+.pck.ghost{cursor:default}
+.pck i{width:17px;height:17px;border:1px solid #3a3a3a;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+  transition:border-color .12s,color .12s,background .12s}
+.pck:hover i{border-color:#8a8a8a;color:#8a8a8a}
+.pck.on{color:#4ade80}
+.pck.on i{border-color:#4ade80;background:#132a1b}
+.pck.part{color:#d9b03c}
+.pck.part i{border-color:#8a7330;background:#241f10}
+.pck:focus-visible{outline:2px solid #fff;outline-offset:-2px;border-radius:4px}
+/* Bought: still legible, clearly behind you. */
+.prow.pdone .pnm,.prow.pdone .pn{color:#6a6a6a}
+.prow.pdone.phit .pnm{color:#8a8a8a}
+.prow.pdone .pd{color:#2f4a35}
+/* The step you're on, matching Detail's yellow. */
+.prow.pcur{background:#211d0f;box-shadow:inset 3px 0 0 #d9b03c}
+.prow.pcur .pnm{color:#fff}
+.mtabs{display:flex;gap:6px;margin-bottom:10px}
+.mtab{flex:1;padding:6px 4px;border-radius:6px;border:1px solid #333;background:#111;color:#9a9a9a;font:inherit;font-size:12px;cursor:pointer;text-align:center;line-height:1.25}
+.mtab:hover{border-color:#6a6a6a}
+.mtab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
+.mtab .sub{display:block;font-size:10px;opacity:.65}
+.cov{margin:0 0 4px;transition:opacity .12s ease}
+/* While a solve is in flight these numbers describe the PREVIOUS plan, so say so
+   rather than letting them look current. */
+.cov.stale{opacity:.45}
+.covrow{display:flex;align-items:center;gap:8px;font-size:11px;padding:2px 0}
+.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cfcfcf}
+.covrow .cb{width:64px;height:4px;border-radius:2px;background:#262626;overflow:hidden;flex:none}
+.covrow .cb i{display:block;height:100%;background:#8a8a8a}
+.covrow .cv{width:52px;text-align:right;color:#8a8a8a;font-variant-numeric:tabular-nums;flex:none}
+.covrow .cmax{width:28px;font-size:10px;color:#4ade80;flex:none;text-align:right}
+.covrow.maxed .cb i{background:#4ade80}
+.covrow.under .cv{color:#e8c15a}
+.covrow.under .cb i{background:#e8c15a}
+.covrow.zero .cn{color:#6f6f6f}
+.covrow.zero .cv{color:#c46b6b}
+/* Tags pulling against each other. Stated, not hidden -- someone chasing a tag that
+   quietly starves the rest of the build should be told, and told WHY, since a zero
+   never means the tree lacks the stat. Informational, so no red. */
+.crowd{margin:6px 0 0;padding:7px 9px;border-radius:8px;border:1px solid #3a3427;
+  background:#16150f;color:#a09a86;font-size:11px;line-height:1.5}
+.crowd b{color:#e8c15a;font-weight:600}
+/* The dots are small on purpose, but the CLICK area shouldn't be: a fixed-width,
+   full-height target means you hit it without aiming, and fixing the width also stops
+   the dots drifting left and right as tag names change length. */
+.dots{display:inline-flex;gap:5px;align-items:center;justify-content:flex-end;
+      width:46px;height:100%;min-height:28px;padding:0 8px 0 4px;flex:none;
+      cursor:pointer;border-radius:6px}
+.dots:hover{background:rgba(255,255,255,.10)}
+.dots i{width:7px;height:7px;border-radius:50%;border:1px solid #8a8a8a;display:block;flex:none}
+.dots i.on{background:#fff;border-color:#fff}
+.covrow .dots{width:36px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default}
+.covrow .dots:hover{background:none}
+.covrow .dots i{border-color:#5f5f5f;width:6px;height:6px}
+.covrow .dots i.on{background:#8a8a8a;border-color:#8a8a8a}
+.covrow.under .cv{color:#e8c15a}
+.actions{display:flex;gap:8px;margin-top:8px;align-items:center}
+.status{flex:1;font-size:11px;color:#8a8a8a;display:flex;align-items:center;gap:7px;min-height:20px}
+.pulse{width:7px;height:7px;border-radius:50%;background:#e8c15a;flex:none;animation:pl .9s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:.25}50%{opacity:1}}
+.resetall{height:40px;padding:0 14px;border-radius:8px;border:1px solid #3a3a3a;background:#141414;
+          color:#9a9a9a;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.resetall:hover:not([disabled]){border-color:#8a8a8a;color:#e6e6e6}
+.resetall[disabled]{opacity:.35;cursor:default}
+.scroll{overflow-y:auto;overflow-x:hidden;padding-right:8px;
+  scrollbar-width:thin;scrollbar-color:#3a3a3a #141414}
+.scroll::-webkit-scrollbar{width:9px}
+.scroll::-webkit-scrollbar-track{background:#141414;border-radius:6px}
+.scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px}
+.scroll::-webkit-scrollbar-thumb:hover{background:#5a5a5a}
+</style>
+<div class="wrap"><div id="app">Loading…</div></div>
+<script type="module">
+import { buildDb, priorityFor } from './lib/select.mjs';
+import { solveBest, blockedPowers } from './lib/solver.mjs';
+import { schedulePath } from './lib/schedule.mjs';
+import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
+
+const MAX = 5;
+const MODES = [
+  ['Passives only', 'powers ignored, taken only for affinity'],
+  ['Rank 1', 'powers at the rank you buy them'],
+  ['Max rank', 'powers at their own cap'],
+];
+// A fourth plan that isn't a scoring choice: the same set of constellations, re-ordered
+// around what you've actually bought. Only offered once you've gone off-plan.
+const CUSTOM = MODES.length;
+const app = document.getElementById('app');
+
+const raw = await fetch('../ui-index.json').then(r => r.json());
+const chips = raw.chips;
+const db = buildDb(raw);
+
+const state = {
+  // Sized from MAX, not a literal -- a three-slot array silently caps you at three
+  // picks no matter what MAX says, because sel.indexOf(null) can't find a fourth.
+  sel: Array(MAX).fill(null), tab: 'character', mode: 1,
+  weights: Array(MAX).fill(DEFAULT_WEIGHT),   // how much each slot's tag matters, 1-3
+  open: new Set(['character|Offense']),
+  plan: null, error: null, builtMode: null, solving: false,
+  done: new Set(),        // stars ticked off in game, keyed constellation:star
+  plain: false,           // Overview: the whole path as one scannable column
+  custom: null,           // a plan re-ordered around your progress, or null
+  // Which bought set the re-order prompt was last dismissed for. It blocks the list,
+  // so "ignore it" can't be how you decline -- there has to be a way out, and it has
+  // to stay out. Keyed by the bought set rather than a plain boolean so that ticking
+  // something else out of order asks again, which is a different question.
+  offerSeen: null,
+  // Power chips that can no longer fit alongside what's already chosen. Computed after
+  // the solve rather than inside it -- the sweep costs ~250ms, which would be felt on
+  // every keystroke for something that only starts blocking at four powers.
+  blocked: new Set(),
+};
+let renderedTab = state.tab;
+
+// --- undo --------------------------------------------------------------------
+// One click can now do a lot: ticking a late constellation completes everything its
+// affinity depends on, so a misclick is destructive in a way a single toggle never
+// was. Undo covers exactly the thing those clicks mutate -- `state.done`.
+//
+// Depth is 60 because it costs nothing to be generous: a snapshot is at most 55
+// short strings, so the whole stack is well under 100 KB, far below anything worth
+// bounding for memory. 60 is "more steps than you'll take before noticing a
+// mistake", which is the number that actually matters.
+//
+// In memory only, and cleared whenever a new plan is built: a snapshot from a
+// different tag set refers to constellations that are no longer on screen, and
+// restoring it would look like a bug.
+const HISTORY_MAX = 60;
+let history = [];
+
+const pushHistory = () => {
+  history.push(new Set(state.done));
+  if (history.length > HISTORY_MAX) history.shift();
+};
+const clearHistory = () => { history = []; };
+
+/** Forget the custom order, falling back to whichever scoring mode it came from. */
+function dropCustom() {
+  if (state.mode === CUSTOM) state.mode = state.custom?.mode ?? 0;
+  state.custom = null;
+}
+
+function undo() {
+  const prev = history.pop();
+  if (!prev) return false;
+  state.done = prev;
+  return true;
+}
+
+const groups = new Map();
+for (const [i, c] of chips.entries()) {
+  const key = `${c.ns}|${c.cat}`;
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key).push(i);
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+const aff = o => Object.entries(o).map(([k, v]) => `${v} ${k.slice(0, 3)}`).join(' · ') || '—';
+const picked = () => state.sel.filter(x => x != null);
+
+// --- persistence -------------------------------------------------------------
+// Only INPUTS are stored (tags, mode, ticked stars), never the computed path. A
+// saved path would go stale the moment the game data changes or the solver is
+// touched; re-solving on load costs ~300ms and can't disagree with the current
+// build. Ticks are keyed constellation:star, which stays valid regardless.
+const STORE = 'gd-devotion-planner:v1';
+
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      v: 1,
+      tags: state.sel.map(i => (i == null ? null : chips[i]?.id ?? null)),
+      weights: [...state.weights],
+      // A custom order isn't persisted (it's derived from a solve plus your progress),
+      // so save the scoring mode underneath it. Saving CUSTOM would fail load()'s
+      // range check and silently drop you back to the default mode instead of the one
+      // you were actually working in.
+      mode: state.mode === CUSTOM ? (state.custom?.mode ?? 0) : state.mode,
+      tab: state.tab,
+      open: [...state.open],
+      done: [...state.done],
+      plain: state.plain,
+    }));
+  } catch { /* private mode or quota; running without persistence is fine */ }
+}
+
+function load() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { return false; }
+  if (!saved || saved.v !== 1) return false;
+
+  // Chip ids can disappear if the keyword list changes between versions, so map
+  // back by id and drop anything that no longer exists rather than crashing.
+  state.sel = (saved.tags ?? Array(MAX).fill(null))
+    .map(id => (id == null ? null : chips.findIndex(c => c.id === id)))
+    .map(i => (i == null || i < 0 ? null : i));
+  while (state.sel.length < MAX) state.sel.push(null);
+  state.sel.length = MAX;
+
+  state.weights = Array.from({ length: MAX },
+    (_, i) => clampWeight(saved.weights?.[i] ?? DEFAULT_WEIGHT));
+  if (Number.isInteger(saved.mode) && saved.mode >= 0 && saved.mode < MODES.length) {
+    state.mode = saved.mode;
+  }
+  if (saved.tab === 'character' || saved.tab === 'pet') state.tab = saved.tab;
+  if (Array.isArray(saved.open)) state.open = new Set(saved.open);
+  if (Array.isArray(saved.done)) state.done = new Set(saved.done);
+  state.plain = saved.plain === true;
+  return picked().length > 0;
+}
+
+function reset() {
+  state.sel = Array(MAX).fill(null);
+  state.weights = Array(MAX).fill(DEFAULT_WEIGHT);
+  state.plan = null;
+  state.error = null;
+  state.builtMode = null;
+  state.done = new Set();
+  state.custom = null;
+  state.mode = Math.min(state.mode, MODES.length - 1);
+  // Undo restores progress only, so undoing a reset would bring back the ticks
+  // without the tags -- a state you never had. Reset has its own deliberate button.
+  clearHistory();
+  try { localStorage.removeItem(STORE); } catch { /* nothing to clear */ }
+  render();
+}
+
+// Power tags are pinned to the top weight. Not because it changes the build -- it
+// provably doesn't -- but because the weight is the tie-break for which power is given
+// up when several can't fit, and leaving it at whatever the slot happened to hold made
+// that arbitrary. With all powers equal, resolveTargets' stable sort keeps selection
+// order, so the rule is simply "the one you picked first wins".
+const wantedList = () => state.sel
+  .map((sel, slot) => (sel == null ? null : {
+    id: chips[sel].id,
+    weight: chips[sel].kind === 'power' ? MAX_WEIGHT : state.weights[slot],
+  }))
+  .filter(Boolean);
+
+// A solve is synchronous, so a long one freezes the page rather than merely delaying
+// it. 350ms of local search scores identically to 1500ms (measured), so the budget is
+// capped there: the tail stops at ~350ms instead of ~470ms and nothing is lost. The
+// debounce stops a five-tag selection from solving five times on the way.
+const SOLVE_BUDGET_MS = 350;
+const DEBOUNCE_MS = 180;
+let solveTimer = null;
+
+function scheduleBuild() {
+  clearTimeout(solveTimer);
+  if (!wantedList().length) {
+    state.plan = null; state.error = null; state.solving = false;
+    render();
+    return;
+  }
+  state.solving = true;
+  render();
+  solveTimer = setTimeout(() => {
+    // rAF then a task: rAF fires BEFORE paint, so scheduling the solve inside it
+    // would still block the very frame meant to show "solving".
+    requestAnimationFrame(() => setTimeout(build, 0));
+  }, DEBOUNCE_MS);
+}
+
+function build() {
+  const picks = wantedList();
+  state.solving = false;
+  if (!picks.length) { render(); return; }
+
+  // The custom plan is a saved ordering, not a solve. Selecting its tab shows it back
+  // rather than recomputing something that would discard the ordering.
+  if (state.mode === CUSTOM && state.custom) {
+    state.plan = state.custom;
+    state.error = null;
+    render();
+    return;
+  }
+  if (state.mode === CUSTOM) state.mode = state.custom?.mode ?? 0;
+  // Progress is keyed constellation:star, not by position in the path, so ticks
+  // survive a rebuild -- switching scoring mode reorders things, but a star you
+  // already bought in game is still bought.
+  state.builtMode = state.mode;
+
+  const { solution, schedule } = solveBest(db, picks, { mode: state.mode, timeBudgetMs: SOLVE_BUDGET_MS });
+  if (!schedule) {
+    state.plan = null;
+    state.error = 'No legal path reaches those tags.';
+    render();
+    return;
+  }
+
+  // Record the mode this plan was solved under. Coverage reads ceilings from HERE,
+  // not from state.mode: clicking a tab re-renders before the new plan exists, and
+  // pairing the old star counts with the new mode's ceilings made the numbers jump
+  // twice -- 6/12 to 6/8 and back -- which reads as a glitch.
+  state.plan = { schedule, solution, mode: state.mode };
+  state.error = null;
+  // A new path means the old snapshots describe a build that is no longer on screen.
+  // Restoring one would tick constellations you can't see. Ticks themselves survive a
+  // rebuild -- they are keyed constellation:star -- but the undo trail does not.
+  clearHistory();
+  // Likewise a dismissal: "keep my ticks" answered whether your progress led THAT
+  // order. A different scoring mode is a different order, so it's a new question.
+  state.offerSeen = null;
+  render();
+  scheduleBlockedSweep();
+}
+
+// How well each requested tag is actually served by the built path. At five tags a
+// build can quietly serve three of them well and ignore two, and nothing else on
+// screen would say which -- the path lists constellations, not what you asked for.
+function coverageHtml() {
+  if (!state.plan) return '';
+  const picks = wantedList();
+  if (!picks.length) return '';
+
+  const counts = picks.map(({ id, weight }) => {
+    const chip = chips.find(c => c.id === id);
+    // A celestial power is binary -- you secured it or you didn't -- so got/ceiling and
+    // a proportional bar say nothing. It gets its own row shape.
+    if (chip?.kind === 'power') {
+      const e = state.plan.solution.find(x => x.id === chip.cons);
+      return {
+        label: chip.label, weight, power: true,
+        cons: consName(chip.cons),
+        got: Boolean(e && (e.stars ?? []).includes(chip.star)),
+        cost: e ? e.starsTaken : chip.min,
+        size: chip.size,
+      };
+    }
+    return {
+      label: chip?.label ?? id,
+      pet: chip?.ns === 'pet',
+      weight,
+      // A single physical ceiling, powers off -- see build-ui-index.mjs. The array
+      // form is an older index; tolerate it so a stale ui-index.json still renders.
+      ceiling: Array.isArray(chip?.ceiling)
+        ? Math.max(...chip.ceiling)
+        : (chip?.ceiling ?? 0),
+      stars: state.plan.solution.reduce(
+        (n, e) => n + (db.constellations[e.id]?.hits?.[id] ?? 0), 0),
+    };
+  });
+
+  // The bar is measured against each keyword's CEILING -- the most you could get if it
+  // were your only target and you spent all 55 points on it -- not against the
+  // best-served tag. That distinction is the whole point: Skill Radius appears once in
+  // each of 15 constellations costing 98 points between them, so 5 stars is everything
+  // there is. Scaling against other tags made a maxed-out keyword look neglected, and
+  // no amount of extra weight could ever "fix" it.
+  // Keyword rows only. A power row has no star count and no weight that means anything,
+  // and including them broke this silently: `c.stars` is undefined on a power, so the
+  // sum went NaN, `|| 1` turned that into 1, and every keyword's share of the stars
+  // became enormous -- so the amber under-served flag could never fire again the moment
+  // you picked a power.
+  const kwRows = counts.filter(c => !c.power);
+  const totalStars = kwRows.reduce((n, c) => n + c.stars, 0) || 1;
+  const totalWeight = kwRows.reduce((n, c) => n + c.weight, 0) || 1;
+
+  return `<p class="lbl" style="margin-top:16px">Coverage</p><div class="cov${
+    state.solving ? ' stale' : ''}">${
+    counts.map(c => {
+      if (c.power) {
+        const note = c.got
+          ? `${c.label} secured -- ${c.cost} of ${c.cons}'s ${c.size} stars`
+          : `${c.label} could not be fitted alongside your other picks`;
+        return `<div class="covrow pow${c.got ? ' maxed' : ' zero'}" title="${esc(note)}">
+        <span class="dots">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
+          `<i class="${d < c.weight ? 'on' : ''}"></i>`).join('')}</span>
+        <span class="cn">${esc(c.label)} <span class="cpc">CP</span></span>
+        <span class="cb pow">${c.got
+          ? `<span class="powcons">${esc(c.cons)} ${c.cost}/${c.size}</span>`
+          : '<span class="powcons">no room</span>'}</span>
+        <span class="cv">${c.got ? '<i class="ti ti-check"></i>' : '&mdash;'}</span>
+        <span class="cmax">${c.got ? 'got' : ''}</span>
+      </div>`;
+      }
+      const ceiling = Math.max(c.ceiling || 0, c.stars);
+      const pct = ceiling ? c.stars / ceiling : 0;
+      const maxed = c.stars > 0 && c.stars >= ceiling;
+      // Only call something under-served if there was actually room to do better.
+      const under = c.stars > 0 && !maxed
+        && (c.stars / totalStars) < (c.weight / totalWeight) * 0.6;
+      const cls = c.stars ? (maxed ? ' maxed' : under ? ' under' : '') : ' zero';
+      // "none" was the wrong word and it hid the useful fact. Measured over 30 five-tag
+      // builds, every tag that landed on zero had a ceiling between 3 and 18 -- not one
+      // was genuinely unobtainable. So a zero always means "your other tags took the
+      // points", never "the tree doesn't have this", and showing 0/10 says so.
+      const note = maxed
+        ? 'everything the tree offers within 55 points'
+        : c.stars === 0
+          ? `${c.label} is obtainable -- up to ${ceiling} stars if it were your only tag`
+            + ' -- but your other tags used the points. Drop or de-emphasise one to make'
+            + ' room, or accept that this combination pulls in different directions.'
+          : `${c.stars} of a possible ${ceiling} · you asked for ${
+              Math.round(100 * c.weight / totalWeight)}% of the emphasis`;
+      return `<div class="covrow${cls}" title="${esc(note)}">
+      <span class="dots">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
+        `<i class="${d < c.weight ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="cn">${esc(c.label)}${c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
+      <span class="cb"><i style="width:${Math.round(100 * pct)}%"></i></span>
+      <span class="cv">${c.stars}/${ceiling}</span>
+      <span class="cmax">${maxed ? 'max' : ''}</span>
+    </div>`;
+    }).join('')
+  }</div>${crowdedOutNote(counts)}`;
+}
+
+/**
+ * Say out loud when tags are pulling against each other.
+ *
+ * This is not a failure to paper over -- surfacing an awkward combination is part of
+ * what the tool is FOR. But "none" on its own reads as "this stat doesn't exist in the
+ * tree", which is never what happened: every zero measured had a ceiling of 3 to 18.
+ * The useful sentence is that the tag is reachable and something else outbid it.
+ */
+function crowdedOutNote(counts) {
+  const out = counts.filter(c => !c.power && c.stars === 0);
+  if (!out.length) return '';
+  const names = out.map(c => esc(c.label));
+  const list = names.length === 1 ? names[0]
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  const most = counts.filter(c => !c.power && c.stars > 0)
+    .sort((a, b) => b.stars - a.stars)[0];
+  const one = names.length === 1;
+  return `<p class="crowd"><b>${list}</b> got nothing.
+    ${one ? 'It is reachable on its own' : 'They are reachable on their own'}${
+      out.every(c => c.ceiling)
+        ? ` (up to ${out.map(c => c.ceiling).join(' and ')} stars)` : ''
+    }, so this is your tags competing${most ? `, not the tree running out — ${
+      esc(most.label)} took ${most.stars}` : ''}.
+    Drop ${one ? 'it' : 'one'}, lower its dots, or take the trade knowingly.</p>`;
+}
+
+// Built on every render (not cached into state.out) so ticking a step off can
+// restyle it without recomputing the plan.
+function pathHtml() {
+  if (state.error) return `<p style="color:#4f4f4f;font-size:12px">${esc(state.error)}</p>`;
+  if (!state.plan) return '<p style="color:#4f4f4f;font-size:12px;margin:2px 0">Pick up to five tags, then build.</p>';
+  const { schedule, solution } = state.plan;
+  const takenStars = new Map(solution.map(e => [e.id, e.starsTaken]));
+  const starsFor = new Map(solution.map(e => [e.id, e.stars]));
+
+  // Work out completion for every step first, so "the one you're on" can be found
+  // before anything is rendered -- it's the first real step still outstanding.
+  //
+  // The next STAR is the same idea one level down: the first star in the whole path
+  // you haven't bought. It has to be resolved across every step before any row is
+  // built, or each constellation would only be able to point at its own first star
+  // and several would claim to be next at once.
+  const nextKey = schedule.path
+    .filter(p => p.kind !== 'refund')
+    .flatMap(p => starKeysFor(db.constellations[p.id], p.points, starsFor.get(p.id)))
+    .find(k => !state.done.has(k)) ?? null;
+
+  let step = 0;
+  const rows = schedule.path.map(p => {
+    const c = db.constellations[p.id];
+    const refund = p.kind === 'refund';
+    const num = refund ? '\u21a9' : String(++step).padStart(2, '0');
+    const stars = refund ? { html: '', keys: [] }
+      : starList(c, p.points, starsFor.get(p.id), nextKey);
+    const complete = !refund && stars.keys.length > 0 && stars.keys.every(k => state.done.has(k));
+    return { p, c, refund, num, step, stars, complete };
+  });
+  const currentIdx = rows.findIndex(r => !r.refund && !r.complete);
+
+  if (state.plain) return plainHtml(rows, schedule);
+
+  // Emit runs of constellation cards as grids, with slim rows breaking them apart.
+  const out = [];
+  let bucket = [];
+  const flush = () => {
+    if (bucket.length) { out.push('<div class="cards">' + bucket.join('') + '</div>'); bucket = []; }
+  };
+
+  rows.forEach((row, idx) => {
+    const { p, c, refund, num, step, stars, complete } = row;
+    const current = idx === currentIdx;
+
+    bucket.push(cardHtml(row, current, takenStars));
+  });
+  flush();
+
+  return out.join('')
+    + `<div class="total">${schedule.totalPoints} of 55 points · ${
+        schedule.path.length && solution.filter(e => db.constellations[e.id]?.hasPower
+          && e.starsTaken >= db.constellations[e.id].starCount).length
+      } celestial power${solution.filter(e => db.constellations[e.id]?.hasPower
+          && e.starsTaken >= db.constellations[e.id].starCount).length === 1 ? '' : 's'
+      } · ${esc(aff(schedule.finalAffinity))}</div>`;
+}
+
+/**
+ * Overview: the whole path as one scannable column.
+ *
+ * Detail is for following along in game, one step at a time. This is for seeing the
+ * SHAPE of a build before committing to it -- where the points go, how long before
+ * the first pick that serves what you asked for, how much of the path is affinity
+ * plumbing. It started as a debugging aid and turned out to be the more useful view
+ * for deciding whether a build is worth playing.
+ *
+ * Hence the two things it shows that Detail doesn't: a filled dot on every step
+ * carrying one of your tags, and how many. A run of empty dots down the top means
+ * you are paying for affinity before you get anything you came for.
+ */
+function plainHtml(rows, schedule) {
+  const want = picked().map(i => chips[i].id);
+  const hitsOf = c => want.reduce((n, k) => n + (c.hits?.[k] ?? 0), 0);
+  const firstHit = rows.findIndex(r => !r.refund && hitsOf(r.c) > 0);
+
+  // The step you're on: first thing not yet ticked off, same rule as Detail.
+  const currentIdx = rows.findIndex(r => !r.refund && !r.complete);
+
+  const body = rows.map((r, idx) => {
+    const { p, c, refund, num, step, stars, complete } = r;
+    const hits = refund ? 0 : hitsOf(c);
+    const partial = !refund && p.points < c.starCount;
+    const cls = 'prow' + (refund ? ' pref' : '') + (hits ? ' phit' : '')
+      + (idx === firstHit ? ' pfirst' : '')
+      + (complete ? ' pdone' : '') + (idx === currentIdx ? ' pcur' : '');
+
+    // Detail ticks single stars, so a constellation can be half bought. Without a
+    // third state that row is indistinguishable from an untouched one, and the two
+    // views quietly disagree about where you are.
+    const doneCount = stars.keys.filter(k => state.done.has(k)).length;
+    const part = doneCount > 0 && !complete;
+
+    // Same data-step/data-keys contract the cards use, so the existing handler ticks
+    // the whole constellation and both views read one set of keys. Overview and
+    // Detail can't drift apart because there is nothing to keep in sync.
+    const tick = refund || !stars.keys.length ? '<span class="pck ghost"></span>'
+      : `<button class="pck${complete ? ' on' : part ? ' part' : ''}"
+           data-step="${esc(`${p.id}:${step}`)}"
+           data-keys="${esc(stars.keys.join(','))}"
+           aria-pressed="${complete}"
+           aria-label="${complete ? 'Clear' : 'Mark'} ${esc(p.name)} as bought"
+           title="${complete ? `Bought -- click to clear` : part
+             ? `${doneCount} of ${stars.keys.length} stars bought -- click to finish`
+             : `Mark all ${stars.keys.length} stars bought`} -- ${esc(p.name)}"
+         ><i class="${complete ? 'ti ti-check' : part ? 'ti ti-minus' : ''}"></i></button>`;
+
+    return `<div class="${cls}">
+      <span class="pn">${refund ? '↩' : num}</span>
+      ${tick}
+      <span class="pd">${hits ? '●' : '○'}</span>
+      <span class="pnm">${esc(p.name)}${c.hasPower && !refund ? ' <span class="cp">CP</span>' : ''}${
+        partial ? `<span class="ppart">${p.points}/${c.starCount}</span>` : ''}</span>
+      <span class="ph">${hits || ''}</span>
+      <span class="pp">${refund ? p.points : '+' + p.points}</span>
+      <span class="pr">${p.runningPoints}</span>
+    </div>`;
+  }).join('');
+
+  // How long before the build gives you something you asked for. Stated outright
+  // because nobody counts rows -- which is how the ordering bug survived a session.
+  const takes = rows.filter(r => !r.refund);
+  const at = takes.findIndex(r => hitsOf(r.c) > 0) + 1;
+  const bought = rows.filter(r => !r.refund && r.complete).length;
+  const total = rows.filter(r => !r.refund).length;
+
+  return `<div class="plain"><div class="phead">
+      <span class="pn">#</span><span class="pck ghost"></span><span class="pd"></span>
+      <span class="pnm">constellation</span>
+      <span class="ph">tags</span><span class="pp">pts</span><span class="pr">run</span>
+    </div>${body}</div>
+    <div class="total"><b>${bought} of ${total} bought</b> · ${
+      schedule.totalPoints} of 55 points · ${
+      at ? `first tagged pick at #${at}` : 'nothing carries your tags'
+    } · ${esc(aff(schedule.finalAffinity))}</div>`;
+}
+
+// One step as a card.
+function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenStars) {
+  const key = `${p.id}:${step}`;
+  const partial = !refund && takenStars.get(p.id) != null
+    && takenStars.get(p.id) < c.starCount;
+  // A partial take grants NO affinity -- the bonus only lands when a constellation is
+  // complete -- so don't print the affinity it would have given.
+  const detail = refund
+    ? `refunds ${Math.abs(p.points)} point${Math.abs(p.points) === 1 ? '' : 's'}`
+    : partial
+      ? `${p.points} of ${c.starCount} stars`
+      : `${p.points} star${p.points === 1 ? '' : 's'}`;
+  const grants = Object.entries(c.granted ?? {});
+  const affRow = refund ? '' : `<div class="affs">${
+    partial || !grants.length
+      ? `<span class="af none">${partial ? 'no affinity until complete' : 'no affinity'}</span>`
+      : grants.map(([a, v]) => `<span class="af">+${v} ${esc(a)}</span>`).join('')
+  }</div>`;
+  // What you hold once this step is done -- the number to check against the game.
+  const heldRow = complete && p.heldAfter
+    ? `<div class="held">holding ${esc(aff(p.heldAfter))}</div>`
+    : '';
+  const cls = 'card' + (refund ? ' refund' : '')
+    + (complete ? ' done' : '') + (current ? ' current' : '');
+  const attrs = refund ? ''
+    : ` data-step="${esc(key)}" data-keys="${esc(stars.keys.join(','))}"`;
+  return `<div class="${cls}"${attrs}>
+      <div class="step">
+        <span class="num">${complete ? '<i class="ti ti-check" style="color:#4ade80"></i>' : num}</span>
+        <span class="body"><span class="nm">${esc(p.name)}${c.hasPower && !refund ? ' <span class="cp">CP</span>' : ''}</span>
+        <span class="n">${esc(detail)}</span>${affRow}${heldRow}</span>
+        <span class="n run">${p.runningPoints}</span>
+      </div>${stars.html && !complete ? `<div class="stars">${stars.html}</div>` : ''}
+    </div>`;
+}
+
+// Stars in the order you click them. devotionLinks always points at a lower index,
+// so index order is already a legal purchase order -- no topological sort needed.
+// Each line shows the keywords that star gives you; the ones you asked for are
+// highlighted, the rest are dimmed context.
+/**
+ * Which stars a step covers, in purchase order.
+ *
+ * Split out from starList() because the "next star to buy" is a property of the whole
+ * PATH, not of one constellation -- it has to be known before any row is rendered.
+ * One function owns the answer so the two callers can't drift.
+ */
+function starIdxs(c, taken, chosenStars) {
+  if (!c.perStar) return [];
+  // Which stars, not just how many -- 58 of 109 constellations branch, so the best
+  // k stars are often not stars 1..k.
+  return chosenStars?.length
+    ? [...chosenStars].sort((a, b) => a - b).map(n => n - 1)
+    : Array.from({ length: Math.min(taken, c.perStar.length) }, (_, i) => i);
+}
+
+const starKeysFor = (c, taken, chosenStars) =>
+  starIdxs(c, taken, chosenStars).map(i => `${c.id}:${i + 1}`);
+
+/**
+ * Box-drawing gutter showing which star hangs off which.
+ *
+ * Safe to draw as a flat list because purchase order IS depth-first order in all 109
+ * constellations (measured, not assumed -- parents always have a lower index and no
+ * constellation interleaves two branches). So the rows need no reordering and the
+ * numbers stay in the order you click them.
+ *
+ * One character per level: the deepest star in the game sits at depth 6, and at two
+ * characters that would have eaten 80px of a card barely 280px wide.
+ */
+function treeGutter(c, shownIdxs) {
+  const shown = new Set(shownIdxs.map(i => i + 1));
+  const parentOf = n => c.starParents?.[n - 1] ?? null;
+  const lastChild = new Map();
+  for (const n of shown) {
+    const p = parentOf(n);
+    if (p != null && shown.has(p)) lastChild.set(p, Math.max(lastChild.get(p) ?? 0, n));
+  }
+  const isLast = n => {
+    const p = parentOf(n);
+    return p == null || !shown.has(p) || lastChild.get(p) === n;
+  };
+
+  const out = new Map();
+  for (const n of shown) {
+    const chain = [];
+    for (let a = parentOf(n); a != null && shown.has(a); a = parentOf(a)) chain.unshift(a);
+    if (!chain.length) { out.set(n, ''); continue; }
+    // Ancestors above the parent: a vertical rule only where that branch continues
+    // below this row.
+    let g = '';
+    for (let k = 1; k < chain.length; k++) g += isLast(chain[k]) ? ' ' : '│';
+    out.set(n, g + (isLast(n) ? '└─' : '├─'));
+  }
+  return out;
+}
+
+function starList(c, taken, chosenStars, nextKey) {
+  if (!c.perStar) return { html: '', keys: [] };
+  const want = new Set(picked().map(i => chips[i].id));
+  const idxs = starIdxs(c, taken, chosenStars);
+  const gutter = treeGutter(c, idxs);
+  const rows = [];
+  for (const i of idxs) {
+    const mine = c.perStar[i].filter(k => want.has(k)).map(k => chipLabel(k));
+    const other = c.perStar[i].filter(k => !want.has(k)).length;
+    const isPower = i + 1 === c.powerStar;
+    // Power stars always show their name -- that name IS the celestial power, so it
+    // carries the aquamarine pill. Ordinary stars only bother when the name differs
+    // from the constellation's, which is most of the time just a repeat.
+    const starName = c.starNames?.[i];
+    const label = isPower
+      ? `<span class="cpname">${esc(starName || c.name)}</span>`
+      : (starName && starName !== c.name ? `<span class="nm2">${esc(starName)}</span>` : '');
+    const sk = `${c.id}:${i + 1}`;
+    rows.push(`<div class="star${state.done.has(sk) ? ' sdone' : ''}${
+      sk === nextKey ? ' snext' : ''}" data-star="${esc(sk)}">
+      <span class="sn">${i + 1}</span>
+      <span class="stree">${gutter.get(i + 1) ?? ''}</span>
+      <span class="stxt">${label}${mine.map(m => `<span class="tg">${esc(m)}</span>`).join('')}${
+        other ? `<span class="tg other">+${other}</span>` : ''}${
+        state.done.has(sk) ? '<i class="ti ti-check sck" aria-label="bought"></i>' : ''}</span>
+    </div>`);
+  }
+  return { html: rows.join(''), keys: idxs.map(i => `${c.id}:${i + 1}`) };
+}
+
+const chipLabel = id => (chips.find(c => c.id === id)?.label ?? id);
+const consName = id => (db.constellations[id]?.name ?? id);
+const powerChipFor = id => chips.find(c => c.kind === 'power' && c.id === id);
+
+/** Stars this plan buys for a constellation, 1-based. Mirrors what the rows render. */
+function plannedStars(cid) {
+  const c = db.constellations[cid];
+  if (!state.plan || !c) return [];
+  const entry = state.plan.solution.find(e => e.id === cid);
+  const step = state.plan.schedule.path.find(p => p.id === cid && p.kind !== 'refund');
+  if (!step) return [];
+  return starIdxs(c, step.points, entry?.stars).map(i => i + 1);
+}
+
+// --- affinity legality -------------------------------------------------------
+// You cannot buy ANY star of a constellation until your affinity meets its
+// requirement, and affinity only arrives when a constellation is COMPLETE. So
+// ticking things off has a second rule beyond the parent-child one: a constellation
+// you couldn't have reached yet must not be tickable.
+//
+// Crossroads that have been ticked keep counting even though the schedule refunds
+// them later. That matches how you actually play -- at the moment you buy the
+// constellation behind it, the bootstrap is still paid for.
+
+const AFFS = ['ascendant', 'chaos', 'eldritch', 'order', 'primordial'];
+const meets = (held, req) =>
+  Object.entries(req ?? {}).every(([a, v]) => (held[a] ?? 0) >= v);
+const deficit = (req, held) => Object.fromEntries(
+  Object.entries(req ?? {}).map(([a, v]) => [a, Math.max(0, v - (held[a] ?? 0))]));
+
+/** Constellations whose planned stars are all ticked. */
+function completedSet() {
+  const out = new Set();
+  if (!state.plan) return out;
+  for (const p of state.plan.schedule.path) {
+    if (p.kind === 'refund' || out.has(p.id)) continue;
+    const keys = plannedStars(p.id).map(s => `${p.id}:${s}`);
+    if (keys.length && keys.every(k => state.done.has(k))) out.add(p.id);
+  }
+  return out;
+}
+
+function affinityFrom(ids) {
+  const held = Object.fromEntries(AFFS.map(a => [a, 0]));
+  for (const id of ids) {
+    for (const [a, v] of Object.entries(db.constellations[id]?.granted ?? {})) {
+      held[a] = (held[a] ?? 0) + v;
+    }
+  }
+  return held;
+}
+
+const markComplete = cid => {
+  for (const s of plannedStars(cid)) state.done.add(`${cid}:${s}`);
+};
+const markUntouched = cid => {
+  for (const s of plannedStars(cid)) state.done.delete(`${cid}:${s}`);
+};
+
+/**
+ * Complete whatever earlier constellations this one needs, and nothing more.
+ *
+ * Walking the path and ticking everything up to here would over-claim: Amatok needs
+ * primordial 6 and eldritch 4, which Tsunami and Raven supply -- Harpy sits between
+ * them in the path and contributes nothing to it. So only steps that actually reduce
+ * the deficit are taken, and each is made legal in its own right first.
+ */
+function ensureAffinity(cid, seen = new Set()) {
+  const c = db.constellations[cid];
+  if (!state.plan || !c || seen.has(cid)) return;
+  seen.add(cid);
+  const req = c.required;
+  if (!req || !Object.keys(req).length) return;
+
+  const path = state.plan.schedule.path;
+  const here = path.findIndex(p => p.id === cid && p.kind !== 'refund');
+  const done = completedSet();
+  done.delete(cid);
+  if (meets(affinityFrom(done), req)) return;
+
+  for (let i = 0; i < (here < 0 ? path.length : here); i++) {
+    const p = path[i];
+    if (p.kind === 'refund' || p.id === cid || done.has(p.id)) continue;
+    const need = deficit(req, affinityFrom(done));
+    const grants = db.constellations[p.id]?.granted ?? {};
+    if (!Object.entries(grants).some(([a, v]) => v > 0 && (need[a] ?? 0) > 0)) continue;
+    ensureAffinity(p.id, seen);          // the enabler has to be reachable too
+    markComplete(p.id);
+    done.add(p.id);
+    if (meets(affinityFrom(done), req)) return;
+  }
+}
+
+/**
+ * Drop anything the ticked set can no longer support.
+ *
+ * Un-ticking a constellation can strip the affinity that let a later one be bought,
+ * so this runs to a fixpoint -- one removal can cascade into several. Partial takes
+ * count: the requirement gates buying the FIRST star, not completing the set.
+ */
+function repairAffinity() {
+  for (let guard = 0; guard < 30; guard++) {
+    const done = completedSet();
+    const touched = new Set([...state.done].map(k => k.slice(0, k.lastIndexOf(':'))));
+    let changed = false;
+    for (const id of touched) {
+      const others = new Set(done);
+      others.delete(id);
+      if (!meets(affinityFrom(others), db.constellations[id]?.required)) {
+        markUntouched(id);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+  }
+}
+
+/**
+ * Has progress run ahead of the suggested order?
+ *
+ * True when something bought sits after something unbought. This is NOT a mistake --
+ * rushing a particular celestial power is a perfectly good way to play, and the
+ * affinity cascade supports it. It does mean the numbering and the RUN column describe
+ * a different playthrough from yours: buy Hyrian first and you've spent 20 points, not
+ * the 48 its row claims. So it's worth offering to re-order, not worth warning about.
+ */
+/**
+ * Work out which power chips no longer fit, off the critical path.
+ *
+ * Skipped entirely unless a power is already chosen and there's a slot free to add
+ * another -- there is nothing to grey out otherwise, and the sweep is the most
+ * expensive thing in the app.
+ */
+let blockedTimer = null;
+function scheduleBlockedSweep() {
+  clearTimeout(blockedTimer);
+  const powerChips = chips.filter(c => c.kind === 'power');
+  const chosenPowers = picked().filter(i => chips[i].kind === 'power').length;
+  if (!chosenPowers || picked().length >= MAX) {
+    if (state.blocked.size) { state.blocked = new Set(); render(); }
+    return;
+  }
+  blockedTimer = setTimeout(() => {
+    const found = blockedPowers(db, wantedList(), powerChips.map(c => c.id),
+      { mode: state.plan?.mode ?? state.mode });
+    // Only re-render when the answer actually changed; this lands after the user has
+    // already been looking at the result for a while.
+    const same = found.size === state.blocked.size
+      && [...found].every(id => state.blocked.has(id));
+    if (!same) { state.blocked = found; render(); }
+  }, 260);
+}
+
+/** Identifies the current bought set, so a dismissal applies to this question only. */
+const boughtSignature = () => [...completedSet()].sort().join('|');
+
+function progressLeadsPlan() {
+  if (!state.plan) return false;
+  const bought = completedSet();
+  if (!bought.size) return false;
+  let sawUnbought = false;
+  for (const p of state.plan.schedule.path) {
+    if (p.kind === 'refund') continue;
+    if (!bought.has(p.id)) sawUnbought = true;
+    else if (sawUnbought) return true;
+  }
+  return false;
+}
+
+/**
+ * Same constellations, re-ordered so what you've bought comes first.
+ *
+ * Nothing is re-solved -- the SET is still the answer to your tags, and changing it
+ * would be a different build. Only the order changes, which is exactly what
+ * `schedulePath()`'s priority hook is for: rank bought constellations above
+ * everything, and the scheduler puts them as early as the affinity rules allow,
+ * recomputing Crossroads bootstraps and refunds around the new order.
+ */
+function reorderAroundProgress() {
+  if (!state.plan) return null;
+  const bought = completedSet();
+  if (!bought.size) return null;
+  const base = priorityFor(wantedList(), state.plan.mode ?? state.mode);
+  const priority = c => (c && bought.has(c.id) ? 1e6 : 0) + base(c);
+  try {
+    const schedule = schedulePath(state.plan.solution, db, db.maxPoints ?? 55,
+      { priority, interleavePartials: true });
+    return { schedule, solution: state.plan.solution, mode: state.plan.mode ?? state.mode,
+             from: MODES[state.plan.mode ?? state.mode][0] };
+  } catch {
+    return null;   // shouldn't happen: the bought set is affinity-closed by construction
+  }
+}
+
+/** Tick or clear a whole constellation, keeping both rules satisfied. */
+function toggleSteps(keys) {
+  if (!keys.length) return;
+  const cid = keys[0].slice(0, keys[0].lastIndexOf(':'));
+  if (keys.every(k => state.done.has(k))) {
+    for (const k of keys) state.done.delete(k);
+    repairAffinity();
+  } else {
+    ensureAffinity(cid);
+    for (const k of keys) state.done.add(k);
+  }
+}
+
+/**
+ * Tick a single star, keeping the ticked set to something the game could produce.
+ *
+ * You cannot buy a star without its parent -- devotion trees are strictly
+ * parent-before-child -- so a bare toggle can record a build that doesn't exist.
+ * Rather than reject the click and explain why, the click means what the player
+ * means by it: buying a star buys the chain that leads to it, and un-buying one
+ * un-buys everything hanging off it. Illegal states become unreachable instead of
+ * merely discouraged.
+ *
+ * Note this is the rule WITHIN a constellation, which has no exceptions. It
+ * deliberately does not force the whole path: taking three stars here, going
+ * elsewhere and coming back is legal play, and you may already own things out of
+ * the order this plan happens to suggest.
+ */
+function toggleStar(key) {
+  const cut = key.lastIndexOf(':');
+  const cid = key.slice(0, cut), n = +key.slice(cut + 1);
+  const c = db.constellations[cid];
+  if (!c || !n) return;
+  const taken = new Set(plannedStars(cid));
+  const parentOf = i => c.starParents?.[i - 1] ?? null;
+
+  if (state.done.has(key)) {
+    for (const s of taken) {
+      for (let a = s; a; a = parentOf(a)) {
+        if (a === n) { state.done.delete(`${cid}:${s}`); break; }
+      }
+    }
+    state.done.delete(key);
+    // Dropping a star can un-complete this constellation, which strips the affinity
+    // whatever came after it was relying on.
+    repairAffinity();
+  } else {
+    ensureAffinity(cid);
+    for (let a = n; a; a = parentOf(a)) {
+      if (taken.has(a)) state.done.add(`${cid}:${a}`);
+    }
+  }
+}
+
+function render() {
+  // render() replaces the whole subtree, which destroys the scroller and resets
+  // scrollTop to 0 -- so picking a tag halfway down the list threw you back to the
+  // top. Carry the offset across the swap. Tab changes deliberately reset it,
+  // since that's a different list.
+  const prevScroll = app.querySelector('.scroll');
+  const keepScroll = prevScroll && renderedTab === state.tab ? prevScroll.scrollTop : 0;
+  // Same problem as the tag list: innerHTML destroys the scroller and drops you back
+  // to the top. Ticking a star halfway down the path re-renders, so without this the
+  // list jumps on every click.
+  const prevPath = app.querySelector('.dscroll');
+  const keepPath = prevPath ? prevPath.scrollTop : 0;
+
+  // Five empty pills read like a form to fill in. Show what's chosen plus a single
+  // prompt for the next, and put the count in the label so the ceiling stays clear.
+  const chosenCount = picked().length;
+  let h = `<div class="col"><div><p class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
+    <span>Target tags <span style="color:#5f5f5f">${chosenCount}/${MAX}</span></span></p>`;
+  for (let i = 0; i < MAX; i++) {
+    const s = state.sel[i];
+    if (s == null) continue;
+    const isPower = chips[s].kind === 'power';
+    // Weights are a priority between things that COMPETE for stars. A celestial power
+    // isn't in that competition -- it's a hard target, secured or reported as unmet, and
+    // measurably identical at one dot and three. Showing a control that does nothing is
+    // worse than showing none, so a power gets a fixed target marker instead.
+    const control = isPower
+      ? `<span class="tgt" title="Celestial powers are targets, not priorities -- you either secure it or it's reported as not fitting"><i class="ti ti-crosshair"></i>target</span>`
+      : `<span class="dots" data-weight="${i}" role="button"
+             aria-label="Priority ${state.weights[i]} of ${MAX_WEIGHT}, click to change"
+             title="How much this matters (${state.weights[i]}/${MAX_WEIGHT}) -- click to cycle">${
+         Array.from({ length: MAX_WEIGHT }, (_, d) =>
+           `<i class="${d < state.weights[i] ? 'on' : ''}"></i>`).join('')
+       }</span>`;
+    h += `<div class="slot full${isPower ? ' pow' : ''}">
+       <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:11px;opacity:.6">pet</span>' : ''}${
+         isPower ? ' <span class="cpc">CP</span>' : ''}</span>
+       ${control}
+       <button class="rb" data-rm="${i}" aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button></div>`;
+  }
+  if (chosenCount < MAX) {
+    h += `<div class="slot empty"><span>${chosenCount ? 'Add another' : 'Pick a tag below'}</span>
+      <span class="rb"><i class="ti ti-plus"></i></span></div>`;
+  }
+  h += `<div class="actions">
+    <span class="status">${state.solving
+      ? '<span class="pulse"></span>solving'
+      : state.plan
+        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55`
+        : chosenCount ? '' : 'pick a tag to begin'}</span>
+    <button class="resetall" data-reset="1"${chosenCount || state.plan ? '' : ' disabled'}
+      title="Clear the tag list, the path and your progress">Reset all</button>
+  </div>`;
+  h += `<div style="display:flex;gap:6px;margin:18px 0 8px">
+    <button class="tab${state.tab === 'character' ? ' on' : ''}" data-tab="character">Character</button>
+    <button class="tab${state.tab === 'pet' ? ' on' : ''}" data-tab="pet">Pet</button></div><div class="scroll">`;
+  for (const [key, ids] of groups) {
+    if (!key.startsWith(state.tab + '|')) continue;
+    const name = key.split('|')[1], open = state.open.has(key);
+    h += `<div class="cat"><button class="cath" data-cat="${esc(key)}">
+      <span>${esc(name)} <span class="n">${ids.length}</span></span>
+      <i class="ti ti-chevron-${open ? 'down' : 'right'}"></i></button>`;
+    if (open) {
+      h += '<div style="padding:0 0 8px">' + ids.map(i => {
+        const c = chips[i];
+        const used = state.sel.includes(i);
+        const blocked = !used && state.blocked.has(c.id);
+        const cls = 'chip' + (used ? ' used' : blocked ? ' blocked' : '');
+        // A power's cost in stars is the useful thing to know before picking it: 40 of
+        // the 62 are reachable without finishing their constellation.
+        const title = c.kind === 'power'
+          ? (blocked
+            ? `${c.label} can't fit alongside the powers you've already chosen`
+            : `${c.label} -- ${c.min} of ${consName(c.cons)}'s ${c.size} stars`)
+          : c.label;
+        return `<button class="${cls}" data-add="${i}"${used || blocked ? ' disabled' : ''}
+          title="${esc(title)}" aria-label="Add ${esc(c.label)}">
+          ${esc(c.label)}<span class="rb"><i class="ti ti-${
+            used ? 'check' : blocked ? 'ban' : 'plus'}"></i></span></button>`;
+      }).join('') + '</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div></div><div><p class="lbl">Power scoring</p>';
+  const tabs = MODES.map((m, i) => [i, m[0], m[1]]);
+  if (state.custom) {
+    tabs.push([CUSTOM, 'Custom',
+      `your order, from ${state.custom.from.toLowerCase()}`]);
+  }
+  h += '<div class="mtabs">' + tabs.map(([i, label, sub]) =>
+    `<button class="mtab${state.mode === i ? ' on' : ''}" data-score="${i}" title="${esc(sub)}">${
+      esc(label)}<span class="sub">${esc(sub)}</span></button>`).join('') + '</div>';
+  h += coverageHtml();
+  h += `<p class="lbl" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
+    <span>Devotions</span>
+    <span style="display:flex;gap:6px">
+    <button class="plainbtn" data-undo="1"${history.length ? '' : ' disabled'}
+      title="${history.length
+        ? `Undo the last change (${history.length} step${history.length === 1 ? '' : 's'} back) -- Ctrl+Z`
+        : 'Nothing to undo'}"><i class="ti ti-arrow-back-up"></i> Undo</button>
+    <button class="plainbtn${state.plain ? ' on' : ''}" data-plain="1"
+      title="${state.plain
+        ? 'Back to one card per step, with the stars to click'
+        : 'The whole path in one column -- every pick in order, at a glance'}">${
+      state.plain ? 'Detail' : 'Overview'}</button></span></p>`;
+  // Offered, not warned about. Going straight for a celestial power is a real way to
+  // play; the only cost is that the numbering below describes a different order from
+  // the one you took.
+  // Raised in every mode, including Custom: respeccing is normal, and someone playing
+  // with the tool will run ahead of a custom order too. No guard is needed to hide it
+  // after re-ordering -- re-ordering makes progress a prefix, so the condition goes
+  // false on its own.
+  const asking = progressLeadsPlan() && boughtSignature() !== state.offerSeen;
+  h += `<div class="dwrap"><div class="dscroll">` + pathHtml() + '</div>';
+  if (asking) {
+    h += `<div class="modal"><div class="mbox">
+      <p class="mtitle">Rushing something?</p>
+      <p class="mtext">Your picks sit ahead of this order, so the step numbers and
+        running totals below aren't describing your run.</p>
+      <div class="mopts">
+        <button class="mbtn go" data-reorder="1">
+          <b>Re-order &amp; restart</b>
+          <span>Put these first and clear the ticks, ready to follow from the top</span>
+        </button>
+        <button class="mbtn" data-keepticks="1">
+          <b>Keep my ticks</b>
+          <span>I've already bought these &mdash; leave the order alone</span>
+        </button>
+      </div>
+    </div></div>`;
+  }
+  h += '</div></div></div>';
+  app.innerHTML = h;
+  save();
+
+  // Size before restoring scroll: setting scrollTop on an unsized box clamps to 0.
+  fitPanels();
+  const nextScroll = app.querySelector('.scroll');
+  if (nextScroll) nextScroll.scrollTop = keepScroll;
+  const nextPath = app.querySelector('.dscroll');
+  if (nextPath) nextPath.scrollTop = keepPath;
+  renderedTab = state.tab;
+}
+
+/**
+ * Cap both long panels at whatever room is left below them, so each scrolls inside
+ * itself instead of growing the page.
+ *
+ * Both need it for the same reason: what's above them changes height. Unfolding a
+ * keyword category used to push the page down and carry your chosen tags and the
+ * Reset button off screen; the devotions list grows with the build. And both are
+ * measured rather than given a fixed `vh`, because the coverage panel above the
+ * devotions grows a row per tag -- any constant would be wrong for four of the five
+ * tag counts.
+ *
+ * Floor of 200px so a short window still shows something scrollable, not a sliver.
+ */
+function fitPanels() {
+  if (typeof window === 'undefined') return;
+  for (const sel of ['.scroll', '.dscroll']) {
+    const box = app.querySelector(sel);
+    if (!box || !box.getBoundingClientRect) continue;
+    const top = box.getBoundingClientRect().top;
+    box.style.maxHeight = Math.max(200, window.innerHeight - top - 16) + 'px';
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', fitPanels);
+  window.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      if (undo()) { e.preventDefault(); render(); }
+    }
+  });
+}
+
+app.addEventListener('click', e => {
+  // Scope every lookup INSIDE the app root. `closest('[data-mode]')` used to walk
+  // all the way up to the host's <html data-mode="dark">, match it, and swallow
+  // every click in the widget. Hence data-score, plus the app.contains guard.
+  const m = e.target.closest('[data-score]');
+  if (m && app.contains(m)) {
+    state.mode = +m.dataset.score;
+    // Rebuild straight away. Deferring this to the Build button was meant to protect
+    // in-progress ticks, but ticks are keyed constellation:star and survive a rebuild,
+    // so the only thing deferral achieved was a tab that appeared to do nothing.
+    scheduleBuild();
+    return;
+  }
+
+  // Pure view switch -- no re-solve, so it can't disturb the plan or the ticks.
+  const pl = e.target.closest('[data-plain]');
+  if (pl && app.contains(pl)) { state.plain = !state.plain; render(); return; }
+
+  // A star click must win over the card click that would otherwise bubble to it.
+  const rs = e.target.closest('[data-reset]');
+  if (rs && app.contains(rs)) { reset(); return; }
+
+  const wt = e.target.closest('[data-weight]');
+  if (wt && app.contains(wt)) {
+    const slot = +wt.dataset.weight;
+    // Cycle 1 -> 2 -> 3 -> 1. A slider would imply precision nobody has.
+    state.weights[slot] = state.weights[slot] >= MAX_WEIGHT ? 1 : state.weights[slot] + 1;
+    dropCustom(); scheduleBuild();
+    return;
+  }
+
+  const un = e.target.closest('[data-undo]');
+  if (un && app.contains(un)) { if (undo()) render(); return; }
+
+  // "I've already bought these." Dismiss for this bought set; tick something else out
+  // of order and it's a new question, so it asks again.
+  const kt = e.target.closest('[data-keepticks]');
+  if (kt && app.contains(kt)) { state.offerSeen = boughtSignature(); render(); return; }
+
+  const ro = e.target.closest('[data-reorder]');
+  if (ro && app.contains(ro)) {
+    // Clicking a star deep in the list means one of two things, and until now the tool
+    // assumed the first: "I already bought this" or "I want to rush this". Taking the
+    // re-order settles it -- you're saying the second. So the ticks that got you here
+    // were a way of pointing at a target, not a record of purchases, and the new order
+    // is something to follow from the top with nothing bought yet.
+    //
+    // Declining leaves them ticked, which is the other reading.
+    //
+    // Snapshot first: if you did mean "I already bought this", Undo brings the ticks
+    // straight back, and they'll be a prefix of the new order.
+    const custom = reorderAroundProgress();   // reads progress, so run it before clearing
+    if (custom) {
+      pushHistory();
+      state.custom = custom;
+      state.mode = CUSTOM;
+      state.plan = custom;
+      state.done = new Set();
+      render();
+    }
+    return;
+  }
+
+  const star = e.target.closest('[data-star]');
+  if (star && app.contains(star)) {
+    pushHistory();
+    toggleStar(star.dataset.star);
+    render();
+    return;
+  }
+
+  // Clicking the card header ticks or clears the whole constellation at once.
+  const st = e.target.closest('[data-step]');
+  if (st && app.contains(st)) {
+    pushHistory();
+    toggleSteps((st.dataset.keys || '').split(',').filter(Boolean));
+    render();
+    return;
+  }
+  const t = e.target.closest('button');
+  if (!t || !app.contains(t)) return;
+  if (t.dataset.add != null) {
+    const i = +t.dataset.add;
+    if (state.sel.includes(i)) return;
+    const slot = state.sel.indexOf(null);
+    if (slot < 0) return;
+    // A custom order is a re-ordering of one particular set of constellations. Change
+    // the tags and that set changes, so the saved order no longer refers to anything.
+    state.sel[slot] = i; state.weights[slot] = DEFAULT_WEIGHT;
+    dropCustom(); scheduleBuild();
+  } else if (t.dataset.rm != null) {
+    state.sel[+t.dataset.rm] = null; dropCustom(); scheduleBuild();
+  } else if (t.dataset.tab) {
+    state.tab = t.dataset.tab; render();
+  } else if (t.dataset.cat) {
+    state.open.has(t.dataset.cat) ? state.open.delete(t.dataset.cat) : state.open.add(t.dataset.cat);
+    render();
+  }
+});
+
+if (load()) scheduleBuild(); else render();
+</script>
