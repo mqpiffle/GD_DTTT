@@ -351,7 +351,11 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cfcfcf}
 .covrow .cb{width:64px;height:4px;border-radius:2px;background:#262626;overflow:hidden;flex:none}
 .covrow .cb i{display:block;height:100%;background:#8a8a8a}
-.covrow .cv{width:52px;text-align:right;color:#8a8a8a;font-variant-numeric:tabular-nums;flex:none}
+.covrow .cv{width:76px;text-align:right;color:#8a8a8a;font-variant-numeric:tabular-nums;flex:none}
+/* The tree-wide total, where it exceeds what 55 points can reach. Deliberately the
+   quietest thing in the row: it is context, not a target -- nothing you can do gets you
+   there. Bracketed and dimmed so `4/23` still reads as the pair that matters. */
+.covrow .ct{color:#5f5f5f;font-size:10px;margin-left:3px}
 .covrow .cmax{width:28px;font-size:10px;color:#4ade80;flex:none;text-align:right}
 .covrow.maxed .cb i{background:#4ade80}
 .covrow.under .cv{color:#e8c15a}
@@ -712,6 +716,10 @@ function coverageHtml() {
       ceiling: Array.isArray(chip?.ceiling)
         ? Math.max(...chip.ceiling)
         : (chip?.ceiling ?? 0),
+      // Every star in the tree carrying this keyword, ignoring the 55-point cap.
+      // Only shown where it exceeds the ceiling, which is the case for 61 of 81
+      // browsable keywords.
+      total: chip?.stars ?? 0,
       stars: state.plan.solution.reduce(
         (n, e) => n + (db.constellations[e.id]?.hits?.[id] ?? 0), 0),
     };
@@ -750,6 +758,10 @@ function coverageHtml() {
     + ' do better — so it is worth re-weighting. A tag on zero is never impossible:'
     + ' across 30 measured builds every zero had a ceiling of 3–18 stars, so it always'
     + ' means your other tags spent the points first.',
+    'A dimmed number in brackets is how many stars in the whole tree carry that tag,'
+    + ' where that is more than 55 points can reach. It is context, not a target: 4/23'
+    + ' [37] means the tree has 37, a build like yours can reach 23 of them, and you'
+    + ' have 4. Green at 23 is still full marks.',
     'Stars count occurrences, not magnitude — a +2% bonus counts the same as a +40% one.'
     + ' Celestial powers get a tick instead of a bar: they are secured outright or'
     + ' reported as not fitting, so there is no partial to measure.');
@@ -784,20 +796,25 @@ function coverageHtml() {
       // builds, every tag that landed on zero had a ceiling between 3 and 18 -- not one
       // was genuinely unobtainable. So a zero always means "your other tags took the
       // points", never "the tree doesn't have this", and showing 0/10 says so.
+      const capped = c.total > ceiling
+        ? ` The tree has ${c.total} in total; the rest sit behind constellations a`
+          + ' 55-point build cannot also afford.'
+        : '';
       const note = maxed
-        ? 'everything the tree offers within 55 points'
+        ? `everything the tree offers within 55 points.${capped}`
         : c.stars === 0
           ? `${c.label} is obtainable -- up to ${ceiling} stars if it were your only tag`
             + ' -- but your other tags used the points. Drop or de-emphasise one to make'
             + ' room, or accept that this combination pulls in different directions.'
           : `${c.stars} of a possible ${ceiling} · you asked for ${
-              Math.round(100 * c.weight / totalWeight)}% of the emphasis`;
+              Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`;
       return `<div class="covrow${cls}" title="${esc(note)}">
       <span class="dots w${c.weight}">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
         `<span class="${d < c.weight ? 'on' : ''}">${d < c.weight ? '\u2605' : '\u2606'}</span>`).join('')}</span>
       <span class="cn">${esc(c.label)}${c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
       <span class="cb"><i style="width:${Math.round(100 * pct)}%"></i></span>
-      <span class="cv">${c.stars}/${ceiling}</span>
+      <span class="cv">${c.stars}/${ceiling}${
+        c.total > ceiling ? `<span class="ct">[${c.total}]</span>` : ''}</span>
       <span class="cmax">${maxed ? 'max' : ''}</span>
     </div>`;
     }).join('')
