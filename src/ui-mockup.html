@@ -352,7 +352,14 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    under the controls above it. Everything here is one or two steps brighter and a size
    up; the bar is thicker so its fill is legible at a glance rather than a hairline. */
 .covrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
+/* The tag NAME carries its weight, in the same red/amber/green as the weight control.
+   A second column of stars said the same thing the control above already said, and cost
+   50px to do it. Name colour is weight; bar and count colour are outcome -- two
+   different questions answered in two different columns of the same row. */
 .covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
+.covrow .cn.w1{color:#e5484d}
+.covrow .cn.w2{color:#e8c15a}
+.covrow .cn.w3{color:#4ade80}
 .covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
 .covrow .cb i{display:block;height:100%;background:#b8b8b8}
 .covrow .cv{width:88px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none}
@@ -364,7 +371,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .covrow.maxed .cb i{background:#4ade80}
 .covrow.under .cv{color:#e8c15a}
 .covrow.under .cb i{background:#e8c15a}
-.covrow.zero .cn{color:#9a9a9a}
+.covrow.zero .cn{opacity:.62}
 .covrow.zero .cv{color:#e07a7a}
 /* Tags pulling against each other. Stated, not hidden -- someone chasing a tag that
    quietly starves the rest of the build should be told, and told WHY, since a zero
@@ -424,14 +431,6 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    and nothing there is clickable. */
 /* Coverage keeps small stars on purpose: up to five rows of them beside the bars, and
    nothing there is clickable. Doubling these would make the readout shout. */
-/* Still muted against the weight CONTROL's red/amber/green -- these are a readout of a
-   choice you made elsewhere, and matching it exactly made two rows of stars compete for
-   the same meaning. Brighter than before, just not all the way. */
-.covrow .dots{width:50px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default;gap:2px}
-.covrow .dots span{font-size:14px;color:#4f4f4f}
-.covrow .dots.w1 span.on{color:#c65b5f;text-shadow:none}
-.covrow .dots.w2 span.on{color:#c4a655;text-shadow:none}
-.covrow .dots.w3 span.on{color:#5fb87c;text-shadow:none}
 .covrow.under .cv{color:#e8c15a}
 .actions{display:flex;gap:8px;margin-top:8px;align-items:center}
 .status{flex:1;font-size:11px;color:#8a8a8a;display:flex;align-items:center;gap:7px;min-height:20px}
@@ -765,6 +764,9 @@ function coverageHtml() {
     + ' do better — so it is worth re-weighting. A tag on zero is never impossible:'
     + ' across 30 measured builds every zero had a ceiling of 3–18 stars, so it always'
     + ' means your other tags spent the points first.',
+    'The tag name is coloured by the weight you gave it — red for 1, amber for 2, green'
+    + ' for 3. The bar and the count are coloured by the OUTCOME, so the two never mean'
+    + ' the same thing even when they land on the same colour.',
     'A dimmed number in brackets is how many stars in the whole tree carry that tag,'
     + ' where that is more than 55 points can reach. It is context, not a target: 4/23'
     + ' [37] means the tree has 37, a build like yours can reach 23 of them, and you'
@@ -782,9 +784,7 @@ function coverageHtml() {
           ? `${c.label} secured -- ${c.cost} of ${c.cons}'s ${c.size} stars`
           : `${c.label} could not be fitted alongside your other picks`;
         return `<div class="covrow pow${c.got ? ' maxed' : ' zero'}" title="${esc(note)}">
-        <span class="dots w${c.weight}">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
-          `<span class="${d < c.weight ? 'on' : ''}">${d < c.weight ? '\u2605' : '\u2606'}</span>`).join('')}</span>
-        <span class="cn">${esc(c.label)} <span class="cpc">CP</span></span>
+        <span class="cn w${c.weight}">${esc(c.label)} <span class="cpc">CP</span></span>
         <span class="cb pow">${c.got
           ? `<span class="powcons">${esc(c.cons)} ${c.cost}/${c.size}</span>`
           : '<span class="powcons">no room</span>'}</span>
@@ -807,18 +807,18 @@ function coverageHtml() {
         ? ` The tree has ${c.total} in total; the rest sit behind constellations a`
           + ' 55-point build cannot also afford.'
         : '';
-      const note = maxed
+      const wnote = `Weight ${c.weight} of ${MAX_WEIGHT}. `;
+      const note = wnote + (maxed
         ? `everything the tree offers within 55 points.${capped}`
         : c.stars === 0
           ? `${c.label} is obtainable -- up to ${ceiling} stars if it were your only tag`
             + ' -- but your other tags used the points. Drop or de-emphasise one to make'
             + ' room, or accept that this combination pulls in different directions.'
           : `${c.stars} of a possible ${ceiling} · you asked for ${
-              Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`;
+              Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`);
       return `<div class="covrow${cls}" title="${esc(note)}">
-      <span class="dots w${c.weight}">${Array.from({ length: MAX_WEIGHT }, (_, d) =>
-        `<span class="${d < c.weight ? 'on' : ''}">${d < c.weight ? '\u2605' : '\u2606'}</span>`).join('')}</span>
-      <span class="cn">${esc(c.label)}${c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
+      <span class="cn w${c.weight}">${esc(c.label)}${
+        c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
       <span class="cb"><i style="width:${Math.round(100 * pct)}%"></i></span>
       <span class="cv">${c.stars}/${ceiling}${
         c.total > ceiling ? `<span class="ct">[${c.total}]</span>` : ''}</span>
