@@ -362,7 +362,13 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    that differ in length as well as in fill can't be compared at a glance. */
 .covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
 .covrow .cb i{display:block;height:100%;background:#b8b8b8}
-.covrow .cv{margin-left:auto;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
+/* Fixed width, not margin-left:auto. With the name on flex:1 there is never any free
+   space for an auto margin to claim, so .cv fell back to sizing by its CONTENT -- and
+   `4/23 [37]` is wider than `6/6`, which pushed the bar and the `max` label to a
+   different x on every row. Everything to the right of the name is fixed now, so the
+   bars line up; .cv being last with nothing reserved after it is what puts the counts
+   on the column edge. 92px fits the widest case, `31/31 [99]`. */
+.covrow .cv{width:92px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
 /* The tree-wide total, where it exceeds what 55 points can reach. Deliberately the
    quietest thing in the row: it is context, not a target -- nothing you can do gets you
    there. Bracketed and dimmed so `4/23` still reads as the pair that matters. */
