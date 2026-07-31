@@ -198,9 +198,11 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
   font-size:10px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;
   color:#cfcfcf;cursor:help}
 .orb.none{border-style:dashed;color:#5f5f5f;font-weight:400}
-/* Points spent reads as white: it is the one number that is not an affinity, and
-   colouring it would imply it belonged to the same family. */
-.orb.pts{color:#f2f2f2;border-color:#8f8f8f;background:rgba(255,255,255,.09)}
+/* Points spent is a SQUARE, not a circle -- white alone was too weak a signal sitting
+   first in a row of five coloured discs, and shape survives being glanced at. Slightly
+   rounded so it still belongs to the same set of chips. */
+.orb.pts{color:#f2f2f2;border-color:#9a9a9a;background:rgba(255,255,255,.11);
+  border-radius:5px}
 /* Running ledger, dropped in between the last completed card and the one you are on.
    It answers "what do I hold right now" at the exact point in the column where you are
    reading, which is what the per-card `holding ...` line was trying to do from inside
