@@ -66,16 +66,40 @@ matter — measure before building.
 
 ---
 
-## Showing actual stat values
+## Showing actual stat values — DONE (for stars)
 
-~66 fields have no literal label string. iagd composes them at runtime from
-`customtag_damage_13%` plus `DamageTypeTranslation`. Keyword *chips* already work
-(`fields.mjs` has `damageKeyword`), but printing "+42% Fire Damage" on a star needs
-that composition reimplemented, plus per-level stat values carried into the index.
+`src/lib/effects.mjs` renders a star's stats into readable lines, composed at build time
+into `ui-index.json` as `fx`. Hovering a star in Detail shows them.
 
-This also unlocks the honest version of power scoring: the real §7.5 objective is
-`frequency × stat value at level`, and having the values would let `power.mjs` drop its
-log-compression stand-in.
+**The blocker recorded here was overstated.** It said ~66 fields needed iagd's
+damage-template composition reimplemented — but `damageKeyword()` in `fields.mjs`
+already did that and had simply never been wired to a display path. Coverage is 100% of
+stat occurrences on stars.
+
+The real difficulty was that `labels.json` holds three different kinds of thing:
+
+- **310 templates** — `"+{0} Defensive Ability"`, `"Increases Shield Block Chance by
+  {0}%"`. These carry the wording, the sign and the number's position. Substitute into
+  them; concatenating produces `20 +{0} Defensive Ability`.
+- **plain names** — need a sign and a unit adding from the field's suffix.
+- **no label at all** — the damage fields, resolved by `damageKeyword()`.
+
+Min and Max must be grouped, not walked linearly: Tsunami's power star lists
+`offensiveColdMax` *before* `offensiveColdMin`, which a linear pass renders as "37 Cold
+Damage" followed by "26-37 Cold Damage".
+
+Constellation totals are done too: a card title sums the stars you are taking, which is
+why lines are stored as a template plus its number rather than as finished strings.
+
+Index cost: 122 KB to 227 KB, in exchange for the page shipping neither `labels.json`
+nor the template logic.
+
+Still open:
+
+- **Per-RANK values.** Arrays take their first entry, so a proc's numbers are shown at
+  rank 1 regardless of the scoring mode. Max rank should show max-rank numbers.
+- **Coverage bars still count stars, not magnitude** — the values now exist to fix that,
+  which was the other half of this item.
 
 ---
 

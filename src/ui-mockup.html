@@ -96,6 +96,12 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .step{display:flex;align-items:baseline;gap:9px;padding:9px 11px}
 .step .num{font-variant-numeric:tabular-nums;font-size:11px;color:#8a8a8a;min-width:18px}
 .step .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+/* Title and CP badge share a line. They are separate elements so each can carry its own
+   tooltip, but `.body` is a flex COLUMN, so without this row the badge became a
+   full-width block on its own line. */
+.nmrow{display:flex;align-items:baseline;gap:7px;min-width:0}
+.nmrow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nmrow .cp{flex:none}
 .step .nm{font-size:13px}
 .step .run{font-variant-numeric:tabular-nums}
 .stars{border-top:1px solid #2e2e2e;padding:4px 0 5px}
@@ -108,6 +114,40 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .star.sdone .stxt > *:not(.sck){opacity:.4}
 .star.sdone .sn{opacity:.5}
 .sck{color:#4ade80;font-size:11px;line-height:1;margin-left:1px}
+/* Effect tooltip. Fixed position so nesting inside the re-rendered tree costs nothing,
+   and pointer-events:none so it can never sit between the cursor and the row that
+   summoned it -- which would flicker as the mouseover bounced between the two. */
+.tip{position:fixed;left:0;top:0;z-index:40;max-width:420px;
+  padding:11px 14px;border-radius:9px;border:1px solid #3a3a3a;background:#141414;
+  box-shadow:0 8px 24px rgba(0,0,0,.65);
+  /* 16px to match the target tag labels exactly -- two readouts at 16 and 17 look like
+     a mistake rather than a hierarchy. */
+  font-size:16px;line-height:1.5;color:#cfcfcf;
+  display:none;pointer-events:none}
+/* A flex column with one gap, so plain rows and pills share the same rhythm. Per-row
+   margins gave pills a different spacing from text and let their borders collide. */
+.tip.on{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.tip b{display:block;margin-bottom:6px;color:#7fffd4;font-weight:600;font-size:16px;
+  letter-spacing:.04em;text-transform:uppercase}
+/* No bullets anywhere. A pill can't carry one without looking wrong, and half the list
+   bulleted while the other half wasn't read as an accident. */
+.tip span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:100%;line-height:1.35}
+/* A bonus that serves one of your tags, pilled in that tag's weight colour -- the same
+   red/amber/green as the stars, so the two readouts agree without needing a legend.
+   `width:max-content` shrink-wraps the pill to its text while `display:block` keeps it
+   on its own line; inline-block did the first but let two pills share a row. */
+/* Equal padding top and bottom so the text sits centred in the capsule; the border adds
+   1px on each side, which is why an asymmetric padding read as off-centre. */
+.tip span.hit{display:block;width:max-content;max-width:100%;
+  padding:4px 11px;border-radius:999px;border:1px solid;font-weight:600;line-height:1.2}
+.tip span.hit.w1{color:#ff9c9e;border-color:#e5484d;background:rgba(229,72,77,.14)}
+.tip span.hit.w2{color:#f0d493;border-color:#e8c15a;background:rgba(232,193,90,.14)}
+.tip span.hit.w3{color:#9cefbc;border-color:#4ade80;background:rgba(74,222,128,.14)}
+/* The card title and the CP badge are now hover targets. */
+.step .nm[data-fx],.step .cp[data-fx]{cursor:help}
+.step .nm[data-fx]:hover{color:#fff;text-decoration:underline dotted #5a5a5a}
+
 /* The next star to buy. Same hue as the current card's border (#e8c15a) taken down
    to a fill the text still reads on -- flat, no glow, because the card is already
    glowing and two glows on screen stop meaning "here". */
@@ -321,6 +361,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 </style>
 <div class="wrap"><div id="app">Loading…</div></div>
 <script type="module">
+import { renderLine, aggregate } from './lib/effects.mjs';
 import { buildDb, priorityFor } from './lib/select.mjs';
 import { solveBest, blockedPowers } from './lib/solver.mjs';
 import { schedulePath } from './lib/schedule.mjs';
@@ -846,10 +887,24 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
     + (complete ? ' done' : '') + (current ? ' current' : '');
   const attrs = refund ? ''
     : ` data-step="${esc(key)}" data-keys="${esc(stars.keys.join(','))}"`;
+  // Everything this card actually gives you, summed. Only the stars you are TAKING --
+  // 40 of the 62 power targets are partial, so a whole-constellation total would
+  // overstate what a 3-of-7 take hands you.
+  const takenIdx = refund ? [] : (stars.keys ?? []).map(k => +k.slice(k.lastIndexOf(':') + 1));
+  const totals = aggregate(
+    takenIdx.flatMap(n => (c.starEffects?.[n - 1] ?? []).map(unpackLine)));
+  const titleTip = refund ? '' : tipData(
+    `${p.name} — ${takenIdx.length} of ${c.starCount} stars`,
+    totals.map(l => [l.tmpl, l.v, l.v2 ?? 0, l.chip ?? 0]));
+  // The CP badge gets the power's own tooltip, separate from the passives.
+  const powerTip = c.powerStar ? tipData(
+    c.starNames?.[c.powerStar - 1] || c.name, c.powerEffects?.[c.powerStar - 1]) : '';
+
   return `<div class="${cls}"${attrs}>
       <div class="step">
         <span class="num">${complete ? '<i class="ti ti-check" style="color:#4ade80"></i>' : num}</span>
-        <span class="body"><span class="nm">${esc(p.name)}${c.hasPower && !refund ? ' <span class="cp">CP</span>' : ''}</span>
+        <span class="body"><span class="nmrow"><span class="nm"${titleTip}>${esc(p.name)}</span>${
+          c.hasPower && !refund ? `<span class="cp"${powerTip}>CP</span>` : ''}</span>
         <span class="n">${esc(detail)}</span>${affRow}${heldRow}</span>
         <span class="n run">${p.runningPoints}</span>
       </div>${stars.html && !complete ? `<div class="stars">${stars.html}</div>` : ''}
@@ -935,8 +990,19 @@ function starList(c, taken, chosenStars, nextKey) {
       ? `<span class="cpname">${esc(starName || c.name)}</span>`
       : (starName && starName !== c.name ? `<span class="nm2">${esc(starName)}</span>` : '');
     const sk = `${c.id}:${i + 1}`;
+    // What this star actually gives. The pills say WHICH of your tags a star serves;
+    // this says by how much -- "+15% Cold Damage" rather than "Cold Damage".
+    //
+    // Carried as data rather than a `title`: the native tooltip waits ~half a second,
+    // ignores styling, and can't be read while you scan down a list. The lines are
+    // newline-joined, which survives an attribute and comes back intact via dataset.
+    // A power star's own numbers ARE the proc, so show those; every other star shows
+    // its passives.
+    const tipAttrs = isPower
+      ? tipData(starName || c.name, c.powerEffects?.[i])
+      : tipData('', c.starEffects?.[i]);
     rows.push(`<div class="star${state.done.has(sk) ? ' sdone' : ''}${
-      sk === nextKey ? ' snext' : ''}" data-star="${esc(sk)}">
+      sk === nextKey ? ' snext' : ''}"${tipAttrs} data-star="${esc(sk)}">
       <span class="sn">${i + 1}</span>
       <span class="stree">${gutter.get(i + 1) ?? ''}</span>
       <span class="stxt">${label}${mine.map(m => `<span class="tg">${esc(m)}</span>`).join('')}${
@@ -948,6 +1014,37 @@ function starList(c, taken, chosenStars, nextKey) {
 }
 
 const chipLabel = id => (chips.find(c => c.id === id)?.label ?? id);
+
+// --- effect tooltips ---------------------------------------------------------
+// Index lines are packed as [template, value, value2, chipId]; unpack before use.
+const unpackLine = ([tmpl, v, v2, chip]) => ({ tmpl, v, v2: v2 || null, chip: chip || null });
+
+/** chip id -> the weight the user gave it, for colouring a bonus they asked for. */
+function wantedWeights() {
+  const m = new Map();
+  state.sel.forEach((sel, slot) => {
+    if (sel != null) m.set(chips[sel].id, state.weights[slot]);
+  });
+  return m;
+}
+
+/**
+ * Build a tooltip payload: a heading plus lines, each flagged with the weight of the
+ * tag it serves so the tooltip can pill it in that tag's colour.
+ *
+ * Encoded into one attribute because a tooltip is summoned from a `data-` attribute and
+ * arrays don't survive that. `␟` (unit separator) is used between fields since it
+ * cannot occur in a stat string.
+ */
+function tipData(head, packed) {
+  const weights = wantedWeights();
+  const lines = (packed ?? []).map(unpackLine).map((l) => {
+    const w = l.chip ? weights.get(l.chip) : null;
+    return `${w ?? 0}␟${renderLine(l)}`;
+  });
+  if (!lines.length) return '';
+  return ` data-fx="${esc(lines.join('\n'))}"${head ? ` data-fxhead="${esc(head)}"` : ''}`;
+}
 const consName = id => (db.constellations[id]?.name ?? id);
 const powerChipFor = id => chips.find(c => c.kind === 'power' && c.id === id);
 
@@ -1337,7 +1434,9 @@ function render() {
       </div>
     </div></div>`;
   }
-  h += '</div></div></div>';
+  // The tooltip lives inside the rendered tree, so a re-render disposes of it cleanly
+  // and there is nothing to leak. It is position:fixed, so being nested doesn't matter.
+  h += '</div></div></div><div class="tip" role="tooltip" aria-hidden="true"></div>';
   app.innerHTML = h;
   save();
 
@@ -1373,8 +1472,70 @@ function fitPanels() {
   }
 }
 
+/**
+ * Effect tooltip.
+ *
+ * Delegated from `app`, which survives every re-render, so nothing needs re-binding
+ * when the path is rebuilt. Everything is guarded because the same code runs under the
+ * test harness, where querySelector only knows about the two scroll panels.
+ *
+ * Positioned against the ROW rather than the pointer: it stays put while you read it
+ * instead of sliding around, and a row is a stable rectangle to flip against.
+ */
+function showTip(row) {
+  const tip = app.querySelector?.('.tip');
+  if (!tip || !row?.getBoundingClientRect || typeof window === 'undefined') return;
+  const lines = (row.dataset.fx || '').split('\n').filter(Boolean);
+  if (!lines.length) return hideTip();
+
+  const head = row.dataset.fxhead;
+  // Each line arrives as "weight␟text". A non-zero weight means this bonus serves a tag
+  // you asked for, so it gets a pill in that tag's colour -- the same red/amber/green
+  // the stars use, so the two readouts agree without a legend.
+  tip.innerHTML = (head ? `<b>${esc(head)}</b>` : '')
+    + lines.map((l) => {
+      const cut = l.indexOf('␟');
+      const w = cut < 0 ? 0 : Number(l.slice(0, cut)) || 0;
+      const text = cut < 0 ? l : l.slice(cut + 1);
+      return w > 0
+        ? `<span class="hit w${w}">${esc(text)}</span>`
+        : `<span>${esc(text)}</span>`;
+    }).join('');
+  tip.setAttribute('aria-hidden', 'false');
+  tip.classList.add('on');
+
+  // Measure after filling, or the first hover positions against a zero-size box.
+  const r = row.getBoundingClientRect();
+  const t = tip.getBoundingClientRect();
+  const pad = 10;
+  // Prefer the right of the row; flip left when that would overflow.
+  let x = r.right + pad;
+  if (x + t.width > window.innerWidth - pad) x = Math.max(pad, r.left - t.width - pad);
+  // Vertically centre on the row, then clamp inside the viewport.
+  let y = r.top + r.height / 2 - t.height / 2;
+  y = Math.max(pad, Math.min(y, window.innerHeight - t.height - pad));
+  tip.style.left = `${Math.round(x)}px`;
+  tip.style.top = `${Math.round(y)}px`;
+}
+
+function hideTip() {
+  const tip = app.querySelector?.('.tip');
+  if (!tip) return;
+  tip.classList.remove('on');
+  tip.setAttribute('aria-hidden', 'true');
+}
+
+app.addEventListener('mouseover', (e) => {
+  const row = e.target?.closest?.('[data-fx]');
+  if (row && app.contains(row)) showTip(row); else hideTip();
+});
+app.addEventListener('mouseleave', hideTip);
+// Re-rendering mid-hover leaves a tooltip describing a row that no longer exists.
+app.addEventListener('click', hideTip);
+
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', fitPanels);
+  window.addEventListener('scroll', hideTip, true);
   window.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
       if (undo()) { e.preventDefault(); render(); }

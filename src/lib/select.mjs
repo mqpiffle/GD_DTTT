@@ -305,6 +305,11 @@ export function buildDb(index, maxPoints = 55) {
       perStar: c.ks ?? null,     // chip ids carried by each star, in purchase order
       starNames: c.sn ?? null,
       starParents: c.sp ?? null,
+      // Per star, packed effect lines [tmpl, v, v2, chipId] -- see effects.mjs. Composed
+      // at build time so the page needs neither labels.json nor the damage-template
+      // logic. `starEffects` is passives; `powerEffects` is what the proc does.
+      starEffects: c.fx ?? null,
+      powerEffects: c.fxp ?? null,
     };
   }
   return { maxPoints, constellations, powers };

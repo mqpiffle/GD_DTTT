@@ -6,12 +6,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PET_SIDE_FIELDS } from '../src/lib/fields.mjs';
+import { effectLines } from '../src/lib/effects.mjs';
 import { buildDb } from '../src/lib/select.mjs';
 import { solveBest } from '../src/lib/solver.mjs';
 
 const dir = import.meta.dirname;
 const kw = JSON.parse(fs.readFileSync(path.join(dir, '../keywords.json'), 'utf8'));
 const data = JSON.parse(fs.readFileSync(path.join(dir, '../devotions.raw.json'), 'utf8'));
+// labels.json is regenerated from iagd; labels.extra.json is our own corrections and
+// wins where both define a field.
+const LABELS = {
+  ...JSON.parse(fs.readFileSync(path.join(dir, '../labels.json'), 'utf8')),
+  ...JSON.parse(fs.readFileSync(path.join(dir, '../labels.extra.json'), 'utf8')),
+};
 
 // chip id -> chip, for browsable chips only
 const chips = [];
@@ -65,6 +72,34 @@ for (const ns of ['character', 'pet']) {
     if (!c.browsable) continue;
     for (const f of c.fields) fieldToChip.set(`${ns}:${f}`, `${ns}:${c.id}`);
   }
+}
+
+/**
+ * Compact a line for the index, and resolve which keyword chip it belongs to.
+ *
+ * The chip is what lets the UI put a bonus you asked for in a coloured pill. A line can
+ * come from several fields (Min + Max are one statement), but they share a family and
+ * therefore a chip, so the first match is enough.
+ *
+ * Shape: [template, value, value2 | 0, chipId | 0]. Zeros rather than nulls because
+ * JSON writes them shorter and the UI treats both as absent.
+ */
+function packLines(lines) {
+  return (lines ?? []).map((l) => {
+    // Damage fields before duration fields. A damage-over-time merges two of them into
+    // one statement -- "25 Frostburn Damage over 2 seconds" -- and taking whichever came
+    // first tagged it as Frostburn DURATION, so it never highlighted for someone who had
+    // asked for Frostburn Damage. The subject of the line is the damage.
+    const fields = [...(l.fields ?? [])]
+      .sort((a, b) => (/Duration/.test(a) ? 1 : 0) - (/Duration/.test(b) ? 1 : 0));
+    let chip = 0;
+    for (const f of fields) {
+      const space = l.pet || PET_SIDE_FIELDS.has(f) ? 'pet' : 'character';
+      const id = fieldToChip.get(`${space}:${f}`);
+      if (id) { chip = id; break; }
+    }
+    return [l.tmpl, l.v ?? 0, l.v2 ?? 0, chip];
+  });
 }
 
 const constellations = [];
@@ -125,6 +160,32 @@ for (const c of data) {
     sn: c.stars.map(s => s.name ?? null),
     // 1-based parent star index per star (null for the root). Single-parent tree.
     sp: c.stars.map(s => s.prereq ?? null),
+    // What each star gives, as [template, value, value2, chipId] -- see effects.mjs for
+    // why the number is kept out of the string. Composed here so the page needs neither
+    // labels.json nor the damage-template logic.
+    //
+    // PASSIVES ONLY. A proc's numbers are a different statement -- they fire on a
+    // trigger rather than applying to your sheet -- so summing them into a
+    // constellation total would be wrong. They go in `fxp`.
+    //
+    // A POWER STAR'S OWN `stats` ARE THE PROC. Only 31 of the 62 powers define
+    // themselves through `grants`; the other 25 sit inline on the star, which is why
+    // Tsunami's "0.7 Seconds Skill Recharge" turned up in its passive total. This is the
+    // same rule that makes a keyword proc-only when every one of its stars has a proc.
+    fx: c.stars.map(s => packLines([
+      ...(s.proc ? [] : effectLines(s.stats, LABELS)),
+      // Marked in the TEXT, not just routed to the pet namespace. 40 of the 43 pet
+      // fields reuse a player stat's name, so Shepherd's Crook star 1 rendered its
+      // character Health and its pet Health as two identical "+19% Health" lines.
+      ...effectLines(s.petBonus?.stats, LABELS)
+        .map(l => ({ ...l, tmpl: `${l.tmpl} (pets)`, pet: true })),
+    ])),
+    // What the celestial power does: its own stats plus whatever skill it grants.
+    // Empty on every star but the power star.
+    fxp: c.stars.map(s => packLines(s.proc ? [
+      ...effectLines(s.stats, LABELS),
+      ...(s.grants && s.grants.kind !== 'pet' ? effectLines(s.grants.stats, LABELS) : []),
+    ] : [])),
   });
 }
 

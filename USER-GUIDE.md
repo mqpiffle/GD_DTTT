@@ -159,6 +159,21 @@ you're playing.
  04 [ ] ●  Harpy                        2   +4   11
 ```
 
+**Hover any star to see what it actually gives you.** The pills tell you *which* of your
+tags a star serves; the tooltip tells you by how much:
+
+```
+TSUNAMI
+· 26-37 Cold Damage
+· 6-28 Lightning Damage
+· 25 Frostburn Damage over 2 seconds
+· 3% Chance of Enemy Fumbling attacks
+· +20% Weapon Damage
+```
+
+Power stars are headed with the power's name, since that name *is* the power. Ordinary
+stars just list their bonuses.
+
 - **●** — this step gives you something you asked for, and **TAGS** says how many stars'
   worth. **○** means it gives you nothing you asked for.
 - **PTS** is what the step costs. **RUN** is your running total out of 55.

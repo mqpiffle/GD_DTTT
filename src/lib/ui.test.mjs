@@ -38,6 +38,21 @@ const winListeners = [];
 // A persistent stub would carry scrollTop across the swap by itself and hide the very
 // bug the preservation code exists to fix.
 const makeBox = () => ({ scrollTop: 0, style: {}, getBoundingClientRect: () => ({ top: 300 }) });
+
+/** A tooltip stub with just enough DOM to be positioned: classes, content, and a size. */
+const makeTip = () => {
+  const cls = new Set();
+  return {
+    innerHTML: '', style: {}, attrs: {},
+    classList: {
+      add: c => cls.add(c), remove: c => cls.delete(c), contains: c => cls.has(c),
+    },
+    get shown() { return cls.has('on'); },
+    setAttribute(k, v) { this.attrs[k] = v; },
+    // Fixed 200x120 so the flip and clamp arithmetic has something real to work against.
+    getBoundingClientRect: () => ({ width: 200, height: 120, top: 0, left: 0 }),
+  };
+};
 let boxes = {};
 
 const app = {
@@ -45,6 +60,12 @@ const app = {
   get innerHTML() { return this._html; },
   set innerHTML(v) { this._html = v; boxes = {}; },
   querySelector(sel) {
+    // The tooltip needs more than a scroll box: content, classes and a measurable size,
+    // since showTip() positions against its own rendered width.
+    if (sel === '.tip') {
+      if (!this._html.includes('class="tip"')) return null;
+      return (boxes[sel] ??= makeTip());
+    }
     if (sel !== '.scroll' && sel !== '.dscroll') return null;
     if (!this._html.includes(`class="${sel.slice(1)}"`)) return null;
     return (boxes[sel] ??= makeBox());
@@ -72,6 +93,23 @@ function click(dataset) {
   for (const [type, fn] of listeners) if (type === 'click') fn({ target: el });
 }
 
+/**
+ * Hover a row carrying `dataset`, at the given screen rectangle.
+ * `rect` decides whether the tooltip has room on the right, so it drives the flip.
+ */
+function hover(dataset, rect = { left: 100, right: 300, top: 200, height: 20 }) {
+  const el = {
+    dataset,
+    closest: sel => (sel === '[data-fx]' && dataset.fx != null ? el : null),
+    getBoundingClientRect: () => rect,
+  };
+  for (const [type, fn] of listeners) if (type === 'mouseover') fn({ target: el });
+  return boxes['.tip'];
+}
+const leaveApp = () => {
+  for (const [type, fn] of listeners) if (type === 'mouseleave') fn({});
+};
+
 /** Fire a window event, e.g. a keydown or a resize. */
 function fire(type, ev = {}) {
   for (const [t, fn] of winListeners) if (t === type) fn({ preventDefault() {}, ...ev });
@@ -92,6 +130,10 @@ const chipIdx = (label, ns = 'character') =>
 
 function plan(labels, mode) {
   ui.state.sel = ui.state.sel.map(() => null);
+  // Reset the weights too. A test that set them and moved on used to change every
+  // fixture that ran after it -- the re-order tests failed only when the whole file ran,
+  // and passed in isolation, which is a miserable thing to debug.
+  ui.state.weights = ui.state.weights.map(() => 2);
   labels.forEach(([l, ns], i) => { ui.state.sel[i] = chipIdx(l, ns); });
   ui.state.mode = mode;
   ui.build();
@@ -244,6 +286,164 @@ test('a part-bought constellation reads as part-bought, not untouched', () => {
     'still indeterminate after every star was ticked');
 });
 
+// --- the effect tooltip -----------------------------------------------------------
+
+test('every star row carries its effects as data', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+  const rows = (app.innerHTML.match(/data-star="/g) ?? []).length;
+  // Scoped to star rows: card titles and CP badges carry data-fx too now, so counting
+  // every occurrence in the document compares different things.
+  const withFx = (app.innerHTML.match(/class="star[^"]*" data-fx="/g) ?? []).length;
+  assert.ok(rows > 10, 'expected a decent number of star rows');
+  assert.equal(withFx, rows, `${withFx} of ${rows} star rows carry effects`);
+  // The native title is gone -- two tooltips for one row would be worse than either.
+  assert.doesNotMatch(app.innerHTML, /<div class="star[^>]*\stitle=/,
+    'a native title is still on the star rows');
+  assert.match(app.innerHTML, /class="tip"/, 'no tooltip element rendered');
+});
+
+test('the card title carries the constellation total, the CP badge carries the proc', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+  const h = app.innerHTML;
+
+  const title = [...h.matchAll(/class="nm" data-fx="([\s\S]*?)" data-fxhead="([^"]*)"/g)]
+    .find(m => m[2].startsWith('Tsunami'));
+  assert.ok(title, 'no aggregate tooltip on the Tsunami card title');
+  assert.match(title[2], /Tsunami — \d+ of \d+ stars/, 'the head should say how many stars');
+  // +15% on star 1 and +24% on star 4 must arrive summed, not as two lines.
+  const lines = title[1].split('\n').map(l => l.split('␟').pop());
+  assert.ok(lines.includes('+39% Cold Damage'),
+    `expected a summed cold line, got: ${lines.join(' | ')}`);
+  assert.ok(!lines.some(l => /Skill Recharge|Fumble/.test(l)),
+    'proc numbers leaked into the constellation total');
+
+  const badge = [...h.matchAll(/class="cp" data-fx="([\s\S]*?)" data-fxhead="([^"]*)"/g)]
+    .find(m => m[2] === 'Tsunami');
+  assert.ok(badge, 'no proc tooltip on the CP badge');
+  const proc = badge[1].split('\n').map(l => l.split('␟').pop());
+  assert.ok(proc.some(l => /Skill Recharge/.test(l)), `no proc numbers: ${proc.join(' | ')}`);
+});
+
+test('a bonus serving one of your tags is flagged with that tag\'s weight', () => {
+  // The tooltip pills those lines in the tag's colour, which needs the weight to travel
+  // with the line. Cold Damage at three stars, Defensive Ability at one.
+  ui.state.sel = ui.state.sel.map(() => null);
+  ui.state.sel[0] = chipIdx('Cold Damage');
+  ui.state.sel[1] = chipIdx('Defensive Ability');
+  ui.state.weights[0] = 3;
+  ui.state.weights[1] = 1;
+  ui.state.mode = 2; ui.build(); ui.state.plain = false; ui.render();
+
+  const rows = [...app.innerHTML.matchAll(/class="star[^"]*" data-fx="([\s\S]*?)" data-star/g)];
+  const flagged = rows.flatMap(r => r[1].split('\n'))
+    .map(l => l.split('␟'))
+    .filter(([w]) => Number(w) > 0);
+  assert.ok(flagged.length > 0, 'no bonus was flagged as serving a tag');
+
+  for (const [w, text] of flagged) {
+    if (/Cold Damage|Frostburn/.test(text)) {
+      assert.equal(w, '3', `cold line carried weight ${w}, expected the tag's 3: ${text}`);
+    } else if (/Defensive Ability/.test(text)) {
+      assert.equal(w, '1', `defensive line carried weight ${w}, expected 1: ${text}`);
+    }
+  }
+  // A stat nobody asked for stays unflagged.
+  const spirit = rows.flatMap(r => r[1].split('\n')).find(l => /Spirit/.test(l));
+  if (spirit) assert.match(spirit, /^0␟/, 'an untagged bonus should carry weight 0');
+});
+
+test('hovering a star fills the tooltip with its effects', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+
+  const tip = hover({ fx: '+15% Cold Damage\n+15% Lightning Damage' });
+  assert.ok(tip, 'no tooltip element found');
+  assert.ok(tip.shown, 'tooltip was not shown');
+  assert.match(tip.innerHTML, /\+15% Cold Damage/);
+  assert.match(tip.innerHTML, /\+15% Lightning Damage/);
+  assert.equal(tip.attrs['aria-hidden'], 'false');
+
+  // A power star leads with the power's name.
+  const withHead = hover({ fx: '28 Physical Damage', fxhead: "Targo's Hammer" });
+  assert.match(withHead.innerHTML, /<b>Targo&#39;s Hammer<\/b>|<b>Targo's Hammer<\/b>/,
+    `head missing: ${withHead.innerHTML}`);
+});
+
+test('the tooltip pills a tagged bonus in that tag\'s colour', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+
+  // "weight␟text" per line: 3 means a three-star tag, 0 means nobody asked for it.
+  const tip = hover({ fx: '3␟+39% Cold Damage\n0␟+15 Spirit' });
+  assert.match(tip.innerHTML, /class="hit w3"[^>]*>\+39% Cold Damage/,
+    `tagged line not pilled: ${tip.innerHTML}`);
+  assert.match(tip.innerHTML, /<span>\+15 Spirit/, 'untagged line should be plain');
+  assert.doesNotMatch(tip.innerHTML, /␟/, 'the separator leaked into the display');
+
+  // Each weight gets its own class so the colours match the stars.
+  for (const w of [1, 2, 3]) {
+    const t = hover({ fx: `${w}␟+10% Armor` });
+    assert.match(t.innerHTML, new RegExp(`class="hit w${w}"`), `weight ${w} lost its class`);
+  }
+});
+
+test('the tooltip flips left rather than running off the screen', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+  window.innerWidth = 1000;
+
+  // Room on the right: sits just past the row.
+  let tip = hover({ fx: 'a' }, { left: 100, right: 300, top: 200, height: 20 });
+  assert.equal(tip.style.left, '310px', 'should sit 10px right of the row');
+
+  // No room: 900 + 10 + 200 would overflow 1000, so flip to the left of the row.
+  tip = hover({ fx: 'a' }, { left: 700, right: 900, top: 200, height: 20 });
+  assert.equal(tip.style.left, '490px', 'should flip to the left of the row');
+});
+
+test('the tooltip stays inside the viewport vertically', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+  window.innerHeight = 600;
+  window.innerWidth = 1400;
+
+  // Centring on a row near the top would put it above the fold; clamp to the padding.
+  let tip = hover({ fx: 'a' }, { left: 100, right: 300, top: 5, height: 20 });
+  assert.equal(tip.style.top, '10px', 'should clamp to the top padding');
+
+  // And near the bottom: 600 - 120 - 10.
+  tip = hover({ fx: 'a' }, { left: 100, right: 300, top: 580, height: 20 });
+  assert.equal(tip.style.top, '470px', 'should clamp to the bottom padding');
+  window.innerHeight = 900;
+});
+
+test('the tooltip hides when it should', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+
+  const tip = hover({ fx: '+15% Cold Damage' });
+  assert.ok(tip.shown);
+
+  // Moving onto something with no effects.
+  hover({});
+  assert.equal(tip.shown, false, 'should hide over a row with no effects');
+
+  hover({ fx: '+15% Cold Damage' });
+  assert.ok(tip.shown);
+  leaveApp();
+  assert.equal(tip.shown, false, 'should hide when the pointer leaves the app');
+
+  // A click re-renders; a tooltip describing a row that no longer exists is worse than
+  // none at all.
+  hover({ fx: '+15% Cold Damage' });
+  assert.ok(tip.shown);
+  click({ plain: '1' });
+  assert.equal(tip.shown, false, 'should hide on click');
+  ui.state.plain = false; ui.render();
+});
+
 test('a bought star is marked by a check, not a strike-through', () => {
   // A strike-through inside a 10px rounded pill is invisible. The check has to be
   // in the line and must NOT be dimmed with the rest of it, or the one element
@@ -272,7 +472,9 @@ test('exactly one star is marked next, and it is the earliest unbought one', () 
   // "Next" is a property of the whole path, not of a constellation. Resolved per
   // card, every constellation would mark its own first star and several rows would
   // claim to be next at once.
-  const nextOf = h => /<div class="star[^"]*\bsnext\b[^"]*" data-star="([^"]+)"/.exec(h)?.[1];
+  // Attribute-order agnostic: a `title` was added between class and data-star, and a
+  // positional regex silently returned undefined rather than failing loudly.
+  const nextOf = h => /<div class="star[^"]*\bsnext\b[^"]*"[^>]*?data-star="([^"]+)"/.exec(h)?.[1];
   const marks = h => (h.match(/\bsnext\b/g) ?? []).length;
 
   plan([['Cold Damage']], 2);
@@ -570,7 +772,7 @@ test('the next star is always one you could actually buy', () => {
 
   for (let i = 0; i < 12; i++) {
     ui.render();
-    const m = /<div class="star[^"]*\bsnext\b[^"]*" data-star="([^"]+)"/.exec(app.innerHTML);
+    const m = /<div class="star[^"]*\bsnext\b[^"]*"[^>]*?data-star="([^"]+)"/.exec(app.innerHTML);
     if (!m) break;
     const key = m[1];
     const cid = key.slice(0, key.lastIndexOf(':'));

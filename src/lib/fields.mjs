@@ -125,6 +125,11 @@ const CATEGORY_RULES = [
   // so match the damage-type list explicitly rather than relying on a suffix.
   ['Resistances', new RegExp(`^defensive(${BODY_DAMAGE_TYPES.join('|')}|Elemental|Convert|PercentCurrentLife)(Resistance|MaxResist)?$`)],
   ['Resistances', /^defensive.*(Resistance|MaxResist)$/],
+  // Control resists. These read as "Stun Resistance", "Freeze Resistance" and
+  // "Entrapment Resistance" but the field names carry no `Resistance` suffix, so they
+  // fell through to Defense -- leaving someone hunting Freeze Resistance to find it
+  // filed beside Armor and Health. They are resistances; put them with the others.
+  ['Resistances', /^defensive(Stun|Freeze|Petrify|Trap|Sleep)/],
   ['Damage over Time', /^offensiveSlow(Poison|Physical|Bleeding|Life|Fire|Cold|Lightning)/],
   ['Crowd Control', /^(offensive(Stun|Freeze|Petrify|Knockdown|Confusion|Fumble|ProjectileFumble|Taunt)|retaliationFear)/],
   ['Debuffs', /^offensive(Slow|.*ResistanceReduction|TotalDamageReduction|PhysicalReductionPercent)/],
