@@ -206,9 +206,14 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    reading, which is what the per-card `holding ...` line was trying to do from inside
    every card at once. Dashed, so it reads as an annotation on the path rather than
    another step in it. */
-.ledger{display:flex;align-items:center;justify-content:center;
-  padding:7px 11px;margin-bottom:8px;
-  border-radius:10px;border:1px dashed #3f3f3f;background:#171717}
+/* Shrink-wraps its orbs and centres itself, rather than spanning the column. A
+   full-width box reads as another step in the path; a small one reads as a marker
+   between two of them, which is what it is. `fit-content` + auto margins keeps the
+   width tied to the contents, so the row can't stretch if an affinity ever gains a
+   second digit. */
+.ledger{display:flex;align-items:center;width:fit-content;
+  padding:7px 12px;margin:0 auto 8px;
+  border-radius:999px;border:1px dashed #3f3f3f;background:#171717}
 /* Matches `.cards .card` so the strip keeps the column's rhythm instead of sitting
    tight against the card below it. */
 .ledger .orbs{margin:0;gap:6px}
