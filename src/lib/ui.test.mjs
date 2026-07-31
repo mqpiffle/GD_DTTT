@@ -371,21 +371,57 @@ test('hovering a star fills the tooltip with its effects', () => {
     `head missing: ${withHead.innerHTML}`);
 });
 
-test('the tooltip pills a tagged bonus in that tag\'s colour', () => {
+test('the tooltip marks a tagged bonus with that tag\'s coloured star', () => {
   plan([['Cold Damage']], 2);
   ui.state.plain = false; ui.render();
 
   // "weight␟text" per line: 3 means a three-star tag, 0 means nobody asked for it.
   const tip = hover({ fx: '3␟+39% Cold Damage\n0␟+15 Spirit' });
+  // The class is what the CSS hangs the star bullet and its colour on.
   assert.match(tip.innerHTML, /class="hit w3"[^>]*>\+39% Cold Damage/,
-    `tagged line not pilled: ${tip.innerHTML}`);
+    `tagged line not marked: ${tip.innerHTML}`);
   assert.match(tip.innerHTML, /<span>\+15 Spirit/, 'untagged line should be plain');
   assert.doesNotMatch(tip.innerHTML, /␟/, 'the separator leaked into the display');
 
-  // Each weight gets its own class so the colours match the stars.
+  // Each weight gets its own class so the colours match the weight control.
   for (const w of [1, 2, 3]) {
     const t = hover({ fx: `${w}␟+10% Armor` });
     assert.match(t.innerHTML, new RegExp(`class="hit w${w}"`), `weight ${w} lost its class`);
+  }
+
+  // And the stylesheet turns those classes into a coloured star bullet. Checking the
+  // class alone would pass with no visible difference at all -- which is exactly how the
+  // missing ti-star-filled glyph slipped through earlier.
+  // Match the CONTENT, not the whole declaration block -- the rule also carries sizing
+  // and baseline tweaks, and pinning the exact block makes any restyle a test failure.
+  assert.match(html, /\.tip span\.hit::before\{[^}]*content:'\\2605'/,
+    'tagged rows should be bulleted with a star');
+  assert.match(html, /\.tip span::before\{[^}]*content:'·'/,
+    'untagged rows should keep a plain bullet');
+  // Alignment is the point of the marker column, and the first version of this test
+  // only checked that A width existed. The actual bug was that the two widths RESOLVED
+  // differently: `width` in `em` is relative to the pseudo-element's own font-size, so
+  // a 1.5em box at font-size 1.5em is 2.25em while the same box at 1em is 1.5em. So
+  // assert the column is sized in absolute units and that the star rule never
+  // redeclares the geometry.
+  const marker = /\.tip span::before\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  assert.match(marker, /width:\d+px/, 'the marker column must be sized in px, not em');
+  assert.match(marker, /text-align:center/, 'markers must be centred in that column');
+  assert.match(marker, /position:absolute/, 'markers sit out of flow so glyph size cannot move the text');
+
+  const starRule = /\.tip span\.hit::before\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  for (const prop of ['width', 'left', 'position', 'text-align']) {
+    assert.doesNotMatch(starRule, new RegExp(`${prop}:`),
+      `the star rule redeclares ${prop}; the two markers will drift apart`);
+  }
+  // The parent's text inset must match the column, or the text starts inside it.
+  const rowRule = /\.tip span\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  const col = /width:(\d+)px/.exec(marker)?.[1];
+  assert.match(rowRule, new RegExp(`padding-left:${col}px`),
+    `row padding should match the ${col}px marker column`);
+  for (const w of [1, 2, 3]) {
+    assert.match(html, new RegExp(`\\.tip span\\.hit\\.w${w}::before\\{color:`),
+      `weight ${w} has no bullet colour`);
   }
 });
 

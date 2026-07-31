@@ -124,26 +124,34 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
      a mistake rather than a hierarchy. */
   font-size:16px;line-height:1.5;color:#cfcfcf;
   display:none;pointer-events:none}
-/* A flex column with one gap, so plain rows and pills share the same rhythm. Per-row
-   margins gave pills a different spacing from text and let their borders collide. */
-.tip.on{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+/* A flex column with one gap, so every row shares the same rhythm. */
+.tip.on{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
 .tip b{display:block;margin-bottom:6px;color:#7fffd4;font-weight:600;font-size:16px;
   letter-spacing:.04em;text-transform:uppercase}
-/* No bullets anywhere. A pill can't carry one without looking wrong, and half the list
-   bulleted while the other half wasn't read as an accident. */
-.tip span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  max-width:100%;line-height:1.35}
-/* A bonus that serves one of your tags, pilled in that tag's weight colour -- the same
-   red/amber/green as the stars, so the two readouts agree without needing a legend.
-   `width:max-content` shrink-wraps the pill to its text while `display:block` keeps it
-   on its own line; inline-block did the first but let two pills share a row. */
-/* Equal padding top and bottom so the text sits centred in the capsule; the border adds
-   1px on each side, which is why an asymmetric padding read as off-centre. */
-.tip span.hit{display:block;width:max-content;max-width:100%;
-  padding:4px 11px;border-radius:999px;border:1px solid;font-weight:600;line-height:1.2}
-.tip span.hit.w1{color:#ff9c9e;border-color:#e5484d;background:rgba(229,72,77,.14)}
-.tip span.hit.w2{color:#f0d493;border-color:#e8c15a;background:rgba(232,193,90,.14)}
-.tip span.hit.w3{color:#9cefbc;border-color:#4ade80;background:rgba(74,222,128,.14)}
+/* One bullet column for every row, so the text starts at the same x whether or not the
+   line is tagged. Padding-left plus a negative-indent bullet keeps that alignment even
+   when a line wraps. */
+.tip span{display:block;position:relative;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:100%;line-height:1.4;padding-left:26px}
+/* The marker is positioned ABSOLUTELY in a fixed 26px column, centred both ways.
+   An inline-block ::before could not do this: `width` in `em` resolves against the
+   pseudo-element's OWN font-size, so a 1.5em-wide box at font-size 1.5em is 2.25em
+   while the same box at 1em is 1.5em -- the two markers sat in columns of different
+   widths and the text after them never lined up. In px, out of flow, the column is the
+   same for both no matter how the glyphs are sized. */
+.tip span::before{content:'·';position:absolute;left:0;top:50%;
+  transform:translateY(-50%);width:26px;text-align:center;line-height:1;
+  font-size:30px;color:#8a8a8a}
+/* A bonus that serves one of your tags is bulleted with a STAR in that tag's weight
+   colour -- the same red/amber/green as the weight control, so the two readouts agree
+   without needing a legend, and the marker matches the metaphor. */
+.tip span.hit{font-weight:600;color:#e8e8e8}
+/* Only the glyph and its size change -- the column geometry is inherited, so the two
+   markers cannot drift apart. */
+.tip span.hit::before{content:'\2605';font-size:17px}
+.tip span.hit.w1::before{color:#e5484d;text-shadow:0 0 7px rgba(229,72,77,.6)}
+.tip span.hit.w2::before{color:#e8c15a;text-shadow:0 0 7px rgba(232,193,90,.6)}
+.tip span.hit.w3::before{color:#4ade80;text-shadow:0 0 7px rgba(74,222,128,.6)}
 /* The card title and the CP badge are now hover targets. */
 .step .nm[data-fx],.step .cp[data-fx]{cursor:help}
 .step .nm[data-fx]:hover{color:#fff;text-decoration:underline dotted #5a5a5a}
