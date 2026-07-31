@@ -131,6 +131,16 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
   display:none;pointer-events:none}
 /* A flex column with one gap, so every row shares the same rhythm. */
 .tip.on{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+/* Prose variant. Stat tooltips are a LIST -- one short line per bonus, bulleted, clipped
+   with an ellipsis rather than wrapped, because a wrapped stat line is hard to scan
+   against the ones above it. An explanation is the opposite: it has to wrap, and a
+   bullet in front of a paragraph is noise. Same tooltip, same positioning, different
+   typography. */
+.tip.prose{max-width:400px}
+.tip.prose.on{gap:9px}
+.tip.prose span{white-space:normal;overflow:visible;text-overflow:clip;padding-left:0;
+  line-height:1.45}
+.tip.prose span::before{content:none}
 .tip b{display:block;margin-bottom:6px;color:#7fffd4;font-weight:600;font-size:16px;
   letter-spacing:.04em;text-transform:uppercase}
 /* One bullet column for every row, so the text starts at the same x whether or not the
@@ -331,6 +341,9 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .mtab:hover{border-color:#6a6a6a}
 .mtab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
 .cov{margin:0 0 4px;transition:opacity .12s ease}
+/* Sits in an uppercase 11px label, so it needs its own size to not look like a typo. */
+.covi{font-size:13px;color:#6f6f6f;cursor:help;vertical-align:-1px;margin-left:3px}
+.covi:hover{color:#cfcfcf}
 /* While a solve is in flight these numbers describe the PREVIOUS plan, so say so
    rather than letting them look current. */
 .cov.stale{opacity:.45}
@@ -719,7 +732,29 @@ function coverageHtml() {
   const totalStars = kwRows.reduce((n, c) => n + c.stars, 0) || 1;
   const totalWeight = kwRows.reduce((n, c) => n + c.weight, 0) || 1;
 
-  return `<p class="lbl" style="margin-top:16px">Coverage</p><div class="cov${
+  // Coverage is the readout most likely to be misread -- a short bar looks like the
+  // solver ignoring you, when nine times in ten it is the tree not having the stars.
+  // The explanation is long enough that it belongs behind an icon rather than in the
+  // margin, so the panel stays scannable for people who already know.
+  const covInfo = proseTip('How coverage works',
+    'Each row is one of your target tags. The bar is how many stars in this build carry'
+    + ' that tag, measured against its CEILING — the most you could get if it were your'
+    + ' only tag and you spent all 55 points chasing it.',
+    'Measuring against the ceiling rather than against your best-served tag is the whole'
+    + ' point. Skill Radius appears once in each of 15 constellations that cost 98 points'
+    + ' between them, so 5 stars is everything the tree has. Scaled against other tags it'
+    + ' looked neglected, and no amount of extra weight could ever fix that.',
+    'Green means you have taken everything available within 55 points. Amber means the'
+    + ' tag got well under the share of stars its weight asked for AND there was room to'
+    + ' do better — so it is worth re-weighting. A tag on zero is never impossible:'
+    + ' across 30 measured builds every zero had a ceiling of 3–18 stars, so it always'
+    + ' means your other tags spent the points first.',
+    'Stars count occurrences, not magnitude — a +2% bonus counts the same as a +40% one.'
+    + ' Celestial powers get a tick instead of a bar: they are secured outright or'
+    + ' reported as not fitting, so there is no partial to measure.');
+
+  return `<p class="lbl" style="margin-top:16px">Coverage <i class="ti ti-info-circle covi"${
+    covInfo}></i></p><div class="cov${
     state.solving ? ' stale' : ''}">${
     counts.map(c => {
       if (c.power) {
@@ -1158,6 +1193,9 @@ function tipData(head, packed) {
  */
 const textTip = (...lines) =>
   ` data-fx="${esc(lines.filter(Boolean).map(l => `0\u241F${l}`).join('\n'))}"`;
+/** textTip, but the lines are paragraphs: they wrap, and they lose their bullets. */
+const proseTip = (head, ...paras) =>
+  textTip(...paras) + ` data-fxhead="${esc(head)}"` + ' data-fxprose="1"';
 const capAff = a => a.charAt(0).toUpperCase() + a.slice(1);
 /**
  * Affinity orbs for a list of [affinity, amount].
@@ -1623,6 +1661,10 @@ function showTip(row) {
   if (!lines.length) return hideTip();
 
   const head = row.dataset.fxhead;
+  // add/remove rather than toggle: the test harness's classList stub implements the
+  // three methods the page actually uses, and a fourth would fail there and nowhere else.
+  if (row.dataset.fxprose != null) tip.classList.add('prose');
+  else tip.classList.remove('prose');
   // Each line arrives as "weight␟text". A non-zero weight means this bonus serves a tag
   // you asked for, so it gets a pill in that tag's colour -- the same red/amber/green
   // the stars use, so the two readouts agree without a legend.
