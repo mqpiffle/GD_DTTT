@@ -1416,3 +1416,132 @@ test('the plain view survives an empty and a five-tag state', () => {
   ui.render();
   assert.ok(countRows(app.innerHTML) > 0, 'five-tag build rendered no rows');
 });
+
+// --- affinity orbs and the running ledger ------------------------------------
+
+test('a card shows the affinity it grants as orbs on its title line', () => {
+  // The number and the colour live in the markup; the NAME only exists in the tooltip
+  // now, so if the tip were dropped the orb would be an unlabelled coloured circle.
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+
+  const cards = app.innerHTML.split('<div class="card').slice(1);
+  assert.ok(cards.length, 'no cards rendered');
+
+  let checked = 0;
+  for (const card of cards) {
+    if (/class="card refund/.test('<div class="card' + card)) continue;
+    const nmrow = /<span class="nmrow">([\s\S]*?)<\/span><\/span>/.exec(card)?.[0]
+      ?? /<span class="nmrow">[\s\S]*?<span class="orbs">[\s\S]*?<\/span>/.exec(card)?.[0];
+    if (!nmrow) continue;
+    assert.match(nmrow, /<span class="orbs">/,
+      'orbs are not on the title line -- they were moved there to free the row below');
+    for (const [, cls, tip] of nmrow.matchAll(
+      /<span class="orb ([^"]*)"([^>]*)>/g)) {
+      if (cls === 'none') continue;
+      assert.match(cls, /\baf-(ascendant|chaos|eldritch|order|primordial)\b/,
+        `orb carries no affinity colour class: ${cls}`);
+      assert.match(tip, /data-fxhead="/, 'orb has no name in its tooltip');
+      checked++;
+    }
+  }
+  assert.ok(checked > 0, 'no coloured affinity orb appeared on any card');
+});
+
+test('a card no longer carries a running total or a holding line', () => {
+  // Both moved to the ledger. Leaving either in place would state the same number
+  // twice, in two places that update by different routes.
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false; ui.render();
+  assert.doesNotMatch(app.innerHTML, /class="n run"/, 'the per-card running total is back');
+  assert.doesNotMatch(app.innerHTML, /class="held"/, 'the per-card holding line is back');
+});
+
+test('the ledger sits between the last finished card and the current one', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.done = new Set();
+  ui.state.plain = false; ui.render();
+  // Nothing finished: no ledger, because it would read as all zeros.
+  assert.doesNotMatch(app.innerHTML, /class="ledger"/,
+    'a ledger appeared before anything was bought');
+
+  // Buy out the first constellation.
+  const first = /data-keys="([^"]+)"/.exec(app.innerHTML)?.[1]?.split(',') ?? [];
+  assert.ok(first.length, 'no star keys on the first card');
+  first.forEach(k => ui.state.done.add(k));
+  ui.render();
+
+  const h = app.innerHTML;
+  assert.match(h, /class="ledger"/, 'no ledger once a constellation was finished');
+  // Position: after the done card, before the current one.
+  const iLedger = h.indexOf('class="ledger"');
+  const iDone = h.indexOf('class="card done');
+  const iCurrent = h.indexOf('class="card current');
+  assert.ok(iDone >= 0 && iCurrent >= 0, 'expected both a done and a current card');
+  assert.ok(iDone < iLedger && iLedger < iCurrent,
+    'the ledger is not in the gap between what is finished and what is next');
+});
+
+test('the ledger reports the scheduler\'s own points and affinity', () => {
+  // Recounting in the UI would be a second chance to get Crossroads refunds wrong,
+  // so the ledger must echo the path entry rather than derive anything.
+  const p = plan([['Cold Damage'], ['Health']], 2);
+  ui.state.plain = false; ui.state.done = new Set();
+  ui.render();
+  const keys = [...app.innerHTML.matchAll(/data-keys="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(keys.length > 2, 'need a few cards to finish');
+  keys.slice(0, 2).forEach(s => s.split(',').forEach(k => ui.state.done.add(k)));
+  ui.render();
+
+  const ledger = /<div class="ledger">[\s\S]*?<\/div>/.exec(app.innerHTML)?.[0];
+  assert.ok(ledger, 'no ledger after finishing two constellations');
+
+  // The card before the first unfinished one is the authority.
+  //
+  // Match `card` followed by a space or a quote: the grid WRAPPER is `<div class="cards">`
+  // and a looser split counts it as a card, which slides every index by one and had this
+  // test comparing the ledger against the wrong path entry.
+  const path = p.schedule.path;
+  const classes = [...app.innerHTML.matchAll(/<div class="card([ "][^"]*)/g)].map(m => m[1]);
+  assert.equal(classes.length, path.length, 'cards and path steps are out of step');
+  const idx = classes.findIndex(c => c.includes('current'));
+  assert.ok(idx > 0, 'no current card, or it is first');
+  const prev = path[idx - 1];
+
+  assert.match(ledger, new RegExp(`class="orb pts"[^>]*>${prev.runningPoints}<`),
+    `ledger points disagree with the schedule (expected ${prev.runningPoints})`);
+  for (const [a, v] of Object.entries(prev.heldAfter ?? {})) {
+    if (v > 0) {
+      assert.match(ledger, new RegExp(`class="orb af-${a}"[^>]*>\\+?${v}<`),
+        `ledger is missing ${v} ${a}`);
+    } else {
+      assert.doesNotMatch(ledger, new RegExp(`class="orb af-${a}"`),
+        `ledger shows a zero orb for ${a}`);
+    }
+  }
+});
+
+test('every orb tooltip goes through the same wire format as a stat tooltip', () => {
+  // Orbs carry prose and stat rows carry rendered templates, but showTip() parses one
+  // format. If an orb emitted a bare string the tooltip would silently show nothing.
+  plan([['Cold Damage']], 2);
+  ui.state.plain = false;
+  ui.state.done = new Set();
+  ui.render();
+  (/data-keys="([^"]+)"/.exec(app.innerHTML)?.[1] ?? '').split(',')
+    .forEach(k => k && ui.state.done.add(k));
+  ui.render();
+
+  // `orb` then a space or a quote -- the CONTAINER is `class="orbs"`, and matching it
+  // as an orb yields an element with no data-fx and a failure that blames the code.
+  const orbs = [...app.innerHTML.matchAll(/<span class="orb[ "][^"]*"?([^>]*)>/g)]
+    .map(m => m[1]);
+  assert.ok(orbs.length, 'no orbs rendered');
+  for (const attrs of orbs) {
+    const fx = /data-fx="([^"]*)"/.exec(attrs)?.[1];
+    assert.ok(fx, `orb has no data-fx: ${attrs}`);
+    // "0␟text" -- weight 0, because an orb is never a tag hit.
+    assert.ok(fx.startsWith('0&#9247;') || fx.startsWith('0␟'),
+      `orb tooltip is not in weight␟text form: ${fx}`);
+  }
+});
