@@ -1475,7 +1475,16 @@ function render() {
     <button class="resetall" data-reset="1"${chosenCount || state.plan ? '' : ' disabled'}
       title="Clear the tag list, the path and your progress">Reset all</button>
   </div>`;
-  h += `<div style="display:flex;gap:6px;margin:18px 0 8px">
+  // Everything else in this column announces itself -- Target tags, Power scoring,
+  // Coverage, Devotions -- and the picker was the one block you had to infer from the
+  // empty slot's "Pick a tag below". The count is per TAB, so switching to Pet shows
+  // how much smaller that library is rather than leaving you to scroll and find out.
+  // groups is a Map -- iterable, but with no reduce of its own.
+  let tabCount = 0;
+  for (const [k, ids] of groups) if (k.startsWith(state.tab + '|')) tabCount += ids.length;
+  h += `<p class="lbl" style="margin-top:18px">Tag library <span style="color:#5f5f5f">${
+    tabCount}</span></p>`;
+  h += `<div style="display:flex;gap:6px;margin:0 0 8px">
     <button class="tab${state.tab === 'character' ? ' on' : ''}" data-tab="character">Character</button>
     <button class="tab${state.tab === 'pet' ? ' on' : ''}" data-tab="pet">Pet</button></div><div class="scroll">`;
   for (const [key, ids] of groups) {
