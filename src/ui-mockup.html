@@ -206,10 +206,17 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    reading, which is what the per-card `holding ...` line was trying to do from inside
    every card at once. Dashed, so it reads as an annotation on the path rather than
    another step in it. */
-.ledger{display:flex;align-items:center;gap:5px;padding:7px 12px;
+.ledger{display:flex;align-items:center;justify-content:center;
+  padding:7px 11px;margin-bottom:8px;
   border-radius:10px;border:1px dashed #3f3f3f;background:#171717}
-.ledger .lbl{font-size:11px;color:#8a8a8a;margin-right:3px;letter-spacing:.03em}
-.ledger .orbs{margin-left:0}
+/* Matches `.cards .card` so the strip keeps the column's rhythm instead of sitting
+   tight against the card below it. */
+.ledger .orbs{margin:0;gap:6px}
+/* All five affinities, always, in a fixed order -- so the same affinity is in the same
+   place in every ledger and you read position rather than colour. The ones you have
+   none of stay in the row and recede; dropping them would reflow the row every time a
+   constellation completed. */
+.orb.zero{opacity:.3}
 /* Affinity colours, sampled from the in-game orbs and lifted for legibility on the
    #1c1c1c card -- the in-game orbs are mid-tone and would sit too close to the
    background. Text carries the hue, the border a dimmer version of it, and the fill is
@@ -927,15 +934,16 @@ function plainHtml(rows, schedule) {
  * in the UI would be a second chance to get them wrong.
  */
 function ledgerHtml(prev) {
-  const held = Object.entries(prev.heldAfter ?? {}).filter(([, v]) => v > 0);
-  return `<div class="ledger"><span class="lbl">so far</span><span class="orbs">${
+  // Unfiltered: heldAfter always carries all five, and a fixed row is easier to read
+  // across steps than one that grows.
+  const held = Object.entries(prev.heldAfter ?? {});
+  return `<div class="ledger"><span class="orbs">${
     `<span class="orb pts"${textTip(
       `${prev.runningPoints} of 55 devotion points spent`)}>${prev.runningPoints}</span>`
   }${
-    held.length
-      ? affOrbs(held, (a, v) => textTip(`${v} ${capAff(a)} affinity held`))
-      : `<span class="orb none"${textTip(
-          'Nothing completed so far grants affinity')}>\u2013</span>`
+    affOrbs(held, (a, v) => textTip(v
+      ? `${v} ${capAff(a)} affinity held`
+      : `No ${capAff(a)} affinity yet`))
   }</span></div>`;
 }
 
@@ -961,7 +969,7 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
           partial ? 'Affinity is granted only when the constellation is complete'
                   : 'This constellation grants no affinity')}>\u2013</span>`
       : affOrbs(grants, (a, v) =>
-          textTip(`+${v} ${capAff(a)} affinity on completion`))
+          textTip(`+${v} ${capAff(a)} affinity on completion`), true)
   }</span>`;
   const cls = 'card' + (refund ? ' refund' : '')
     + (complete ? ' done' : '') + (current ? ' current' : '');
@@ -1139,11 +1147,15 @@ function tipData(head, packed) {
 const textTip = (...lines) =>
   ` data-fx="${esc(lines.filter(Boolean).map(l => `0\u241F${l}`).join('\n'))}"`;
 const capAff = a => a.charAt(0).toUpperCase() + a.slice(1);
-/** Affinity orbs for a map of affinity -> amount. Zero entries are dropped: heldAfter
- *  carries all five affinities always, and five orbs of which three read 0 is worse
- *  than two orbs. */
-const affOrbs = (entries, tip) => entries
-  .map(([a, v]) => `<span class="orb af-${esc(a)}"${tip(a, v)}>${v > 0 ? '+' : ''}${v}</span>`)
+/**
+ * Affinity orbs for a list of [affinity, amount].
+ *
+ * `plus` signs the number. A card's orbs are a DELTA -- what completing it will add --
+ * so `+3` is right there. The ledger's are a TOTAL, where a plus would read as a gain.
+ */
+const affOrbs = (entries, tip, plus) => entries
+  .map(([a, v]) => `<span class="orb af-${esc(a)}${v ? '' : ' zero'}"${tip(a, v)}>${
+    plus && v > 0 ? '+' : ''}${v}</span>`)
   .join('');
 const consName = id => (db.constellations[id]?.name ?? id);
 const powerChipFor = id => chips.find(c => c.kind === 'power' && c.id === id);

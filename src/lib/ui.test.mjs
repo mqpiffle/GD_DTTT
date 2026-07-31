@@ -1472,14 +1472,11 @@ test('the ledger reports the scheduler\'s own points and affinity', () => {
 
   assert.match(ledger, new RegExp(`class="orb pts"[^>]*>${prev.runningPoints}<`),
     `ledger points disagree with the schedule (expected ${prev.runningPoints})`);
+  // All five, always, zeros included -- a row that grows as you complete constellations
+  // moves the affinity you are watching to a different place on every step.
   for (const [a, v] of Object.entries(prev.heldAfter ?? {})) {
-    if (v > 0) {
-      assert.match(ledger, new RegExp(`class="orb af-${a}"[^>]*>\\+?${v}<`),
-        `ledger is missing ${v} ${a}`);
-    } else {
-      assert.doesNotMatch(ledger, new RegExp(`class="orb af-${a}"`),
-        `ledger shows a zero orb for ${a}`);
-    }
+    assert.match(ledger, new RegExp(`class="orb af-${a}( zero)?"[^>]*>${v}<`),
+      `ledger disagrees with the schedule on ${a} (expected ${v})`);
   }
 });
 
