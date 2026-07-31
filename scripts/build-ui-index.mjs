@@ -192,8 +192,8 @@ for (const c of data) {
 // --- per-keyword ceiling ---------------------------------------------------
 // The most stars of a keyword you could physically obtain: that keyword as the sole
 // objective, all 55 points, POWERS OFF. Without it the Coverage panel can't tell "the
-// solver skimped" from "this is all there is" -- Skill Radius appears once in each of
-// 15 constellations costing 98 points between them, so ~5 stars is everything.
+// solver skimped" from "this is all there is" -- Physical Damage is on 37 stars spread
+// over 17 constellations costing 95 points between them, so 23 is everything reachable.
 //
 // Powers off matters. Computing it per scoring mode (with that mode's power bonus)
 // measured the wrong thing: at max rank the power bonus dominates a single-keyword

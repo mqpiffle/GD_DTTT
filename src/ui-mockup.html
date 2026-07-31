@@ -719,10 +719,10 @@ function coverageHtml() {
 
   // The bar is measured against each keyword's CEILING -- the most you could get if it
   // were your only target and you spent all 55 points on it -- not against the
-  // best-served tag. That distinction is the whole point: Skill Radius appears once in
-  // each of 15 constellations costing 98 points between them, so 5 stars is everything
-  // there is. Scaling against other tags made a maxed-out keyword look neglected, and
-  // no amount of extra weight could ever "fix" it.
+  // best-served tag. That distinction is the whole point: Physical Damage is on 37 stars
+  // spread over 17 constellations that cost 95 points between them, so 23 stars is
+  // everything a 55-point build can reach. Scaling against other tags made a maxed-out
+  // keyword look neglected, and no amount of extra weight could ever "fix" it.
   // Keyword rows only. A power row has no star count and no weight that means anything,
   // and including them broke this silently: `c.stars` is undefined on a power, so the
   // sum went NaN, `|| 1` turned that into 1, and every keyword's share of the stars
@@ -741,9 +741,10 @@ function coverageHtml() {
     + ' that tag, measured against its CEILING — the most you could get if it were your'
     + ' only tag and you spent all 55 points chasing it.',
     'Measuring against the ceiling rather than against your best-served tag is the whole'
-    + ' point. Skill Radius appears once in each of 15 constellations that cost 98 points'
-    + ' between them, so 5 stars is everything the tree has. Scaled against other tags it'
-    + ' looked neglected, and no amount of extra weight could ever fix that.',
+    + ' point. Physical Damage sits on 37 stars, but they are spread over 17'
+    + ' constellations costing 95 points between them — so 23 stars is everything a'
+    + ' 55-point build can reach, and a bar at 23 is full. Scaled against other tags it'
+    + ' looked neglected instead, and no amount of extra weight could ever fix that.',
     'Green means you have taken everything available within 55 points. Amber means the'
     + ' tag got well under the share of stars its weight asked for AND there was room to'
     + ' do better — so it is worth re-weighting. A tag on zero is never impossible:'

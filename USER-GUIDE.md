@@ -84,10 +84,10 @@ physically obtain if it were your only goal and you spent all 55 points on it. I
 not 55, and it usually isn't large.
 
 This matters more than it sounds. **66 of the 90 keywords — nearly three in four —
-can never be maxed within 55 points.** Skill Radius, for example, appears once each in
-fifteen different constellations costing 98 points between them, so six stars is
-genuinely everything you can reach. When a bar stops well short, that's usually the
-game, not the planner giving up.
+can never be maxed within 55 points.** Physical Damage, for example, is on 37 stars —
+but they're spread over seventeen constellations costing 95 points between them, so
+twenty-three is genuinely everything you can reach. When a bar stops well short, that's
+usually the game, not the planner giving up.
 
 - **Green, "max"** — you have everything available. Nothing more exists to get.
 A **celestial power** row looks different, because a power is binary — there's no
