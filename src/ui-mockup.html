@@ -69,7 +69,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
   border-color:#3a2a2a;color:#8a7070}
 .chip.blocked .rb{background:#241a1a;color:#6a4a4a}
 /* Coverage row for a celestial power: binary, so no bar and no got/ceiling. */
-.covrow.pow .cb{background:none;height:auto}
+.covrow.pow .cb{background:none;height:auto;text-align:right}
 .covrow.pow .powcons{font-size:11px;color:#b0b0b0;white-space:nowrap}
 .covrow.pow .cv{color:#4ade80}
 .covrow.pow.zero .cv{color:#6a6a6a}
@@ -357,8 +357,13 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    duplication rather than removing it -- and put a green name in the same row as a green
    bar and a green "max". Colour in this panel means ONE thing: what you got. The weight
    is in the row's tooltip for anyone who wants the number. */
-.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
-.covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
+.covrow .cn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
+/* The bar takes the slack rather than sitting at a fixed 70px. Removing the dots column
+   freed 50px that all went to the name, which needs none of it -- so the row spanned the
+   column while the thing you actually read stayed a stub on the right. Both are elastic
+   now, with the bar weighted to grow faster; `min-width` keeps it legible when a long
+   keyword squeezes the row. */
+.covrow .cb{flex:2 1 96px;min-width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden}
 .covrow .cb i{display:block;height:100%;background:#b8b8b8}
 .covrow .cv{width:88px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none}
 /* The tree-wide total, where it exceeds what 55 points can reach. Deliberately the
