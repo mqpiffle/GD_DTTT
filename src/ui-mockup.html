@@ -929,12 +929,12 @@ function plainHtml(rows, schedule) {
 function ledgerHtml(prev) {
   const held = Object.entries(prev.heldAfter ?? {}).filter(([, v]) => v > 0);
   return `<div class="ledger"><span class="lbl">so far</span><span class="orbs">${
-    `<span class="orb pts"${textTip('Points spent',
-      `${prev.runningPoints} of 55 devotion points`)}>${prev.runningPoints}</span>`
+    `<span class="orb pts"${textTip(
+      `${prev.runningPoints} of 55 devotion points spent`)}>${prev.runningPoints}</span>`
   }${
     held.length
-      ? affOrbs(held, (a, v) => textTip(capAff(a), `${v} ${capAff(a)} affinity held`))
-      : `<span class="orb none"${textTip('No affinity',
+      ? affOrbs(held, (a, v) => textTip(`${v} ${capAff(a)} affinity held`))
+      : `<span class="orb none"${textTip(
           'Nothing completed so far grants affinity')}>\u2013</span>`
   }</span></div>`;
 }
@@ -958,11 +958,10 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
   const affRow = refund ? '' : `<span class="orbs">${
     partial || !grants.length
       ? `<span class="orb none"${textTip(
-          partial ? 'No affinity yet' : 'No affinity',
           partial ? 'Affinity is granted only when the constellation is complete'
                   : 'This constellation grants no affinity')}>\u2013</span>`
       : affOrbs(grants, (a, v) =>
-          textTip(capAff(a), `+${v} ${capAff(a)} affinity on completion`))
+          textTip(`+${v} ${capAff(a)} affinity on completion`))
   }</span>`;
   const cls = 'card' + (refund ? ' refund' : '')
     + (complete ? ' done' : '') + (current ? ' current' : '');
@@ -1132,10 +1131,13 @@ function tipData(head, packed) {
  * renderLine(). Orbs carry prose. Same wire format either way -- "weight␟text",
  * weight 0 -- so showTip() needs no special case, and an orb tip can never drift out of
  * step with a stat tip.
+ *
+ * No headline. A stat tooltip needs one because its lines are a LIST belonging to
+ * something named elsewhere; an orb tooltip is a single sentence that already names its
+ * own subject, so a heading above it just says the same word twice.
  */
-const textTip = (head, ...lines) =>
-  ` data-fx="${esc(lines.filter(Boolean).map(l => `0\u241F${l}`).join('\n'))}"` +
-  ` data-fxhead="${esc(head)}"`;
+const textTip = (...lines) =>
+  ` data-fx="${esc(lines.filter(Boolean).map(l => `0\u241F${l}`).join('\n'))}"`;
 const capAff = a => a.charAt(0).toUpperCase() + a.slice(1);
 /** Affinity orbs for a map of affinity -> amount. Zero entries are dropped: heldAfter
  *  carries all five affinities always, and five orbs of which three read 0 is worse

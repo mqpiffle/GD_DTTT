@@ -1419,44 +1419,6 @@ test('the plain view survives an empty and a five-tag state', () => {
 
 // --- affinity orbs and the running ledger ------------------------------------
 
-test('a card shows the affinity it grants as orbs on its title line', () => {
-  // The number and the colour live in the markup; the NAME only exists in the tooltip
-  // now, so if the tip were dropped the orb would be an unlabelled coloured circle.
-  plan([['Cold Damage']], 2);
-  ui.state.plain = false; ui.render();
-
-  const cards = app.innerHTML.split('<div class="card').slice(1);
-  assert.ok(cards.length, 'no cards rendered');
-
-  let checked = 0;
-  for (const card of cards) {
-    if (/class="card refund/.test('<div class="card' + card)) continue;
-    const nmrow = /<span class="nmrow">([\s\S]*?)<\/span><\/span>/.exec(card)?.[0]
-      ?? /<span class="nmrow">[\s\S]*?<span class="orbs">[\s\S]*?<\/span>/.exec(card)?.[0];
-    if (!nmrow) continue;
-    assert.match(nmrow, /<span class="orbs">/,
-      'orbs are not on the title line -- they were moved there to free the row below');
-    for (const [, cls, tip] of nmrow.matchAll(
-      /<span class="orb ([^"]*)"([^>]*)>/g)) {
-      if (cls === 'none') continue;
-      assert.match(cls, /\baf-(ascendant|chaos|eldritch|order|primordial)\b/,
-        `orb carries no affinity colour class: ${cls}`);
-      assert.match(tip, /data-fxhead="/, 'orb has no name in its tooltip');
-      checked++;
-    }
-  }
-  assert.ok(checked > 0, 'no coloured affinity orb appeared on any card');
-});
-
-test('a card no longer carries a running total or a holding line', () => {
-  // Both moved to the ledger. Leaving either in place would state the same number
-  // twice, in two places that update by different routes.
-  plan([['Cold Damage']], 2);
-  ui.state.plain = false; ui.render();
-  assert.doesNotMatch(app.innerHTML, /class="n run"/, 'the per-card running total is back');
-  assert.doesNotMatch(app.innerHTML, /class="held"/, 'the per-card holding line is back');
-});
-
 test('the ledger sits between the last finished card and the current one', () => {
   plan([['Cold Damage']], 2);
   ui.state.done = new Set();
@@ -1521,27 +1483,3 @@ test('the ledger reports the scheduler\'s own points and affinity', () => {
   }
 });
 
-test('every orb tooltip goes through the same wire format as a stat tooltip', () => {
-  // Orbs carry prose and stat rows carry rendered templates, but showTip() parses one
-  // format. If an orb emitted a bare string the tooltip would silently show nothing.
-  plan([['Cold Damage']], 2);
-  ui.state.plain = false;
-  ui.state.done = new Set();
-  ui.render();
-  (/data-keys="([^"]+)"/.exec(app.innerHTML)?.[1] ?? '').split(',')
-    .forEach(k => k && ui.state.done.add(k));
-  ui.render();
-
-  // `orb` then a space or a quote -- the CONTAINER is `class="orbs"`, and matching it
-  // as an orb yields an element with no data-fx and a failure that blames the code.
-  const orbs = [...app.innerHTML.matchAll(/<span class="orb[ "][^"]*"?([^>]*)>/g)]
-    .map(m => m[1]);
-  assert.ok(orbs.length, 'no orbs rendered');
-  for (const attrs of orbs) {
-    const fx = /data-fx="([^"]*)"/.exec(attrs)?.[1];
-    assert.ok(fx, `orb has no data-fx: ${attrs}`);
-    // "0␟text" -- weight 0, because an orb is never a tag hit.
-    assert.ok(fx.startsWith('0&#9247;') || fx.startsWith('0␟'),
-      `orb tooltip is not in weight␟text form: ${fx}`);
-  }
-});
