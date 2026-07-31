@@ -70,7 +70,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .chip.blocked .rb{background:#241a1a;color:#6a4a4a}
 /* Coverage row for a celestial power: binary, so no bar and no got/ceiling. */
 .covrow.pow .cb{background:none;height:auto}
-.covrow.pow .powcons{font-size:10px;color:#8a8a8a;white-space:nowrap}
+.covrow.pow .powcons{font-size:11px;color:#b0b0b0;white-space:nowrap}
 .covrow.pow .cv{color:#4ade80}
 .covrow.pow.zero .cv{color:#6a6a6a}
 .cpc{display:inline-block;font-size:9px;line-height:1;padding:2px 5px;border-radius:999px;
@@ -347,21 +347,25 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 /* While a solve is in flight these numbers describe the PREVIOUS plan, so say so
    rather than letting them look current. */
 .cov.stale{opacity:.45}
-.covrow{display:flex;align-items:center;gap:8px;font-size:11px;padding:2px 0}
-.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cfcfcf}
-.covrow .cb{width:64px;height:4px;border-radius:2px;background:#262626;overflow:hidden;flex:none}
-.covrow .cb i{display:block;height:100%;background:#8a8a8a}
-.covrow .cv{width:76px;text-align:right;color:#8a8a8a;font-variant-numeric:tabular-nums;flex:none}
+/* Coverage sizing and brightness. This panel is read, not skimmed -- it is the answer
+   to "did I get what I asked for" -- and at 11px in greys it looked like a footnote
+   under the controls above it. Everything here is one or two steps brighter and a size
+   up; the bar is thicker so its fill is legible at a glance rather than a hairline. */
+.covrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
+.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
+.covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
+.covrow .cb i{display:block;height:100%;background:#b8b8b8}
+.covrow .cv{width:88px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none}
 /* The tree-wide total, where it exceeds what 55 points can reach. Deliberately the
    quietest thing in the row: it is context, not a target -- nothing you can do gets you
    there. Bracketed and dimmed so `4/23` still reads as the pair that matters. */
-.covrow .ct{color:#5f5f5f;font-size:10px;margin-left:3px}
-.covrow .cmax{width:28px;font-size:10px;color:#4ade80;flex:none;text-align:right}
+.covrow .ct{color:#909090;font-size:11px;margin-left:4px}
+.covrow .cmax{width:32px;font-size:11px;color:#4ade80;flex:none;text-align:right}
 .covrow.maxed .cb i{background:#4ade80}
 .covrow.under .cv{color:#e8c15a}
 .covrow.under .cb i{background:#e8c15a}
-.covrow.zero .cn{color:#6f6f6f}
-.covrow.zero .cv{color:#c46b6b}
+.covrow.zero .cn{color:#9a9a9a}
+.covrow.zero .cv{color:#e07a7a}
 /* Tags pulling against each other. Stated, not hidden -- someone chasing a tag that
    quietly starves the rest of the build should be told, and told WHY, since a zero
    never means the tree lacks the stat. Informational, so no red. */
@@ -420,11 +424,14 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    and nothing there is clickable. */
 /* Coverage keeps small stars on purpose: up to five rows of them beside the bars, and
    nothing there is clickable. Doubling these would make the readout shout. */
-.covrow .dots{width:44px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default;gap:2px}
-.covrow .dots span{font-size:12px;color:#3f3f3f}
-.covrow .dots.w1 span.on{color:#a34b4e;text-shadow:none}
-.covrow .dots.w2 span.on{color:#a38c4a;text-shadow:none}
-.covrow .dots.w3 span.on{color:#4f9a68;text-shadow:none}
+/* Still muted against the weight CONTROL's red/amber/green -- these are a readout of a
+   choice you made elsewhere, and matching it exactly made two rows of stars compete for
+   the same meaning. Brighter than before, just not all the way. */
+.covrow .dots{width:50px;height:auto;min-height:0;padding:0 8px 0 0;cursor:default;gap:2px}
+.covrow .dots span{font-size:14px;color:#4f4f4f}
+.covrow .dots.w1 span.on{color:#c65b5f;text-shadow:none}
+.covrow .dots.w2 span.on{color:#c4a655;text-shadow:none}
+.covrow .dots.w3 span.on{color:#5fb87c;text-shadow:none}
 .covrow.under .cv{color:#e8c15a}
 .actions{display:flex;gap:8px;margin-top:8px;align-items:center}
 .status{flex:1;font-size:11px;color:#8a8a8a;display:flex;align-items:center;gap:7px;min-height:20px}
