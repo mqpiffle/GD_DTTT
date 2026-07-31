@@ -327,10 +327,9 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .prow.pcur{background:#261509;box-shadow:inset 3px 0 0 #e8743c}
 .prow.pcur .pnm{color:#fff}
 .mtabs{display:flex;gap:6px;margin-bottom:10px}
-.mtab{flex:1;padding:6px 4px;border-radius:6px;border:1px solid #333;background:#111;color:#9a9a9a;font:inherit;font-size:12px;cursor:pointer;text-align:center;line-height:1.25}
+.mtab{flex:1;padding:9px 6px;border-radius:6px;border:1px solid #333;background:#111;color:#9a9a9a;font:inherit;font-size:12px;cursor:pointer;text-align:center;line-height:1.25;white-space:nowrap}
 .mtab:hover{border-color:#6a6a6a}
 .mtab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
-.mtab .sub{display:block;font-size:10px;opacity:.65}
 .cov{margin:0 0 4px;transition:opacity .12s ease}
 /* While a solve is in flight these numbers describe the PREVIOUS plan, so say so
    rather than letting them look current. */
@@ -434,10 +433,16 @@ import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 
 const MAX = 5;
+// [button label, tooltip]. The label is short enough to read as a tile; the
+// explanation lives in the tooltip, so it can be a full sentence instead of the
+// clipped fragment that fit under a button.
 const MODES = [
-  ['Passives only', 'powers ignored, taken only for affinity'],
-  ['Rank 1', 'powers at the rank you buy them'],
-  ['Max rank', 'powers at their own cap'],
+  ['Passives', 'Celestial powers ignored entirely — constellations are worth only their'
+    + ' passive stats and the affinity they grant'],
+  ['Balanced', 'Celestial powers valued at the rank you actually buy them at, which is'
+    + ' rank 1 for most of a levelling build'],
+  ['CP Max', 'Celestial powers valued at their own maximum rank — favours going deep on'
+    + ' a few powers over spreading across many'],
 ];
 // A fourth plan that isn't a scoring choice: the same set of constellations, re-ordered
 // around what you've actually bought. Only offered once you've gone off-plan.
@@ -1518,11 +1523,12 @@ function render() {
   const tabs = MODES.map((m, i) => [i, m[0], m[1]]);
   if (state.custom) {
     tabs.push([CUSTOM, 'Custom',
-      `your order, from ${state.custom.from.toLowerCase()}`]);
+      `The same constellations ${state.custom.from} chose, re-ordered around the stars`
+      + ` you have already bought`]);
   }
   h += '<div class="mtabs">' + tabs.map(([i, label, sub]) =>
-    `<button class="mtab${state.mode === i ? ' on' : ''}" data-score="${i}" title="${esc(sub)}">${
-      esc(label)}<span class="sub">${esc(sub)}</span></button>`).join('') + '</div>';
+    `<button class="mtab${state.mode === i ? ' on' : ''}" data-score="${i}" title="${
+      esc(sub)}">${esc(label)}</button>`).join('') + '</div>';
   h += coverageHtml();
   h += `<p class="lbl" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
