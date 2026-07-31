@@ -352,14 +352,12 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    under the controls above it. Everything here is one or two steps brighter and a size
    up; the bar is thicker so its fill is legible at a glance rather than a hairline. */
 .covrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
-/* The tag NAME carries its weight, in the same red/amber/green as the weight control.
-   A second column of stars said the same thing the control above already said, and cost
-   50px to do it. Name colour is weight; bar and count colour are outcome -- two
-   different questions answered in two different columns of the same row. */
+/* Names are plain. The dots column that used to sit here repeated what the weight
+   control says two inches up the panel, and colouring the name instead just moved the
+   duplication rather than removing it -- and put a green name in the same row as a green
+   bar and a green "max". Colour in this panel means ONE thing: what you got. The weight
+   is in the row's tooltip for anyone who wants the number. */
 .covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
-.covrow .cn.w1{color:#e5484d}
-.covrow .cn.w2{color:#e8c15a}
-.covrow .cn.w3{color:#4ade80}
 .covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
 .covrow .cb i{display:block;height:100%;background:#b8b8b8}
 .covrow .cv{width:88px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none}
@@ -764,9 +762,6 @@ function coverageHtml() {
     + ' do better — so it is worth re-weighting. A tag on zero is never impossible:'
     + ' across 30 measured builds every zero had a ceiling of 3–18 stars, so it always'
     + ' means your other tags spent the points first.',
-    'The tag name is coloured by the weight you gave it — red for 1, amber for 2, green'
-    + ' for 3. The bar and the count are coloured by the OUTCOME, so the two never mean'
-    + ' the same thing even when they land on the same colour.',
     'A dimmed number in brackets is how many stars in the whole tree carry that tag,'
     + ' where that is more than 55 points can reach. It is context, not a target: 4/23'
     + ' [37] means the tree has 37, a build like yours can reach 23 of them, and you'
