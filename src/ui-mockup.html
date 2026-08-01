@@ -30,8 +30,132 @@
 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
 <style>
-:root{color-scheme:dark}
-body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sans-serif}
+:root{
+  color-scheme:dark;
+  /* Font-size tokens, 2 Aug (--fs-xs and --fs-xl added 2 Aug). Six steps in .125rem
+     (2px) intervals either side of 1rem, not a full type scale -- this mirrors the
+     --fs-sm/--fs-xs split: --fs-lg moved in to 1.125rem and .25rem needed its own
+     name (--fs-xl) rather than being folded back into --fs-lg. Replaces ~15 ad-hoc px
+     values (9px to 30px) that had accumulated across the file with no system behind
+     them. Every font-size rule in this stylesheet points at one of these; nothing is
+     a literal px value. Individual rules are being moved between steps one at a time,
+     not in a single pass -- check the rule itself for its current token, not this
+     comment. Existing var(--fs-lg) usage was NOT remapped to --fs-xl when --fs-lg's
+     own value changed, same as --fs-sm's usages weren't touched when it moved to
+     .875rem -- the token keeps its name, the rule just inherits the new value. */
+  --fs-xs:.75rem;    /* 12px -- the smallest step; nothing assigned here yet */
+  --fs-sm:.875rem;   /* 14px -- badges, meta text, section labels, table-style rows */
+  --fs-base:1rem;    /* 16px -- standard reading size: names, tooltip body text */
+  --fs-lg:1.125rem;  /* 18px -- one step up; currently just the tooltip bullet marker */
+  --fs-xl:1.25rem;   /* 20px -- the top step; nothing assigned here yet */
+
+  /* Color tokens, 2 Aug. Every color literal in the stylesheet is named here and
+     nothing changed value in the process -- this is a rename, not a redesign, so
+     the page should look pixel-identical to before this pass. A handful of
+     near-duplicate values that were almost certainly accidental (one unit or two
+     apart per channel -- #ececec next to #e6e6e6, #232323 next to #242424) were
+     folded onto the more-common neighbor; anything a real design decision could
+     plausibly separate was kept as its own step. Six families:
+       --surface-*  backgrounds (near-black panel/card elevation steps)
+       --ink-*      text, icons and borders on the neutral (achromatic) scale
+       --line-*     hairline borders and dividers, same achromatic pool as ink
+       --accent-*   the five meaningful hues (danger/warn/success/current/power)
+                    and their variants, plus --glow-* for their rgba() shadows
+       --tint-*     flat pre-mixed dark backgrounds carrying an accent's hue
+       --af-*       the five affinity colors (already named; now variables too)
+     Ink and line share one numbering scheme by lightness, not two, because the
+     file already reuses the same literal gray for both text and borders in
+     different rules (#8a8a8a is both a text color and a border color) -- keeping
+     them in one pool matches how the values are actually used. */
+
+  /* Surfaces: backgrounds only, darkest to lightest, generic/reusable ones.
+     Numbered rather than named by role because most of these serve more than one
+     component (e.g. --surface-2 is both the resting bg of .tab/.mbtn/.scoreopt AND
+     the "dark text on a lit-up control" color for .tab.on etc.) -- a role name
+     would have been wrong half the time it was used. */
+  --surface-1:#0f0f1e;   --surface-2:#0e0e14;    --surface-3:#101016;
+  --surface-4:#111117;   --surface-5:#121218;    --surface-6:#131319;
+  --surface-7:#14141a;   --surface-8:#15151d;    --surface-9:#181820;
+  --surface-10:#1f1f29;
+  --surface-track:#303030;  /* Coverage bar's empty track -- its own step, not a
+                                panel elevation */
+  --tone-bright:#f2f2f2;    /* The "lit up" near-white: hover/active backgrounds
+                                AND .orb.pts's own text -- same literal value, two
+                                different jobs, one name that fits both */
+
+  /* Ink/line: one achromatic scale, lightest (1) to darkest (15/10). Used for text,
+     icon color and borders interchangeably, matching how the file already used
+     them. Split into two families only because borders (--line-*) cluster in a
+     much narrower, darker range than text (--ink-*) and giving them their own
+     short list is easier to scan than one 25-step ramp. */
+  --ink-1:#fff;      --ink-2:#e6e6e6;   --ink-3:#cfcfcf;   --ink-4:#b8b8b8;
+  --ink-5:#b0b0b0;   --ink-6:#a8a8a8;   --ink-7:#9a9a9a;   --ink-8:#909090;
+  --ink-9:#8a8a8a;   --ink-10:#7a7a7a;  --ink-11:#6f6f6f;  --ink-12:#6a6a6a;
+  --ink-13:#5f5f5f;  --ink-14:#4f4f4f;  --ink-15:#4a4a4a;
+  --line-1:#4d4d4d;  --line-2:#3f3f3f;  --line-3:#3d3d3d;  --line-4:#3a3a3a;
+  --line-5:#333;     --line-6:#2e2e2e;  --line-7:#2a2a2a;  --line-8:#262626;
+  --line-9:#222;     --line-10:#1f1f1f;
+
+  /* Accents: the five hues that carry meaning throughout the app (see the
+     comments at .card.current and .af-* below for why each was chosen). Variants
+     are named for what they ARE, not where they're used -- "bright" is the
+     star-picker hover color for all three weight tiers, so it only needed naming
+     once per hue rather than once per rule. */
+  --accent-danger:#e5484d;         --accent-danger-soft:#e07a7a;
+  --accent-danger-bright:#ff7a7d;  --accent-danger-muted:#8a7070;
+  --accent-danger-dim:#6a4a4a;     --accent-danger-border:#3a2a2a;
+  --accent-warn:#e8c15a;           --accent-warn-bright:#f3d585;
+  --accent-warn-deep:#d9b03c;      --accent-warn-border:#8a7330;
+  --accent-success:#4ade80;        --accent-success-bright:#7ff0a8;
+  --accent-success-muted:#2f4a35;  --accent-success-border:#3f6047;
+  --accent-current:#90c5df;        --accent-current-bright:#c2e0f0;
+  --accent-current-muted:#4b809b;
+  --accent-power:#7fffd4;
+
+  /* Glows: the rgba() form of each accent, for text-shadow and box-shadow. Kept
+     as their own literals rather than derived from the accent hex (no color-mix()
+     assumed) -- so if an accent hex ever changes, its glow needs updating too. */
+  --glow-danger-1:rgba(229,72,77,.14);   --glow-danger-2:rgba(229,72,77,.6);
+  --glow-danger-3:rgba(229,72,77,.75);
+  --glow-warn-1:rgba(232,193,90,.6);     --glow-warn-2:rgba(232,193,90,.75);
+  --glow-success-1:rgba(74,222,128,.6);  --glow-success-2:rgba(74,222,128,.7);
+  --glow-current-1:rgba(144,197,223,.45); --glow-current-2:rgba(144,197,223,.26);
+
+  /* Tints: flat, pre-mixed dark backgrounds that carry an accent's hue -- NOT the
+     same as a glow, which is the accent itself at low alpha. These are authored
+     as their own hex so they sit correctly over the surface color beneath them
+     rather than genuinely compositing with whatever's underneath. */
+  --tint-success:#161b17;         --tint-success-hover:#1c231d;
+  --tint-success-strong:#132a1b;  --tint-success-highlight:#1a2418;
+  --tint-danger:#241a1a;
+  --tint-warn:#241f10;
+  --tint-current:#11232c;  --tint-current-hover:#162f3b;  --tint-current-row:#0d1a21;
+  --tint-power:#0d2f27;
+  --tint-spent:rgba(255,255,255,.11);   /* .orb.pts's own background */
+
+  /* Misc shadows, not tied to any one accent. */
+  --shadow-soft:rgba(0,0,0,.65);     /* reused by .tip and .mbox */
+  --overlay-scrim:rgba(6,6,6,.82);   /* the rush-offer modal's backdrop */
+
+  /* Affinity hues. Already named via the .af-* classes below; now also variables
+     so anything outside those five rules can reference the same colors without
+     retyping the hex. Text, border and background are three independent picks
+     per affinity, not one hue at three alphas -- see the comment at .af-ascendant
+     for why (background intentionally samples a different, more saturated source
+     than the text/border pair). */
+  --af-ascendant:#b98ce8;   --af-ascendant-border:#6f4b96;
+  --af-ascendant-bg:rgba(168,123,224,.13);
+  --af-chaos:#ff5c9d;       --af-chaos-border:#93335c;
+  --af-chaos-bg:rgba(255,92,157,.13);
+  --af-eldritch:#b5e550;    --af-eldritch-border:#6a8a2c;
+  --af-eldritch-bg:rgba(181,229,80,.13);
+  --af-order:#f0ce6b;       --af-order-border:#8e7431;
+  --af-order-bg:rgba(232,193,90,.13);
+  --af-primordial:#5cb0f0;  --af-primordial-border:#2d6795;
+  --af-primordial-bg:rgba(62,155,229,.13);
+}
+body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-family:system-ui,sans-serif;
+  font-size:var(--fs-base);line-height:1.5}
 *{box-sizing:border-box}
 .wrap{max-width:900px;margin:0 auto}
 .col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
@@ -39,95 +163,119 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    and the slack that created was worse than the space it saved. */
 .cards{display:block}
 .cards .card{margin-bottom:8px}
-.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;margin:0 0 7px}
+/* .selpane (left, selection widgets) / .dispane (right, plan display) mark the two
+   halves of .col so a class shared by both panes -- .lbl, .plainbtn, .n -- can be
+   overridden in just one of them. The 1 Aug trial flattened just the left pane to
+   16px; the 2 Aug token pass below now covers the whole file, but these overrides
+   stay because .plainbtn/.n still differ by pane (right pane keeps --fs-sm for
+   these, since a card's meta line is secondary text, not the primary thing being
+   read). .lbl is the exception: both panes' section titles -- Target tags,
+   Coverage, Power scoring, Tag library on the left, Devotions on the right --
+   read at --fs-base so no title looks smaller than its siblings. */
+.selpane .lbl,.dispane .lbl{font-size:var(--fs-base)}
+.selpane .plainbtn{font-size:var(--fs-base)}
+.selpane .plainbtn i{font-size:var(--fs-base)}
+.selpane .n{font-size:var(--fs-base)}
+.lbl{font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-9);margin:0 0 7px}
 /* Height follows the star control: 26px glyphs in 34px buttons need room, and
    `overflow:hidden` on a pill this shape would clip the glow rather than let it spill. */
-.slot{display:flex;align-items:center;gap:4px;width:100%;height:44px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:#1c1c1c;color:#fff;font:inherit;text-align:left}
-/* 16px, up from the inherited 13px: at 13px the tag name looked undersized next to a
-   26px star and a 25px remove button. Sized to the controls, not to the body text. */
+.slot{display:flex;align-items:center;gap:4px;width:100%;height:44px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:var(--surface-9);color:var(--ink-1);font:inherit;text-align:left}
+/* --fs-base: at the old 13px body default the tag name looked undersized next to a
+   26px star and a 25px remove button. Sized to the controls, not to the body text.
+   Now just the standard token like everything else in the 2 Aug pass, but it's the
+   rule that started the argument for one. */
 .slot > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;font-size:16px;line-height:1.2}
-.empty{border:1px solid #3a3a3a;color:#4f4f4f;cursor:default}
-.full{border:1px solid #fff;cursor:pointer}
-.rb{width:25px;height:25px;flex:none;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;background:#2e2e2e;color:#fff;cursor:pointer;padding:0}
+  white-space:nowrap;font-size:var(--fs-base);line-height:1.2}
+.empty{border:1px solid var(--line-4);color:var(--ink-14);cursor:default}
+.full{border:1px solid var(--ink-1);cursor:pointer}
+.rb{width:25px;height:25px;flex:none;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;background:var(--line-6);color:var(--ink-1);cursor:pointer;padding:0}
 .chip .rb{pointer-events:none}
-.empty .rb{background:#232323;color:#3f3f3f}
-.full .rb:hover{background:#f2f2f2;color:#111}
-.tab{flex:1;height:31px;border-radius:6px;border:1px solid #333;background:#111;color:#9a9a9a;font-size:12px;cursor:pointer}
-.tab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
-.cat{border-top:1px solid #262626}
-.cath{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 2px;background:none;border:0;color:#cfcfcf;font-size:12px;cursor:pointer;text-align:left}
-.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 4px 0 10px;margin:0 5px 5px 0;border-radius:999px;background:#161616;border:1px solid #333;color:#e6e6e6;font:inherit;font-size:12px;cursor:pointer}
+.empty .rb{background:var(--surface-10);color:var(--line-2)}
+.full .rb:hover{background:var(--tone-bright);color:var(--surface-2)}
+/* Reset all reuses the pill remove button's look -- same 25px circle, same minus
+   glyph -- rather than being its own button style. It isn't inside a .slot.full, so
+   it needs its own hover/disabled rules instead of inheriting .full .rb:hover. */
+.rb:hover:not([disabled]){background:var(--tone-bright);color:var(--surface-2)}
+.rb[disabled]{opacity:.35;cursor:default;pointer-events:none}
+.tab{flex:1;height:31px;border-radius:6px;border:1px solid var(--line-5);background:var(--surface-2);color:var(--ink-7);font-size:var(--fs-base);cursor:pointer}
+.tab.on{background:var(--tone-bright);color:var(--surface-2);border-color:var(--tone-bright)}
+.cat{border-top:1px solid var(--line-8)}
+.cath{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 2px;background:none;border:0;color:var(--ink-3);font-size:var(--fs-base);cursor:pointer;text-align:left}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 4px 0 10px;margin:0 5px 5px 0;border-radius:999px;background:var(--surface-6);border:1px solid var(--line-5);color:var(--ink-2);font:inherit;font-size:var(--fs-sm);cursor:pointer}
 .chip .rb{width:20px;height:20px}
-.chip:hover:not(.used){background:#242424;border-color:#6a6a6a}
-.chip:hover:not(.used) .rb{background:#f2f2f2;color:#111}
+.chip:hover:not(.used){background:var(--surface-10);border-color:var(--ink-12)}
+.chip:hover:not(.used) .rb{background:var(--tone-bright);color:var(--surface-2)}
 .chip.used{opacity:.35;cursor:default}
 /* Blocked: this power cannot share 55 points with the ones already chosen. Struck
    through rather than merely faded, so it reads as "not available" instead of "already
    taken" -- the .used styling above means the opposite thing. */
 .chip.blocked{opacity:.4;cursor:not-allowed;text-decoration:line-through;
-  border-color:#3a2a2a;color:#8a7070}
-.chip.blocked .rb{background:#241a1a;color:#6a4a4a}
+  border-color:var(--accent-danger-border);color:var(--accent-danger-muted)}
+.chip.blocked .rb{background:var(--tint-danger);color:var(--accent-danger-dim)}
 /* Coverage row for a celestial power: binary, so no bar and no got/ceiling. */
 .covrow.pow .cb{background:none;height:auto}
-.covrow.pow .powcons{font-size:11px;color:#b0b0b0;white-space:nowrap}
-.covrow.pow .cv{color:#4ade80}
-.covrow.pow.zero .cv{color:#6a6a6a}
-.cpc{display:inline-block;font-size:9px;line-height:1;padding:2px 5px;border-radius:999px;
-  background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4;vertical-align:1px}
+.covrow.pow .powcons{font-size:var(--fs-base);color:var(--ink-5);white-space:nowrap}
+.covrow.pow .cv{color:var(--accent-success)}
+.covrow.pow.zero .cv{color:var(--ink-12)}
+.cpc{display:inline-block;font-size:var(--fs-base);line-height:1;padding:2px 5px;border-radius:999px;
+  background:var(--tint-power);border:1px solid var(--accent-power);color:var(--accent-power);vertical-align:1px}
 /* Where the weight dots would be on a power pill: a fixed marker, not a control. */
-.tgt{display:flex;align-items:center;gap:3px;flex:none;font-size:9px;letter-spacing:.06em;
-  text-transform:uppercase;color:#7fffd4;opacity:.75;cursor:default;padding:0 2px}
-.tgt i{font-size:12px}
-.slot.full.pow{border-color:#7fffd4}
-.row{border-bottom:1px solid #1f1f1f;padding:9px 2px}
-.n{font-size:11px;color:#8a8a8a}
-.card{background:#1c1c1c;border:1px solid #fff;border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
-.card:hover{background:#242424}
+.tgt{display:flex;align-items:center;gap:3px;flex:none;font-size:var(--fs-base);letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent-power);opacity:.75;cursor:default;padding:0 2px}
+.tgt i{font-size:var(--fs-base)}
+.slot.full.pow{border-color:var(--accent-power)}
+.row{border-bottom:1px solid var(--line-10);padding:9px 2px}
+.n{font-size:var(--fs-sm);color:var(--ink-9)}
+.card{background:var(--surface-9);border:1px solid var(--ink-1);border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.card:hover{background:var(--surface-10)}
 /* Completed: recede via border and a check, NOT opacity -- the text has to stay
    readable because you still need to see what a finished constellation gave you. */
-.card.done{border-color:#3f6047;background:#161b17}
-.card.done:hover{background:#1c231d}
+.card.done{border-color:var(--accent-success-border);background:var(--tint-success)}
+.card.done:hover{background:var(--tint-success-hover)}
 /* The one you're on. */
-/* "You are here" is deep blue, not amber. Amber already means a weight-2 tag, an
-   under-served coverage row and the solving pulse; a fourth meaning made it noise.
-   Burnt orange sits between the weight-1 red (hue 358) and the weight-2 amber (44) at
-   hue 20, and no affinity claims it -- Chaos is rose, Order gold. It is also warm
-   enough to read as "active" rather than as a warning. */
-.card.current{border-color:#e8743c;
-  box-shadow:0 0 0 1px rgba(232,116,60,.45),0 0 16px rgba(232,116,60,.26)}
-.card.refund{border-color:#3a3a3a;background:#131313;cursor:default}
-.card.refund:hover{background:#131313}
-.card.refund .nm{color:#8a8a8a;font-size:12px}
+/* "You are here" is a light, soft blue, not amber. Amber already means a weight-2 tag,
+   an under-served coverage row and the solving pulse; a fourth meaning made it noise.
+   Hue 200 is close to Primordial's hue (206), which DOES claim this part of the wheel --
+   so this stays legible next to it by being deliberately paler and less saturated
+   (55% sat / 72% light vs Primordial's 83%/65%) rather than by hue alone. */
+.card.current{border-color:var(--accent-current);
+  box-shadow:0 0 0 1px var(--glow-current-1),0 0 16px var(--glow-current-2)}
+.card.refund{border-color:var(--line-4);background:var(--surface-3);cursor:default}
+.card.refund:hover{background:var(--surface-3)}
+.card.refund .nm{color:var(--ink-9);font-size:var(--fs-sm)}
 .step{display:flex;align-items:baseline;gap:9px;padding:9px 11px}
-.step .num{font-variant-numeric:tabular-nums;font-size:11px;color:#8a8a8a;min-width:18px}
+.step .num{font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--ink-9);min-width:18px}
 .step .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-/* Title and CP badge share a line. They are separate elements so each can carry its own
-   tooltip, but `.body` is a flex COLUMN, so without this row the badge became a
-   full-width block on its own line. */
+/* Title, CP badge and the star-count detail all share one line now. They're separate
+   elements so each can carry its own tooltip, but `.body` is a flex COLUMN, so without
+   this row each one became a full-width block on its own line. */
 .nmrow{display:flex;align-items:baseline;gap:7px;min-width:0}
 .nmrow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nmrow .cp{flex:none}
-.step .nm{font-size:13px}
-.stars{border-top:1px solid #2e2e2e;padding:4px 0 5px}
-.star{display:flex;gap:7px;padding:4px 10px;font-size:11px;color:#8a8a8a;cursor:pointer;align-items:flex-start}
-.star:hover{background:#2a2a2a}
+.nmrow .n{flex:none;white-space:nowrap}
+.step .nm{font-size:var(--fs-base)}
+.stars{border-top:1px solid var(--line-6);padding:4px 0 5px}
+.star{display:flex;gap:7px;padding:4px 10px;font-size:var(--fs-sm);color:var(--ink-9);cursor:pointer;align-items:flex-start}
+.star:hover{background:var(--line-7)}
 /* Bought stars. A strike-through inside a 10px rounded pill is invisible, so the
    line dims and a green check closes it instead -- the same signal as the tick box,
    read the same way. The check is excluded from the dimming rather than the whole
    line being faded, or the one element that says "done" would be the faintest. */
 .star.sdone .stxt > *:not(.sck){opacity:.4}
 .star.sdone .sn{opacity:.5}
-.sck{color:#4ade80;font-size:11px;line-height:1;margin-left:1px}
+.sck{color:var(--accent-success);font-size:var(--fs-sm);line-height:1;margin-left:1px}
 /* Effect tooltip. Fixed position so nesting inside the re-rendered tree costs nothing,
    and pointer-events:none so it can never sit between the cursor and the row that
    summoned it -- which would flicker as the mouseover bounced between the two. */
 .tip{position:fixed;left:0;top:0;z-index:40;max-width:420px;
-  padding:11px 14px;border-radius:9px;border:1px solid #3a3a3a;background:#141414;
-  box-shadow:0 8px 24px rgba(0,0,0,.65);
-  /* 16px to match the target tag labels exactly -- two readouts at 16 and 17 look like
-     a mistake rather than a hierarchy. */
-  font-size:16px;line-height:1.5;color:#cfcfcf;
+  padding:11px 14px;border-radius:9px;border:1px solid var(--line-4);background:var(--surface-4);
+  box-shadow:0 8px 24px var(--shadow-soft);
+  /* --fs-base to match the target tag labels exactly -- two readouts a step apart look
+     like a mistake rather than a hierarchy. Before the 2 Aug token pass this was a
+     literal 16px next to the star-hit marker's 17px below; both now resolve to the
+     same token, which was the point of naming three sizes instead of hand-tuning each
+     one. */
+  font-size:var(--fs-base);line-height:1.5;color:var(--ink-3);
   display:none;pointer-events:none}
 /* A flex column with one gap, so every row shares the same rhythm. */
 .tip.on{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
@@ -141,7 +289,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .tip.prose span{white-space:normal;overflow:visible;text-overflow:clip;padding-left:0;
   line-height:1.45}
 .tip.prose span::before{content:none}
-.tip b{display:block;margin-bottom:6px;color:#7fffd4;font-weight:600;font-size:16px;
+.tip b{display:block;margin-bottom:6px;color:var(--accent-power);font-weight:600;font-size:var(--fs-base);
   letter-spacing:.04em;text-transform:uppercase}
 /* One bullet column for every row, so the text starts at the same x whether or not the
    line is tagged. Padding-left plus a negative-indent bullet keeps that alignment even
@@ -156,46 +304,46 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    same for both no matter how the glyphs are sized. */
 .tip span::before{content:'·';position:absolute;left:0;top:50%;
   transform:translateY(-50%);width:26px;text-align:center;line-height:1;
-  font-size:30px;color:#8a8a8a}
+  font-size:var(--fs-lg);color:var(--ink-9)}
 /* A bonus that serves one of your tags is bulleted with a STAR in that tag's weight
    colour -- the same red/amber/green as the weight control, so the two readouts agree
    without needing a legend, and the marker matches the metaphor. */
-.tip span.hit{font-weight:600;color:#e8e8e8}
+.tip span.hit{font-weight:600;color:var(--ink-2)}
 /* Only the glyph and its size change -- the column geometry is inherited, so the two
    markers cannot drift apart. */
-.tip span.hit::before{content:'\2605';font-size:17px}
-.tip span.hit.w1::before{color:#e5484d;text-shadow:0 0 7px rgba(229,72,77,.6)}
-.tip span.hit.w2::before{color:#e8c15a;text-shadow:0 0 7px rgba(232,193,90,.6)}
-.tip span.hit.w3::before{color:#4ade80;text-shadow:0 0 7px rgba(74,222,128,.6)}
+.tip span.hit::before{content:'\2605';font-size:var(--fs-base)}
+.tip span.hit.w1::before{color:var(--accent-danger);text-shadow:0 0 7px var(--glow-danger-2)}
+.tip span.hit.w2::before{color:var(--accent-warn);text-shadow:0 0 7px var(--glow-warn-1)}
+.tip span.hit.w3::before{color:var(--accent-success);text-shadow:0 0 7px var(--glow-success-1)}
 /* The card title and the CP badge are now hover targets. */
 .step .nm[data-fx],.step .cp[data-fx]{cursor:help}
-.step .nm[data-fx]:hover{color:#fff;text-decoration:underline dotted #5a5a5a}
+.step .nm[data-fx]:hover{color:var(--ink-1);text-decoration:underline dotted var(--ink-13)}
 
-/* The next star to buy. Same hue as the current card's border (#e8743c), but as a dark
-   tint plus a solid left bar rather than a solid orange fill. A solid fill would need
+/* The next star to buy. Same hue as the current card's border (#90c5df), but as a dark
+   tint plus a solid left bar rather than a solid fill. A solid fill would need
    dark text, and this row carries tag pills (.tg, light-on-dark) that would then have to
    invert too -- the bar carries the colour at full strength instead, and matches how the
    current row is marked in Overview. Flat, no glow: the card is already glowing, and two
    glows on screen stop meaning "here". */
-.star.snext{background:#341f10;box-shadow:inset 3px 0 0 #e8743c}
-.star.snext:hover{background:#442916}
-.star.snext .sn{color:#ff9d6b;font-weight:600}
-.star .sn{color:#5f5f5f;min-width:12px;font-variant-numeric:tabular-nums;padding-top:2px}
+.star.snext{background:var(--tint-current);box-shadow:inset 3px 0 0 var(--accent-current)}
+.star.snext:hover{background:var(--tint-current-hover)}
+.star.snext .sn{color:var(--accent-current-bright);font-weight:600}
+.star .sn{color:var(--ink-13);min-width:12px;font-variant-numeric:tabular-nums;padding-top:2px}
 /* Tree gutter: one monospace character per level, so it lines up down the column
    without needing a fixed width per row. Empty on the root, which costs nothing. */
-.star .stree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
-  line-height:1.35;color:#4a4a4a;white-space:pre;padding-top:2px;letter-spacing:0}
-.star.snext .stree{color:#9c6238}
+.star .stree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm);
+  line-height:1.35;color:var(--ink-15);white-space:pre;padding-top:2px;letter-spacing:0}
+.star.snext .stree{color:var(--accent-current-muted)}
 .star.sdone .stree{opacity:.45}
 .star .stxt{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
-.star .nm2{color:#e6e6e6;margin-right:2px}
-.tg{display:inline-block;font-size:10px;line-height:1;padding:3px 7px;border-radius:999px;background:#2b2b2b;border:1px solid #3d3d3d;color:#e6e6e6}
-.tg.other{background:none;border-style:dashed;color:#6f6f6f}
+.star .nm2{color:var(--ink-2);margin-right:2px}
+.tg{display:inline-block;font-size:var(--fs-sm);line-height:1;padding:3px 7px;border-radius:999px;background:var(--line-7);border:1px solid var(--line-3);color:var(--ink-2)}
+.tg.other{background:none;border-style:dashed;color:var(--ink-11)}
 /* The celestial power reads as its own name, not a badge bolted onto one. */
-.cpname{display:inline-block;font-size:10px;line-height:1;padding:3px 8px;border-radius:999px;
-        background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4}
-.cp{display:inline-block;font-size:10px;line-height:1;padding:3px 8px;border-radius:999px;
-    background:#0d2f27;border:1px solid #7fffd4;color:#7fffd4;vertical-align:1px}
+.cpname{display:inline-block;font-size:var(--fs-sm);line-height:1;padding:3px 8px;border-radius:999px;
+        background:var(--tint-power);border:1px solid var(--accent-power);color:var(--accent-power)}
+.cp{display:inline-block;font-size:var(--fs-sm);line-height:1;padding:3px 8px;border-radius:999px;
+    background:var(--tint-power);border:1px solid var(--accent-power);color:var(--accent-power);vertical-align:1px}
 .nm .cp{margin-left:6px}
 /* Affinity as an ORB rather than a pill. A card's affinities are a fixed, tiny set of
    numbers, so the word was doing no work the colour didn't already do -- and dropping it
@@ -204,14 +352,14 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    border-colour and background and no geometry. */
 .orbs{display:flex;gap:4px;flex:none;margin-left:auto;align-self:center}
 .orb{display:inline-flex;align-items:center;justify-content:center;flex:none;
-  width:22px;height:22px;border-radius:50%;border:1px solid #3a3a3a;
-  font-size:10px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;
-  color:#cfcfcf;cursor:help}
-.orb.none{border-style:dashed;color:#5f5f5f;font-weight:400}
+  width:22px;height:22px;border-radius:50%;border:2px solid var(--line-4);
+  font-size:var(--fs-sm);font-weight:600;line-height:1;font-variant-numeric:tabular-nums;
+  color:var(--ink-3);cursor:help}
+.orb.none{border-style:dashed;color:var(--ink-13);font-weight:400}
 /* Points spent is a SQUARE, not a circle -- white alone was too weak a signal sitting
    first in a row of five coloured discs, and shape survives being glanced at. Slightly
    rounded so it still belongs to the same set of chips. */
-.orb.pts{color:#f2f2f2;border-color:#9a9a9a;background:rgba(255,255,255,.11);
+.orb.pts{color:var(--tone-bright);border-color:var(--ink-7);background:var(--tint-spent);
   border-radius:5px}
 /* Running ledger, dropped in between the last completed card and the one you are on.
    It answers "what do I hold right now" at the exact point in the column where you are
@@ -225,7 +373,7 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    second digit. */
 .ledger{display:flex;align-items:center;width:fit-content;
   padding:7px 12px;margin:0 auto 8px;
-  border-radius:999px;border:1px dashed #3f3f3f;background:#171717}
+  border-radius:999px;border:1px dashed var(--line-2);background:var(--surface-7)}
 /* Matches `.cards .card` so the strip keeps the column's rhythm instead of sitting
    tight against the card below it. */
 .ledger .orbs{margin:0;gap:6px}
@@ -246,22 +394,23 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    to lime. Order keeps its true gold: it only ever clashed with the current-card
    outline, and that is deep blue now. It still shares a hue with the weight-2 star, but
    those never appear in the same readout. */
-.af-ascendant {color:#b98ce8;border-color:#6f4b96;background:rgba(168,123,224,.13)}
-.af-chaos     {color:#ff5c9d;border-color:#93335c;background:rgba(255,92,157,.13)}
-.af-eldritch  {color:#b5e550;border-color:#6a8a2c;background:rgba(181,229,80,.13)}
-.af-order     {color:#f0ce6b;border-color:#8e7431;background:rgba(232,193,90,.13)}
-.af-primordial{color:#5cb0f0;border-color:#2d6795;background:rgba(62,155,229,.13)}
-.card.done .orb{border-color:#3f6047}
-.total{padding:10px 2px;font-size:12px;color:#cfcfcf;border-top:1px solid #333;margin-top:4px}
+.af-ascendant {color:var(--af-ascendant);border-color:var(--af-ascendant-border);background:var(--af-ascendant-bg)}
+.af-chaos     {color:var(--af-chaos);border-color:var(--af-chaos-border);background:var(--af-chaos-bg)}
+.af-eldritch  {color:var(--af-eldritch);border-color:var(--af-eldritch-border);background:var(--af-eldritch-bg)}
+.af-order     {color:var(--af-order);border-color:var(--af-order-border);background:var(--af-order-bg)}
+.af-primordial{color:var(--af-primordial);border-color:var(--af-primordial-border);background:var(--af-primordial-bg)}
+.card.done .orb{border-color:var(--accent-success-border)}
+.total{padding:10px 2px;font-size:var(--fs-sm);color:var(--ink-3);border-top:1px solid var(--line-5);margin-top:4px;text-align:center}
+.total .orbs{margin:6px auto 0;justify-content:center}
 /* Overview. Fixed columns and a monospace gutter so the eye can run straight down
    the numbers -- proportional digits defeat the whole point of a scan view. */
-.plainbtn{background:transparent;border:1px solid #3a3a3a;color:#8a8a8a;border-radius:6px;
-  font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+.plainbtn{background:transparent;border:1px solid var(--line-4);color:var(--ink-9);border-radius:6px;
+  font:inherit;font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;
   padding:3px 9px;cursor:pointer}
-.plainbtn:hover:not([disabled]){border-color:#666;color:#ddd}
-.plainbtn.on{border-color:#fff;color:#fff}
+.plainbtn:hover:not([disabled]){border-color:var(--ink-12);color:var(--ink-2)}
+.plainbtn.on{border-color:var(--ink-1);color:var(--ink-1)}
 .plainbtn[disabled]{opacity:.35;cursor:default}
-.plainbtn i{font-size:12px;vertical-align:-2px;margin-right:1px}
+.plainbtn i{font-size:var(--fs-sm);vertical-align:-2px;margin-right:1px}
 /* The re-order question, as a modal over the devotions list.
    It interrupts because it is a fork, not a nicety: until it's answered the numbers
    below describe a different playthrough from yours. Both ways out are explicit --
@@ -269,81 +418,87 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
 .dwrap{position:relative}
 .modal{position:absolute;inset:0;z-index:5;display:flex;align-items:center;
   justify-content:center;padding:14px;overflow:auto;
-  background:rgba(6,6,6,.82);backdrop-filter:blur(2px);border-radius:10px}
+  background:var(--overlay-scrim);backdrop-filter:blur(2px);border-radius:10px}
 /* Red is the OUTLINE only. The box itself stays the same dark grey as everything else,
    so the red reads as "answer this" rather than tinting the content as an error. */
 .mbox{width:100%;max-width:400px;padding:16px 17px;border-radius:12px;
-  border:1px solid #e5484d;background:#151515;
-  box-shadow:0 0 0 3px rgba(229,72,77,.14),0 14px 34px rgba(0,0,0,.65)}
-.mtitle{margin:0 0 5px;font-size:13.5px;font-weight:600;color:#fff}
-.mtext{margin:0 0 12px;font-size:12px;line-height:1.5;color:#a8a8a8}
+  border:1px solid var(--accent-danger);background:var(--surface-5);
+  box-shadow:0 0 0 3px var(--glow-danger-1),0 14px 34px var(--shadow-soft)}
+.mtitle{margin:0 0 5px;font-size:var(--fs-sm);font-weight:600;color:var(--ink-1)}
+.mtext{margin:0 0 12px;font-size:var(--fs-sm);line-height:1.5;color:var(--ink-6)}
 .mopts{display:flex;flex-direction:column;gap:7px}
 .mbtn{display:block;width:100%;text-align:left;padding:9px 11px;border-radius:8px;
-  border:1px solid #3a3a3a;background:#111;color:#cfcfcf;font:inherit;cursor:pointer}
-.mbtn b{display:block;font-size:12.5px;font-weight:600;color:#fff;margin-bottom:1px}
-.mbtn span{display:block;font-size:11px;line-height:1.4;color:#8a8a8a}
-.mbtn:hover{border-color:#8a8a8a;background:#191919}
+  border:1px solid var(--line-4);background:var(--surface-2);color:var(--ink-3);font:inherit;cursor:pointer}
+.mbtn b{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--ink-1);margin-bottom:1px}
+.mbtn span{display:block;font-size:var(--fs-sm);line-height:1.4;color:var(--ink-9)}
+.mbtn:hover{border-color:var(--ink-9);background:var(--surface-8)}
 /* Primary action uses the app's existing white-border treatment, not more red. */
-.mbtn.go{border-color:#fff;background:#1c1c1c}
-.mbtn.go:hover{background:#262626}
+.mbtn.go{border-color:var(--ink-1);background:var(--surface-9)}
+.mbtn.go:hover{background:var(--line-8)}
 /* The devotions list is the tall part of the page; capped to the viewport at render
    time (fitDevotions) rather than a guessed vh, because everything above it -- the
    coverage panel especially -- changes height with the number of tags. */
 .dscroll{overflow-y:auto;overflow-x:hidden;padding-right:8px}
 .dscroll::-webkit-scrollbar{width:9px}
-.dscroll::-webkit-scrollbar-track{background:#141414;border-radius:6px}
-.dscroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px}
-.dscroll::-webkit-scrollbar-thumb:hover{background:#5a5a5a}
-.dscroll{scrollbar-width:thin;scrollbar-color:#3a3a3a #141414}
-.plain{border:1px solid #2a2a2a;border-radius:10px;overflow:hidden}
+.dscroll::-webkit-scrollbar-track{background:var(--surface-4);border-radius:6px}
+.dscroll::-webkit-scrollbar-thumb{background:var(--line-4);border-radius:6px}
+.dscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-13)}
+.dscroll{scrollbar-width:thin;scrollbar-color:var(--line-4) var(--surface-4)}
+.plain{border:1px solid var(--line-7);border-radius:10px;overflow:hidden}
 .prow,.phead{display:grid;grid-template-columns:26px 24px 14px 1fr 26px 34px 34px;
-  align-items:center;gap:6px;padding:3px 10px;font-size:12.5px;color:#cfcfcf}
-.phead{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#6a6a6a;
-  background:#161616;border-bottom:1px solid #2a2a2a}
-.prow+.prow{border-top:1px solid #222}
+  align-items:center;gap:6px;padding:3px 10px;font-size:var(--fs-sm);color:var(--ink-3)}
+.phead{font-size:var(--fs-sm);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-12);
+  background:var(--surface-6);border-bottom:1px solid var(--line-7)}
+.prow+.prow{border-top:1px solid var(--line-9)}
 .prow .pn,.prow .pp,.prow .pr,.prow .ph{font-variant-numeric:tabular-nums;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#7a7a7a}
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm);color:var(--ink-10)}
 .phead .pp,.phead .pr,.phead .ph{text-align:right}
 .prow .pp,.prow .pr,.prow .ph{text-align:right}
-.prow .pd{color:#3a3a3a;font-size:9px}
-.prow.phit .pd{color:#4ade80}
-.prow.phit .pnm{color:#fff}
-.prow.phit .ph{color:#4ade80}
-.prow.pfirst{background:#1a2418}
-.prow.pref{color:#5f5f5f}
-.prow.pref .pnm{color:#5f5f5f}
+.prow .pd{color:var(--line-4);font-size:var(--fs-sm)}
+.prow.phit .pd{color:var(--accent-success)}
+.prow.phit .pnm{color:var(--ink-1)}
+.prow.phit .ph{color:var(--accent-success)}
+.prow.pfirst{background:var(--tint-success-highlight)}
+.prow.pref{color:var(--ink-13)}
+.prow.pref .pnm{color:var(--ink-13)}
 .prow .pnm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.prow .ppart{color:#8a8a8a;font-size:10.5px;margin-left:6px}
+.prow .ppart{color:var(--ink-9);font-size:var(--fs-sm);margin-left:6px}
 /* Tick box. The visible square is 17px but the button is 24x26 and fills the row
    height, so the hit area is comfortably bigger than the thing you aim at -- the
    same lesson the weight dots taught. */
 .pck{width:24px;height:26px;padding:0;margin:0;background:transparent;border:0;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;color:#3f3f3f}
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--line-2)}
 .pck.ghost{cursor:default}
-.pck i{width:17px;height:17px;border:1px solid #3a3a3a;border-radius:4px;
-  display:flex;align-items:center;justify-content:center;font-size:11px;
+.pck i{width:17px;height:17px;border:1px solid var(--line-4);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;font-size:var(--fs-sm);
   transition:border-color .12s,color .12s,background .12s}
-.pck:hover i{border-color:#8a8a8a;color:#8a8a8a}
-.pck.on{color:#4ade80}
-.pck.on i{border-color:#4ade80;background:#132a1b}
-.pck.part{color:#d9b03c}
-.pck.part i{border-color:#8a7330;background:#241f10}
-.pck:focus-visible{outline:2px solid #fff;outline-offset:-2px;border-radius:4px}
+.pck:hover i{border-color:var(--ink-9);color:var(--ink-9)}
+.pck.on{color:var(--accent-success)}
+.pck.on i{border-color:var(--accent-success);background:var(--tint-success-strong)}
+.pck.part{color:var(--accent-warn-deep)}
+.pck.part i{border-color:var(--accent-warn-border);background:var(--tint-warn)}
+.pck:focus-visible{outline:2px solid var(--ink-1);outline-offset:-2px;border-radius:4px}
 /* Bought: still legible, clearly behind you. */
-.prow.pdone .pnm,.prow.pdone .pn{color:#6a6a6a}
-.prow.pdone.phit .pnm{color:#8a8a8a}
-.prow.pdone .pd{color:#2f4a35}
+.prow.pdone .pnm,.prow.pdone .pn{color:var(--ink-12)}
+.prow.pdone.phit .pnm{color:var(--ink-9)}
+.prow.pdone .pd{color:var(--accent-success-muted)}
 /* The step you're on, matching Detail's burnt orange. */
-.prow.pcur{background:#261509;box-shadow:inset 3px 0 0 #e8743c}
-.prow.pcur .pnm{color:#fff}
-.mtabs{display:flex;gap:6px;margin-bottom:10px}
-.mtab{flex:1;padding:9px 6px;border-radius:6px;border:1px solid #4d4d4d;background:#111;color:#e6e6e6;font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:center;line-height:1.25;white-space:nowrap}
-.mtab:hover{border-color:#6a6a6a}
-.mtab.on{background:#f2f2f2;color:#111;border-color:#f2f2f2}
+.prow.pcur{background:var(--tint-current-row);box-shadow:inset 3px 0 0 var(--accent-current)}
+.prow.pcur .pnm{color:var(--ink-1)}
+/* Power scoring, back to an inline row -- a vertical stack cost more height than a
+   three-way setting is worth. No radio inputs; the highlight IS the state, same
+   look as the old tab strip, just living beside Target tags now instead of across
+   the way. */
+.scoregroup{display:flex;gap:6px;margin-bottom:10px}
+.scoreopt{flex:1;padding:9px 6px;border-radius:6px;border:1px solid var(--line-1);background:var(--surface-2);
+  color:var(--ink-2);font:inherit;font-size:var(--fs-base);font-weight:600;cursor:pointer;text-align:center;
+  line-height:1.25;white-space:nowrap}
+.scoreopt:hover{border-color:var(--ink-12)}
+.scoreopt.on{background:var(--tone-bright);color:var(--surface-2);border-color:var(--tone-bright)}
 .cov{margin:0 0 4px;transition:opacity .12s ease}
 /* Sits in an uppercase 11px label, so it needs its own size to not look like a typo. */
-.covi{font-size:13px;color:#6f6f6f;cursor:help;vertical-align:-1px;margin-left:3px}
-.covi:hover{color:#cfcfcf}
+.covi{font-size:var(--fs-base);color:var(--ink-11);cursor:help;vertical-align:-1px;margin-left:3px}
+.covi:hover{color:var(--ink-3)}
 /* While a solve is in flight these numbers describe the PREVIOUS plan, so say so
    rather than letting them look current. */
 .cov.stale{opacity:.45}
@@ -351,51 +506,54 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    to "did I get what I asked for" -- and at 11px in greys it looked like a footnote
    under the controls above it. Everything here is one or two steps brighter and a size
    up; the bar is thicker so its fill is legible at a glance rather than a hairline. */
-.covrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
+.covrow{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);padding:3px 0}
 /* Names are plain. The dots column that used to sit here repeated what the weight
    control says two inches up the panel, and colouring the name instead just moved the
    duplication rather than removing it -- and put a green name in the same row as a green
    bar and a green "max". Colour in this panel means ONE thing: what you got. The weight
    is in the row's tooltip for anyone who wants the number. */
-.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ececec}
+.covrow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);cursor:help}
 /* Fixed length on purpose: the bars are read as a column against each other, and bars
    that differ in length as well as in fill can't be compared at a glance. */
-.covrow .cb{width:70px;height:6px;border-radius:3px;background:#303030;overflow:hidden;flex:none}
-.covrow .cb i{display:block;height:100%;background:#b8b8b8}
+.covrow .cb{width:70px;height:6px;border-radius:3px;background:var(--surface-track);overflow:hidden;flex:none}
+.covrow .cb i{display:block;height:100%;background:var(--ink-4)}
 /* Fixed width, not margin-left:auto. With the name on flex:1 there is never any free
    space for an auto margin to claim, so .cv fell back to sizing by its CONTENT -- and
    `4/23 [37]` is wider than `6/6`, which pushed the bar and the `max` label to a
    different x on every row. Everything to the right of the name is fixed now, so the
    bars line up; .cv being last with nothing reserved after it is what puts the counts
    on the column edge. 92px fits the widest case, `31/31 [99]`. */
-.covrow .cv{width:92px;text-align:right;color:#cfcfcf;font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
+.covrow .cv{width:92px;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
 /* The tree-wide total, where it exceeds what 55 points can reach. Deliberately the
    quietest thing in the row: it is context, not a target -- nothing you can do gets you
    there. Bracketed and dimmed so `4/23` still reads as the pair that matters. */
-.covrow .ct{color:#909090;font-size:11px;margin-left:4px}
+.covrow .ct{color:var(--ink-8);font-size:var(--fs-base);margin-left:4px}
 /* Sits between the bar and the count. As the LAST element it reserved 32px to the right
    of the numbers on every row, so the counts never reached the column edge -- and on the
    rows where it was empty, that was 32px of nothing holding them off. */
-.covrow .cmax{width:32px;font-size:11px;color:#4ade80;flex:none;text-align:left}
-.covrow.maxed .cb i{background:#4ade80}
-.covrow.under .cv{color:#e8c15a}
-.covrow.under .cb i{background:#e8c15a}
+.covrow .cmax{width:32px;font-size:var(--fs-base);color:var(--accent-success);flex:none;text-align:left}
+.covrow.maxed .cb i{background:var(--accent-success)}
+.covrow.under .cv{color:var(--accent-warn)}
+.covrow.under .cb i{background:var(--accent-warn)}
 .covrow.zero .cn{opacity:.62}
-.covrow.zero .cv{color:#e07a7a}
-/* Tags pulling against each other. Stated, not hidden -- someone chasing a tag that
-   quietly starves the rest of the build should be told, and told WHY, since a zero
-   never means the tree lacks the stat. Informational, so no red. */
-.crowd{margin:6px 0 0;padding:7px 9px;border-radius:8px;border:1px solid #3a3427;
-  background:#16150f;color:#a09a86;font-size:11px;line-height:1.5}
-.crowd b{color:#e8c15a;font-weight:600}
+.covrow.zero .cv{color:var(--accent-danger-soft)}
+/* A zero is a real thing to flag: your other tags outbid this one for every point,
+   even though it was reachable. Used to also get an inline .crowd note below the whole
+   panel, repeating the same sentence the row's tooltip already carries -- removed 1 Aug,
+   the tooltip is enough. The icon says "look closer" without restating it. Outline, not
+   filled -- ti-*-filled glyphs are absent from the Tabler webfont build loaded here. */
+.covrow.zero .warn{color:var(--accent-danger);font-size:var(--fs-base);margin-left:2px;vertical-align:-1px;cursor:help}
 /* The dots are small on purpose, but the CLICK area shouldn't be: a fixed-width,
    full-height target means you hit it without aiming, and fixing the width also stops
    the dots drifting left and right as tag names change length. */
 .dots{display:inline-flex;gap:5px;align-items:center;justify-content:flex-end;
       height:100%;min-height:28px;flex:none;border-radius:6px}
-/* Three 30px buttons, edge to edge: a 26px glyph in a 30px button leaves a small gap
-   between stars while the hit areas still touch. 40px was too airy -- the cluster read
-   as three separate controls rather than one rating. */
+/* Three 30px buttons, edge to edge -- the hit areas still touch regardless of glyph
+   size, which is what mattered here; 40px was too airy and read as three separate
+   controls rather than one rating. The glyph itself dropped from 26px to --fs-base
+   across the 1-2 Aug font passes, so it now sits with more room around it than this
+   comment originally described -- revisit if that reads too small to read as a
+   rating at a glance. */
 /* 26px of right padding -- one star-width of breathing room before the remove button,
    so the rating and the destructive control don't read as one cluster. Padding rather
    than a margin keeps the 90px of hit area intact. */
@@ -407,14 +565,14 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    Tabler webfont build loaded here, so every filled star rendered as nothing -- a
    three-star tag showed no stars at all, and raising a tag to 3 made its last visible
    star vanish. Characters have no such dependency. */
-.dots span{display:block;flex:none;font-size:26px;line-height:1;color:#5a5a5a}
+.dots span{display:block;flex:none;font-size:var(--fs-xl);line-height:1;color:var(--ink-13)}
 
 /* Colour carries the level, so you read it without counting: red low, amber medium,
    green high. Applied from the container's w1/w2/w3 class rather than per star, so all
    the filled stars agree -- two amber stars, not one red and one amber. */
-.dots.w1 span.on{color:#e5484d;text-shadow:0 0 7px rgba(229,72,77,.75)}
-.dots.w2 span.on{color:#e8c15a;text-shadow:0 0 7px rgba(232,193,90,.75)}
-.dots.w3 span.on{color:#4ade80;text-shadow:0 0 7px rgba(74,222,128,.7)}
+.dots.w1 span.on{color:var(--accent-danger);text-shadow:0 0 7px var(--glow-danger-3)}
+.dots.w2 span.on{color:var(--accent-warn);text-shadow:0 0 7px var(--glow-warn-2)}
+.dots.w3 span.on{color:var(--accent-success);text-shadow:0 0 7px var(--glow-success-2)}
 
 /* Interactive version on the target pill: click the star you mean. Each is a 20x26
    button so the hit area is comfortably bigger than the 12px glyph -- the lesson from
@@ -430,31 +588,34 @@ body{margin:0;padding:24px;background:#000;color:#fff;font:13px/1.5 system-ui,sa
    full-height flex box centres the ink instead of the metrics. */
 .dots.pick .star span{display:flex;align-items:center;justify-content:center;
   width:100%;height:100%;line-height:1}
-.dots.pick .star:hover span{color:#cfcfcf}
-.dots.pick.w1 .star:hover span{color:#ff7a7d}
-.dots.pick.w2 .star:hover span{color:#f3d585}
-.dots.pick.w3 .star:hover span{color:#7ff0a8}
-.dots.pick .star:focus-visible{outline:1px solid #fff;outline-offset:-2px;border-radius:4px}
+.dots.pick .star:hover span{color:var(--ink-3)}
+.dots.pick.w1 .star:hover span{color:var(--accent-danger-bright)}
+.dots.pick.w2 .star:hover span{color:var(--accent-warn-bright)}
+.dots.pick.w3 .star:hover span{color:var(--accent-success-bright)}
+.dots.pick .star:focus-visible{outline:1px solid var(--ink-1);outline-offset:-2px;border-radius:4px}
 
 /* Coverage repeats the colour but drops the glow -- five glowing rows would be noise,
    and nothing there is clickable. */
 /* Coverage keeps small stars on purpose: up to five rows of them beside the bars, and
    nothing there is clickable. Doubling these would make the readout shout. */
-.covrow.under .cv{color:#e8c15a}
-.actions{display:flex;gap:8px;margin-top:8px;align-items:center}
-.status{flex:1;font-size:11px;color:#8a8a8a;display:flex;align-items:center;gap:7px;min-height:20px}
-.pulse{width:7px;height:7px;border-radius:50%;background:#e8c15a;flex:none;animation:pl .9s ease-in-out infinite}
+.covrow.under .cv{color:var(--accent-warn)}
+/* Lives inside the Target tags header now, centred in the space between the count and
+   Reset all. flex:1 claims whatever room is left between the two fixed-width siblings;
+   justify-content centres this box's own content within it. text-transform and
+   letter-spacing are reset because .lbl (the header) sets both for its own label text,
+   and this is a live readout, not a section title. */
+.status{flex:1;font-size:var(--fs-sm);color:var(--ink-9);text-transform:none;letter-spacing:normal;
+  display:flex;align-items:center;justify-content:center;gap:7px;min-height:20px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--accent-warn);flex:none;animation:pl .9s ease-in-out infinite}
 @keyframes pl{0%,100%{opacity:.25}50%{opacity:1}}
-.resetall{height:40px;padding:0 14px;border-radius:8px;border:1px solid #3a3a3a;background:#141414;
-          color:#9a9a9a;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
-.resetall:hover:not([disabled]){border-color:#8a8a8a;color:#e6e6e6}
-.resetall[disabled]{opacity:.35;cursor:default}
+/* .resetall is gone -- Reset all is a .plainbtn in the Target tags header now, so it
+   matches the Detail/Overview and Reset buttons rather than being a third button style. */
 .scroll{overflow-y:auto;overflow-x:hidden;padding-right:8px;
-  scrollbar-width:thin;scrollbar-color:#3a3a3a #141414}
+  scrollbar-width:thin;scrollbar-color:var(--line-4) var(--surface-4)}
 .scroll::-webkit-scrollbar{width:9px}
-.scroll::-webkit-scrollbar-track{background:#141414;border-radius:6px}
-.scroll::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:6px}
-.scroll::-webkit-scrollbar-thumb:hover{background:#5a5a5a}
+.scroll::-webkit-scrollbar-track{background:var(--surface-4);border-radius:6px}
+.scroll::-webkit-scrollbar-thumb{background:var(--line-4);border-radius:6px}
+.scroll::-webkit-scrollbar-thumb:hover{background:var(--ink-13)}
 </style>
 <div class="wrap"><div id="app">Loading…</div></div>
 <script type="module">
@@ -539,6 +700,16 @@ function undo() {
   const prev = history.pop();
   if (!prev) return false;
   state.done = prev;
+  return true;
+}
+
+/** Clear every tick without touching tags/weights/plan -- start this build's progress
+ * over. Pushes onto the same history stack as a star click, so the (no-longer-shown)
+ * undo() still recovers it via Ctrl+Z if this turns out to be a misclick. */
+function resetProgress() {
+  if (!state.done.size) return false;
+  pushHistory();
+  state.done = new Set();
   return true;
 }
 
@@ -824,47 +995,25 @@ function coverageHtml() {
               Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`);
       return `<div class="covrow${cls}" title="${esc(note)}">
       <span class="cn w${c.weight}">${esc(c.label)}${
-        c.pet ? ' <span style="color:#5f5f5f">pet</span>' : ''}</span>
+        c.pet ? ' <span style="color:var(--ink-13)">pet</span>' : ''}${
+        // A zero is worth flagging outright, not just implied by a dim row and a
+        // red count -- the icon says "look closer" and the row's own tooltip (built
+        // above as `note`) carries the full explanation of why.
+        c.stars === 0 ? ' <i class="ti ti-alert-triangle warn"></i>' : ''}</span>
       <span class="cb"><i style="width:${Math.round(100 * pct)}%"></i></span>
       <span class="cmax">${maxed ? 'max' : ''}</span>
       <span class="cv">${c.stars}/${ceiling}${
         c.total > ceiling ? `<span class="ct">[${c.total}]</span>` : ''}</span>
     </div>`;
     }).join('')
-  }</div>${crowdedOutNote(counts)}`;
-}
-
-/**
- * Say out loud when tags are pulling against each other.
- *
- * This is not a failure to paper over -- surfacing an awkward combination is part of
- * what the tool is FOR. But "none" on its own reads as "this stat doesn't exist in the
- * tree", which is never what happened: every zero measured had a ceiling of 3 to 18.
- * The useful sentence is that the tag is reachable and something else outbid it.
- */
-function crowdedOutNote(counts) {
-  const out = counts.filter(c => !c.power && c.stars === 0);
-  if (!out.length) return '';
-  const names = out.map(c => esc(c.label));
-  const list = names.length === 1 ? names[0]
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  const most = counts.filter(c => !c.power && c.stars > 0)
-    .sort((a, b) => b.stars - a.stars)[0];
-  const one = names.length === 1;
-  return `<p class="crowd"><b>${list}</b> got nothing.
-    ${one ? 'It is reachable on its own' : 'They are reachable on their own'}${
-      out.every(c => c.ceiling)
-        ? ` (up to ${out.map(c => c.ceiling).join(' and ')} stars)` : ''
-    }, so this is your tags competing${most ? `, not the tree running out — ${
-      esc(most.label)} took ${most.stars}` : ''}.
-    Drop ${one ? 'it' : 'one'}, lower its dots, or take the trade knowingly.</p>`;
+  }</div>`;
 }
 
 // Built on every render (not cached into state.out) so ticking a step off can
 // restyle it without recomputing the plan.
 function pathHtml() {
-  if (state.error) return `<p style="color:#4f4f4f;font-size:12px">${esc(state.error)}</p>`;
-  if (!state.plan) return '<p style="color:#4f4f4f;font-size:12px;margin:2px 0">Pick up to five tags, then build.</p>';
+  if (state.error) return `<p style="color:var(--ink-14);font-size:var(--fs-sm)">${esc(state.error)}</p>`;
+  if (!state.plan) return '<p style="color:var(--ink-14);font-size:var(--fs-sm);margin:2px 0">Pick up to five tags, then build.</p>';
   const { schedule, solution } = state.plan;
   const takenStars = new Map(solution.map(e => [e.id, e.starsTaken]));
   const starsFor = new Map(solution.map(e => [e.id, e.stars]));
@@ -998,10 +1147,13 @@ function plainHtml(rows, schedule) {
       <span class="pnm">constellation</span>
       <span class="ph">tags</span><span class="pp">pts</span><span class="pr">run</span>
     </div>${body}</div>
-    <div class="total"><b>${bought} of ${total} bought</b> · ${
+    <div class="total"><div><b>${bought} of ${total} bought</b> · ${
       schedule.totalPoints} of 55 points · ${
       at ? `first tagged pick at #${at}` : 'nothing carries your tags'
-    } · ${esc(aff(schedule.finalAffinity))}</div>`;
+    }</div><span class="orbs">${
+      affOrbs(Object.entries(schedule.finalAffinity), (a, v) => textTip(
+        `${v} ${capAff(a)} affinity total`))
+    }</span></div>`;
 }
 
 /**
@@ -1047,7 +1199,7 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
           partial ? 'Affinity is granted only when the constellation is complete'
                   : 'This constellation grants no affinity')}>\u2013</span>`
       : affOrbs(grants, (a, v) =>
-          textTip(`+${v} ${capAff(a)} affinity on completion`), true)
+          textTip(`+${v} ${capAff(a)} affinity on completion`))
   }</span>`;
   const cls = 'card' + (refund ? ' refund' : '')
     + (complete ? ' done' : '') + (current ? ' current' : '');
@@ -1068,10 +1220,10 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
 
   return `<div class="${cls}"${attrs}>
       <div class="step">
-        <span class="num">${complete ? '<i class="ti ti-check" style="color:#4ade80"></i>' : num}</span>
+        <span class="num">${complete ? '<i class="ti ti-check" style="color:var(--accent-success)"></i>' : num}</span>
         <span class="body"><span class="nmrow"><span class="nm"${titleTip}>${esc(p.name)}</span>${
-          c.hasPower && !refund ? `<span class="cp"${powerTip}>CP</span>` : ''}${affRow}</span>
-        <span class="n">${esc(detail)}</span></span>
+          c.hasPower && !refund ? `<span class="cp"${powerTip}>CP</span>` : ''}<span class="n">${
+          esc(detail)}</span>${affRow}</span></span>
       </div>${stars.html && !complete ? `<div class="stars">${stars.html}</div>` : ''}
     </div>`;
 }
@@ -1231,8 +1383,11 @@ const capAff = a => a.charAt(0).toUpperCase() + a.slice(1);
 /**
  * Affinity orbs for a list of [affinity, amount].
  *
- * `plus` signs the number. A card's orbs are a DELTA -- what completing it will add --
- * so `+3` is right there. The ledger's are a TOTAL, where a plus would read as a gain.
+ * `plus` signs the number ON THE ORB ITSELF. Card rows no longer pass it (2 Aug) --
+ * a 22px circle had no room to spare for a glyph that doesn't change the number's
+ * meaning, and it's still a delta either way (the tooltip's own text says so: "+3
+ * X affinity on completion"). The ledger never passed it either, since its orbs are
+ * a TOTAL, where a plus would misread as a gain.
  */
 const affOrbs = (entries, tip, plus) => entries
   .map(([a, v]) => `<span class="orb af-${esc(a)}${v ? '' : ' zero'}"${tip(a, v)}>${
@@ -1501,8 +1656,22 @@ function render() {
   // Five empty pills read like a form to fill in. Show what's chosen plus a single
   // prompt for the next, and put the count in the label so the ceiling stays clear.
   const chosenCount = picked().length;
-  let h = `<div class="col"><div><p class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
-    <span>Target tags <span style="color:#5f5f5f">${chosenCount}/${MAX}</span></span></p>`;
+  // Reset lives in the section header, matching the Detail/Overview button in the
+  // Devotions header: both are "this whole section" actions, and having one of them
+  // inline at the bottom of its list made it look like it applied to the last row.
+  // The build status ("13 constellations · 55/55") sits centered in the header now,
+  // in the space between the count and Reset all, rather than its own row below the
+  // slots -- one fewer row saves vertical space the same way the inline scoring row
+  // did.
+  let h = `<div class="col"><div class="selpane"><p class="lbl" style="display:flex;align-items:center;gap:8px">
+    <span>Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
+    <span class="status">${state.solving
+      ? '<span class="pulse"></span>solving'
+      : state.plan
+        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55`
+        : chosenCount ? '' : 'pick a tag to begin'}</span>
+    <button class="rb" data-reset="1"${chosenCount || state.plan ? '' : ' disabled'}
+      title="Reset all" aria-label="Reset all"><i class="ti ti-minus"></i></button></p>`;
   for (let i = 0; i < MAX; i++) {
     const s = state.sel[i];
     if (s == null) continue;
@@ -1531,7 +1700,7 @@ function render() {
          }).join('')
        }</span>`;
     h += `<div class="slot full${isPower ? ' pow' : ''}">
-       <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:11px;opacity:.6">pet</span>' : ''}${
+       <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:var(--fs-base);opacity:.6">pet</span>' : ''}${
          isPower ? ' <span class="cpc">CP</span>' : ''}</span>
        ${control}
        <button class="rb" data-rm="${i}" aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button></div>`;
@@ -1540,23 +1709,44 @@ function render() {
     h += `<div class="slot empty"><span>${chosenCount ? 'Add another' : 'Pick a tag below'}</span>
       <span class="rb"><i class="ti ti-plus"></i></span></div>`;
   }
-  h += `<div class="actions">
-    <span class="status">${state.solving
-      ? '<span class="pulse"></span>solving'
-      : state.plan
-        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55`
-        : chosenCount ? '' : 'pick a tag to begin'}</span>
-    <button class="resetall" data-reset="1"${chosenCount || state.plan ? '' : ' disabled'}
-      title="Clear the tag list, the path and your progress">Reset all</button>
-  </div>`;
-  // Everything else in this column announces itself -- Target tags, Power scoring,
-  // Coverage, Devotions -- and the picker was the one block you had to infer from the
-  // empty slot's "Pick a tag below". The count is per TAB, so switching to Pet shows
-  // how much smaller that library is rather than leaving you to scroll and find out.
-  // groups is a Map -- iterable, but with no reduce of its own.
+  // Selection widgets live in the LEFT pane, the plan display in the RIGHT. Power
+  // scoring and Coverage sit here (moved from the right column, 31 Jul): scoring is a
+  // setting on the build you're assembling, and Coverage is feedback on the tags
+  // above it -- both describe your picks, not the resulting path, so they belong
+  // beside Target tags rather than beside the read-only Devotions list. Tag library
+  // stays last in this column: it's the browse/add widget, not a readout, so it reads
+  // as "more tags below" rather than the first thing you see.
+  // One info icon carries all three descriptions now, rather than a title on each
+  // button -- those native tooltips were easy to miss (hover one button at a time,
+  // no indication there was anything to read) and duplicated whatever this single
+  // tooltip says anyway. Custom keeps its own title below: it's dynamic per-session
+  // state (which mode it came from), not a fixed description this icon can carry.
+  const scoreInfo = proseTip('Power scoring',
+    'How much the build should chase celestial power procs versus plain passive stats'
+    + ' and the affinity they grant.',
+    ...MODES.map(([label, sub]) => `${label} — ${sub}.`));
+  h += `<p class="lbl" style="margin-top:18px">Power scoring <i class="ti ti-info-circle covi"${
+    scoreInfo}></i></p>`;
+  const tabs = MODES.map((m, i) => [i, m[0], m[1]]);
+  if (state.custom) {
+    tabs.push([CUSTOM, 'Custom',
+      `The same constellations ${state.custom.from} chose, re-ordered around the stars`
+      + ` you have already bought`]);
+  }
+  h += `<div class="scoregroup" role="group" aria-label="Power scoring">${
+    tabs.map(([i, label, sub]) =>
+      `<button class="scoreopt${state.mode === i ? ' on' : ''}" data-score="${i}"
+        aria-pressed="${state.mode === i}"${
+          i === CUSTOM ? ` title="${esc(sub)}"` : ''}>${esc(label)}</button>`).join('')
+  }</div>`;
+  h += coverageHtml();
+
+  // groups is a Map -- iterable, but with no reduce of its own. The count is per TAB,
+  // so switching to Pet shows how much smaller that library is rather than leaving you
+  // to scroll and find out.
   let tabCount = 0;
   for (const [k, ids] of groups) if (k.startsWith(state.tab + '|')) tabCount += ids.length;
-  h += `<p class="lbl" style="margin-top:18px">Tag library <span style="color:#5f5f5f">${
+  h += `<p class="lbl" style="margin-top:18px">Tag library <span style="color:var(--ink-13)">${
     tabCount}</span></p>`;
   h += `<div style="display:flex;gap:6px;margin:0 0 8px">
     <button class="tab${state.tab === 'character' ? ' on' : ''}" data-tab="character">Character</button>
@@ -1588,24 +1778,17 @@ function render() {
     }
     h += '</div>';
   }
-  h += '</div></div><div><p class="lbl">Power scoring</p>';
-  const tabs = MODES.map((m, i) => [i, m[0], m[1]]);
-  if (state.custom) {
-    tabs.push([CUSTOM, 'Custom',
-      `The same constellations ${state.custom.from} chose, re-ordered around the stars`
-      + ` you have already bought`]);
-  }
-  h += '<div class="mtabs">' + tabs.map(([i, label, sub]) =>
-    `<button class="mtab${state.mode === i ? ' on' : ''}" data-score="${i}" title="${
-      esc(sub)}">${esc(label)}</button>`).join('') + '</div>';
-  h += coverageHtml();
-  h += `<p class="lbl" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
+  // Closes .scroll and the left (selection) pane, opens the right (display) pane.
+  // The pane split stays 50/50 -- .col's grid-template-columns is unchanged -- even
+  // though the left pane now carries more.
+  h += '</div></div><div class="dispane">';
+  h += `<p class="lbl" style="display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
     <span style="display:flex;gap:6px">
-    <button class="plainbtn" data-undo="1"${history.length ? '' : ' disabled'}
-      title="${history.length
-        ? `Undo the last change (${history.length} step${history.length === 1 ? '' : 's'} back) -- Ctrl+Z`
-        : 'Nothing to undo'}"><i class="ti ti-arrow-back-up"></i> Undo</button>
+    <button class="plainbtn" data-resetprogress="1"${state.done.size ? '' : ' disabled'}
+      title="${state.done.size
+        ? `Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'} bought) -- tags and plan stay`
+        : 'No progress to clear'}"><i class="ti ti-refresh"></i> Reset</button>
     <button class="plainbtn${state.plain ? ' on' : ''}" data-plain="1"
       title="${state.plain
         ? 'Back to one card per step, with the stars to click'
@@ -1656,12 +1839,11 @@ function render() {
  * Cap both long panels at whatever room is left below them, so each scrolls inside
  * itself instead of growing the page.
  *
- * Both need it for the same reason: what's above them changes height. Unfolding a
- * keyword category used to push the page down and carry your chosen tags and the
- * Reset button off screen; the devotions list grows with the build. And both are
- * measured rather than given a fixed `vh`, because the coverage panel above the
- * devotions grows a row per tag -- any constant would be wrong for four of the five
- * tag counts.
+ * Both need it for the same reason: what's above them changes height. In the left
+ * pane, unfolding a keyword category or the coverage panel growing a row per tag
+ * pushes .scroll down; in the right pane the Devotions header is the only thing
+ * above .dscroll, but the window can still be short. Measured rather than given a
+ * fixed `vh`, because no constant is right for every tag count.
  *
  * Floor of 200px so a short window still shows something scrollable, not a sliver.
  */
@@ -1756,7 +1938,12 @@ app.addEventListener('click', e => {
   // every click in the widget. Hence data-score, plus the app.contains guard.
   const m = e.target.closest('[data-score]');
   if (m && app.contains(m)) {
-    state.mode = +m.dataset.score;
+    const next = +m.dataset.score;
+    // Clicking the mode already selected isn't a change -- without this it still
+    // re-solved and, via build(), cleared the undo trail and the rush-offer dismissal
+    // for nothing.
+    if (state.mode === next) return;
+    state.mode = next;
     // Rebuild straight away. Deferring this to the Build button was meant to protect
     // in-progress ticks, but ticks are keyed constellation:star and survive a rebuild,
     // so the only thing deferral achieved was a tab that appeared to do nothing.
@@ -1779,13 +1966,21 @@ app.addEventListener('click', e => {
   if (sw && app.contains(sw)) {
     const [slot, level] = sw.dataset.setw.split(':').map(Number);
     if (!Number.isInteger(slot) || state.sel[slot] == null) return;
-    state.weights[slot] = clampWeight(level);
+    const next = clampWeight(level);
+    // Clicking the star that's already lit is a no-op click, not a change -- without
+    // this it still dropped any Custom order and kicked off a full re-solve for a
+    // weight that didn't move.
+    if (state.weights[slot] === next) return;
+    state.weights[slot] = next;
     dropCustom(); scheduleBuild();
     return;
   }
 
   const un = e.target.closest('[data-undo]');
   if (un && app.contains(un)) { if (undo()) render(); return; }
+
+  const rp = e.target.closest('[data-resetprogress]');
+  if (rp && app.contains(rp)) { if (resetProgress()) render(); return; }
 
   // "I've already bought these." Dismiss for this bought set; tick something else out
   // of order and it's a new question, so it asks again.
@@ -1846,6 +2041,9 @@ app.addEventListener('click', e => {
   } else if (t.dataset.rm != null) {
     state.sel[+t.dataset.rm] = null; dropCustom(); scheduleBuild();
   } else if (t.dataset.tab) {
+    // Clicking the tab already showing isn't a change -- without this it still
+    // rebuilt the whole panel's innerHTML for an identical result.
+    if (t.dataset.tab === state.tab) return;
     state.tab = t.dataset.tab; render();
   } else if (t.dataset.cat) {
     state.open.has(t.dataset.cat) ? state.open.delete(t.dataset.cat) : state.open.add(t.dataset.cat);

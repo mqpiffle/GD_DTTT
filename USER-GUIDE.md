@@ -45,12 +45,12 @@ a target you either get or don't. Two things follow:
   past that, powers that can't share the points get struck through and greyed out in the
   list rather than letting you pick one and quietly dropping it. If several still can't
   fit, the one you picked first wins.
-- **Powers have no priority dots**, because priority doesn't apply. Dots settle a
+- **Powers have no priority stars**, because priority doesn't apply. Weight settles a
   competition between stats over the same stars; a power isn't in that competition —
   you get it, or it's reported as not fitting. The pill shows a target marker instead.
 
-A power works in every scoring mode, including **Passives only**. Those two settings
-don't fight: "Passives only" means *don't chase procs you didn't ask for*, and naming one
+A power works in every scoring mode, including **Passives**. Those two settings
+don't fight: "Passives" means *don't chase procs you didn't ask for*, and naming one
 is asking. Ask for Targo's Hammer on a passives build and you get exactly that — the
 hammer, and otherwise raw stats.
 
@@ -77,7 +77,10 @@ but the tool can't invent points, and the Coverage panel will show you the trade
 
 ### Coverage
 
-Per tag: its weight dots, a bar, and a number like `7/12`.
+Per tag: its name, a bar, and a number like `7/12 [19]`.
+
+The tag's weight isn't repeated here — you set it a few inches up the panel, and hovering
+a row tells you what it is. Colour in Coverage means one thing only: what you got.
 
 The second number is the **ceiling** — the most stars of that keyword you could
 physically obtain if it were your only goal and you spent all 55 points on it. It is
@@ -89,26 +92,31 @@ but they're spread over seventeen constellations costing 95 points between them,
 twenty-three is genuinely everything you can reach. When a bar stops well short, that's
 usually the game, not the planner giving up.
 
+The **bracketed number**, where it appears, is how many stars the whole tree has carrying
+that tag — shown only when it's more than 55 points can reach. It's context, not a target:
+`24/27 [37]` means the tree has 37, a build like yours can reach 27, and you have 24.
+Green at 27 is still full marks.
+
 - **Green, "max"** — you have everything available. Nothing more exists to get.
+- **Amber** — this tag got noticeably less than its weight asked for. Sometimes that
+  means raising its weight will help. Sometimes it means the keyword is rare and no
+  weighting will change it.
+
 A **celestial power** row looks different, because a power is binary — there's no
 "70% of a proc". It shows the power's name, which constellation it came from and how many
 of that constellation's stars were needed, then a green tick if you got it:
 
 ```
-● ● ●   Targo's Hammer  CP     Anvil 5/5        ✓ got
-● ● ○   Fetid Pool      CP     Affliction 3/7   ✓ got
-● ○ ○   Armor                  ▓▓▓▓▓▓▓▓░  24/27
+Targo's Hammer  CP     Anvil 5/5           got  ✓
+Fetid Pool      CP     Affliction 3/7      got  ✓
+Armor                  ▓▓▓▓▓▓▓▓░  24/27 [37]
 ```
-
-- **Amber** — this tag got noticeably less than its weight asked for. Sometimes that
-  means raising its dots will help. Sometimes it means the keyword is rare and no
-  weighting will change it.
 
 ### When a tag gets nothing
 
-Occasionally a tag comes back **0/10** and a note appears saying it was crowded out.
-That is a real answer, not a malfunction, and it's one of the more useful things the
-tool tells you.
+Occasionally a tag comes back **0/10**, marked with a red warning triangle. Hover the
+row for the explanation — it was crowded out. That is a real answer, not a
+malfunction, and it's one of the more useful things the tool tells you.
 
 The number on the right is the point: `0/10` means that tag was reachable — ten stars of
 it, had you asked for nothing else — and your other tags spent the points first. It never
@@ -124,23 +132,23 @@ What to do about it, in rough order of usefulness:
 
 - **Drop the starved tag.** If four tags are well served and one isn't, you probably have
   the build you wanted plus a wish.
-- **Lower the dots on a greedy tag** rather than raising them on the starved one. The
+- **Lower the weight on a greedy tag** rather than raising it on the starved one. The
   crowding is caused by what's winning, not by what's losing.
 - **Take the trade knowingly.** Sometimes the answer really is "I want the cold build and
   I'll find casting speed on gear."
 
 ### Power scoring
 
-Celestial powers are the big active procs — Targo's Hammer, Twin Fangs. The three tabs
-change how much the planner cares about reaching them:
+Celestial powers are the big active procs — Targo's Hammer, Twin Fangs. The three
+settings change how much the planner cares about reaching them:
 
-| Tab | Use it when |
+| Setting | Use it when |
 |---|---|
-| **Passives only** | You want raw stats. Powers are taken only when they're on the way to affinity you needed anyway. |
-| **Rank 1** | Balanced. Powers count for what they are at the rank you buy them. |
-| **Max rank** | You intend to invest in a power and want the build to chase it. |
+| **Passives** | You want raw stats. Powers are taken only when they're on the way to affinity you needed anyway. |
+| **Balanced** | Powers count for what they are at the rank you actually buy them, which is rank 1 for most of a levelling build. |
+| **CP Max** | You intend to invest in a power and want the build to chase it. Favours going deep on a few powers over spreading across many. |
 
-Switching tabs re-solves. Your ticked progress survives it.
+Changing it re-solves. Your ticked progress survives it.
 
 ---
 
@@ -195,6 +203,16 @@ Tick stars as you buy them. A bought star dims and gets a green check; a finishe
 constellation collapses. In Overview, the box on each row does the same for a whole
 constellation at once — empty, an amber dash for part-bought, a green check when it's
 all yours.
+
+**Each card shows what completing it grants**, as coloured circles on the right of its
+title — `+3` in the Chaos colour means three Chaos affinity when the constellation is
+finished. Hover one for the name. A dashed circle means this step grants no affinity, or
+none yet because you're only taking part of it.
+
+**Between the last card you finished and the one you're on** sits a small strip: a white
+square with the points you've spent, then all five affinities with what you currently
+hold. That's the row to check against the game. Affinities you have none of stay in place
+and dim, so the one you're watching doesn't move as you complete things.
 
 **Undo** is next to the view toggle, or Ctrl+Z. Sixty steps of history.
 
@@ -262,7 +280,8 @@ Since the game lets you respec, none of this is one-way. Un-tick, re-tag, re-ord
 - **The build is a strong answer, not a proven-optimal one.** It searches rather than
   proving, so a slightly better arrangement may exist. It is always a *legal* build
   inside 55 points.
-- **Reset all** clears your tags, the path and your progress. Undo won't bring it back.
+- **Reset all** — top-right of the Target tags heading. Clears your tags, the path and
+  your progress. Undo won't bring it back.
 - **Your progress is keyed to individual stars**, so it survives changing the scoring
   mode or re-solving. Change your tags enough and progress on constellations that leave
   the build simply stops being shown.

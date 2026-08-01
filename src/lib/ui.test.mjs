@@ -26,7 +26,7 @@ const srcUrl = new URL(`file://${srcDir.replace(/\\/g, '/')}/`).href;
 const source = block[1].replace(/(['"])\.\/(?=[\w.])/g, `$1${srcUrl}`)
   + '\nexport { state, chips, build, render, toggleStar, toggleSteps, plannedStars,'
   + ' db, completedSet, treeGutter, starIdxs, progressLeadsPlan,'
-  + ' reorderAroundProgress, CUSTOM };\n';
+  + ' reorderAroundProgress, CUSTOM, history };\n';
 
 // Listeners are captured, not discarded, so tests can go through the real click
 // handler. Testing the exported functions alone leaves the wiring untested -- and
@@ -882,9 +882,10 @@ test('undo is bounded and stops cleanly when exhausted', () => {
   for (let i = 0; i < 400; i++) click({ undo: '1' });   // more undos than history
 
   assert.ok(true, 'undoing past the end did not throw');
-  ui.render();
-  assert.match(app.innerHTML, /data-undo="1" disabled/,
-    'the button should be disabled once there is nothing left to undo');
+  assert.equal(ui.history.length, 0, 'the stack should be drained once there is nothing left to undo');
+  const stateBefore = [...ui.state.done].sort();
+  click({ undo: '1' });   // one more, for good measure -- must be a true no-op
+  assert.deepEqual([...ui.state.done].sort(), stateBefore, 'undoing past empty changed the state');
 });
 
 test('Ctrl+Z and Cmd+Z undo', () => {
@@ -917,8 +918,9 @@ test('a rebuild clears the undo trail but keeps your ticks', () => {
   plan([['Cold Damage']], 1);   // same tags, different mode -> new path
   assert.deepEqual([...ui.state.done].sort(), ticks,
     'a rebuild lost progress; ticks are keyed constellation:star and should survive');
-  ui.render();
-  assert.match(app.innerHTML, /data-undo="1" disabled/,
+  assert.equal(ui.history.length, 0, 'a rebuild should clear the undo trail');
+  click({ undo: '1' });
+  assert.deepEqual([...ui.state.done].sort(), ticks,
     'undo should not offer to restore a build that is no longer on screen');
 });
 
@@ -1349,27 +1351,28 @@ test('a starved tag says it is obtainable, not that it does not exist', () => {
   ui.render();
   const h = app.innerHTML;
 
-  const zero = /<div class="covrow[^"]*\bzero\b[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(h);
+  // The 1 Aug layout dropped the separate .crowd note below the panel -- the
+  // explanation now lives in the row's own tooltip, and a warning icon flags the row
+  // without needing to be read.
+  const zero = /<div class="covrow[^"]*\bzero\b[^"]*" title="([^"]*)"[^>]*>([\s\S]*?)<\/div>/.exec(h);
   assert.ok(zero, 'expected a starved tag in this fixture');
-  assert.doesNotMatch(zero[1], /none/, 'a starved tag still says "none"');
-  assert.match(zero[1], /0\/\d+/, 'a starved row should show 0 of its ceiling');
-
-  const note = /<p class="crowd">([\s\S]*?)<\/p>/.exec(h);
-  assert.ok(note, 'no explanation offered for a tag that got nothing');
-  const text = note[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(text, /reachable on its own/, 'the note should say it IS obtainable');
-  assert.match(text, /tags competing/, 'the note should name the cause');
-  assert.doesNotMatch(text, /on their own/, 'singular case using plural wording');
+  const [, title, body] = zero;
+  assert.doesNotMatch(body, /none/, 'a starved tag still says "none"');
+  assert.match(body, /0\/\d+/, 'a starved row should show 0 of its ceiling');
+  assert.match(body, /ti-alert-triangle/, 'a starved row should carry the warning icon');
+  assert.match(title, /is obtainable/, 'the tooltip should say it IS obtainable');
+  assert.match(title, /your other tags used the points/,
+    'the tooltip should name the cause');
 });
 
-test('the crowding note stays quiet when the tags work together', () => {
-  // It has to be rare enough to mean something. A coherent pair should say nothing.
+test('coverage carries no warning icon when the tags work together', () => {
+  // It has to be rare enough to mean something. A coherent pair should show nothing.
   const pair = ['Cold Damage', 'Frostburn Damage'].map(n => [ui.chips.findIndex(
     c => c.label === n && c.ns === 'character' && c.kind !== 'power'), 2]);
   planWith(pair, 1);
   ui.render();
-  assert.doesNotMatch(app.innerHTML, /class="crowd"/,
-    'warned about crowding on a build where every tag was served');
+  assert.doesNotMatch(app.innerHTML, /ti-alert-triangle/,
+    'warned about a starved tag on a build where every tag was served');
   assert.doesNotMatch(app.innerHTML, /class="covrow[^"]*\bzero\b/,
     'fixture should have no starved tag');
 });

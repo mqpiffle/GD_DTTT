@@ -192,9 +192,12 @@ stars", and it would do what more weight levels cannot.
 
 - **Ticks returning with a constellation.** Progress is keyed constellation:star, so if
   a rebuild drops a constellation and a later one brings it back, its ticks return.
-  Right if you genuinely bought those stars, wrong if you were only exploring. A
-  "clear progress" control separate from "reset" would settle it — worth using the
-  tool for a while first.
+  Right if you genuinely bought those stars, wrong if you were only exploring. DONE:
+  the Devotions header's button was Undo (click a star to undo it, so a whole separate
+  button for that felt redundant); it's now `resetProgress()` -- a "clear progress"
+  control separate from full Reset, exactly as sketched here. `undo()`, the history
+  stack, and Ctrl+Z are untouched in the code, just no longer wired to a visible
+  button, in case that trade turns out wrong.
 - **Unspent points on sparse keywords.** "Requirement Reduction" only reaches 28/55
   because nothing else scores. Needs a secondary objective to spend the remainder on
   general stats once the chosen keywords are exhausted.
@@ -212,6 +215,30 @@ stars", and it would do what more weight levels cannot.
 - **Pet stats are quarantined** in `grants.petOwnStats` and ignored. Scoring an actual
   pet build would mean converting them into player-facing value — a different objective,
   not a bug.
+
+---
+
+## Design tokens: pull CSS into `:root` custom properties
+
+Right now `src/ui-mockup.html`'s entire stylesheet is one `<style>` block with every
+value -- font sizes, colors, radii, border widths -- written literally at each rule.
+The only `:root` rule that exists is `:root{color-scheme:dark}`; there is no separate
+CSS file and no variable set for any of it. That's why the 1 Aug font pass (flattening
+the left pane to a 16px baseline) took as long as it did -- "change the font sizes"
+meant finding and hand-editing ~15 separate declarations rather than a couple of
+variables.
+
+**The fix:** define `--fs-*` (a type scale), `--color-*` (the palette is already
+named in comments throughout -- burnt orange `#e8743c` for "you are here", the five
+`.af-*` affinity hues, the red/amber/green weight-star colors), `--radius-*`, and
+`--border-*` on `:root`, then point every existing rule at them. Should be mechanical
+-- grep every literal color/size in the stylesheet, replace with the matching
+variable -- not a redesign; the values themselves don't change, only where they live.
+
+**Do this in one unsupervised stretch, not interleaved with other requests.** It
+touches nearly every rule in the file, so it wants to be done as a single clean pass
+with the test suite (`cd src/lib && node --test`) run at the end, rather than mixed in
+with unrelated edits where a mistake is harder to isolate.
 
 ---
 
