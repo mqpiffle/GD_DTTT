@@ -533,6 +533,8 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    rows where it was empty, that was 32px of nothing holding them off. */
 .covrow .cmax{width:32px;font-size:var(--fs-base);color:var(--accent-success);flex:none;text-align:left}
 .covrow.maxed .cb i{background:var(--accent-success)}
+/* Coverage repeats the accent colours but drops the glow that .card.current gets --
+   five glowing rows would be noise, and nothing here is clickable. */
 .covrow.under .cv{color:var(--accent-warn)}
 .covrow.under .cb i{background:var(--accent-warn)}
 .covrow.zero .cn{opacity:.62}
@@ -594,11 +596,6 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .dots.pick.w3 .star:hover span{color:var(--accent-success-bright)}
 .dots.pick .star:focus-visible{outline:1px solid var(--ink-1);outline-offset:-2px;border-radius:4px}
 
-/* Coverage repeats the colour but drops the glow -- five glowing rows would be noise,
-   and nothing there is clickable. */
-/* Coverage keeps small stars on purpose: up to five rows of them beside the bars, and
-   nothing there is clickable. Doubling these would make the readout shout. */
-.covrow.under .cv{color:var(--accent-warn)}
 /* Lives inside the Target tags header now, centred in the space between the count and
    Reset all. flex:1 claims whatever room is left between the two fixed-width siblings;
    justify-content centres this box's own content within it. text-transform and

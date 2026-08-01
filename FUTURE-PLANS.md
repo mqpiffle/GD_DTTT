@@ -220,25 +220,30 @@ stars", and it would do what more weight levels cannot.
 
 ## Design tokens: pull CSS into `:root` custom properties
 
-Right now `src/ui-mockup.html`'s entire stylesheet is one `<style>` block with every
-value -- font sizes, colors, radii, border widths -- written literally at each rule.
-The only `:root` rule that exists is `:root{color-scheme:dark}`; there is no separate
-CSS file and no variable set for any of it. That's why the 1 Aug font pass (flattening
-the left pane to a 16px baseline) took as long as it did -- "change the font sizes"
-meant finding and hand-editing ~15 separate declarations rather than a couple of
-variables.
+**Half done.** Font sizes (`--fs-*`, five steps) and colours (six families:
+`surface` / `ink` / `line` / `accent` / `tint` / `af`) were tokenised on 1 Aug and are
+committed; `COLOR-TOKENS.md` documents the palette. **Radii and border widths are
+still literals at every rule**, which is what's left of this item.
 
-**The fix:** define `--fs-*` (a type scale), `--color-*` (the palette is already
-named in comments throughout -- burnt orange `#e8743c` for "you are here", the five
-`.af-*` affinity hues, the red/amber/green weight-star colors), `--radius-*`, and
-`--border-*` on `:root`, then point every existing rule at them. Should be mechanical
--- grep every literal color/size in the stylesheet, replace with the matching
-variable -- not a redesign; the values themselves don't change, only where they live.
+The original case for doing it, kept because it applies just as well to the remainder:
+the whole stylesheet is one `<style>` block, so "change the font sizes" meant finding
+and hand-editing ~15 separate declarations rather than one variable. The colour pass
+was mechanical — grep every literal, replace with the matching variable — a rename
+rather than a redesign, and the page came out pixel-identical.
 
-**Do this in one unsupervised stretch, not interleaved with other requests.** It
-touches nearly every rule in the file, so it wants to be done as a single clean pass
-with the test suite (`cd src/lib && node --test`) run at the end, rather than mixed in
-with unrelated edits where a mistake is harder to isolate.
+**Do the radius/border pass in one unsupervised stretch, not interleaved with other
+requests.** It touches nearly every rule in the file, so it wants a single clean pass
+with the tests run at the end, rather than mixed in with unrelated edits where a
+mistake is harder to isolate.
+
+**Read the trap in `COLOR-TOKENS.md` first.** A blind find-and-replace of a bare value
+rewrites the token's *own* `:root` definition into `--x:var(--x)`, because the
+definition line contains the same literal as the usage sites and nothing distinguishes
+them. That bit nine of the colour tokens. Radius and border-width values (`6px`,
+`1px`) are far more common strings than an `rgba()` and appear in `padding`, `gap`,
+`width` and shorthand `border` declarations, so this pass is **more** exposed to it,
+not less. Match on the property name, and re-read the whole `:root` block before
+calling it done.
 
 ---
 
