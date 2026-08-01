@@ -25,8 +25,8 @@ assert.ok(block, 'could not find the inline module in ui-mockup.html');
 const srcUrl = new URL(`file://${srcDir.replace(/\\/g, '/')}/`).href;
 const source = block[1].replace(/(['"])\.\/(?=[\w.])/g, `$1${srcUrl}`)
   + '\nexport { state, chips, build, render, toggleStar, toggleSteps, plannedStars,'
-  + ' db, completedSet, treeGutter, starIdxs, progressLeadsPlan,'
-  + ' reorderAroundProgress, CUSTOM, history, frontier, pathStarKeys, save, load };\n';
+  + ' db, completedSet, treeGutter, starIdxs, history, frontier, pathStarKeys,'
+  + ' save, load, applyOrder, currentOrder, moveInOrder, reorderNow };\n';
 
 // Listeners are captured, not discarded, so tests can go through the real click
 // handler. Testing the exported functions alone leaves the wiring untested -- and
@@ -71,6 +71,10 @@ const app = {
     return (boxes[sel] ??= makeBox());
   },
   contains: () => true,
+  // paintDrop() sweeps rows to move the insertion marker. There is no layout here and
+  // the marker is presentation, so an empty sweep is the honest stub -- what matters
+  // is that the handler runs to completion and the ORDER changes.
+  querySelectorAll: () => [],
   addEventListener: (type, fn) => listeners.push([type, fn]),
 };
 globalThis.window = {
@@ -82,8 +86,8 @@ globalThis.window = {
 const SEL = {
   '[data-score]': 'score', '[data-plain]': 'plain', '[data-reset]': 'reset',
   '[data-setw]': 'setw', '[data-star]': 'star', '[data-step]': 'step',
-  '[data-undo]': 'undo', '[data-reorder]': 'reorder', '[data-add]': 'add',
-  '[data-keepticks]': 'keepticks', '[data-lock]': 'lock', '[data-dialog]': 'dialog',
+  '[data-undo]': 'undo', '[data-add]': 'add',
+  '[data-lock]': 'lock', '[data-dialog]': 'dialog', '[data-clearorder]': 'clearorder',
   '[data-rm]': 'rm', '[data-resetprogress]': 'resetprogress',
 };
 
@@ -111,6 +115,29 @@ const leaveApp = () => {
   for (const [type, fn] of listeners) if (type === 'mouseleave') fn({});
 };
 
+/**
+ * Drag row `from` onto row `to`, through the page's own dragstart/dragover/drop
+ * listeners.
+ *
+ * Going through the handlers rather than calling moveInOrder() directly is what keeps
+ * the WIRING tested: with the helper calling the functions itself, replacing the drop
+ * handler's re-schedule with a full re-solve passed every test.
+ */
+function dragRow(from, to) {
+  const row = i => {
+    const el = { dataset: { drag: String(i) }, closest: sel => (sel === '[data-drag]' ? el : null) };
+    return el;
+  };
+  const ev = target => ({ target, preventDefault() {}, dataTransfer: null });
+  const fireOn = (type, target) => {
+    for (const [t, fn] of listeners) if (t === type) fn(ev(target));
+  };
+  fireOn('dragstart', row(from));
+  fireOn('dragover', row(to));
+  fireOn('drop', row(to));
+  fireOn('dragend', row(to));
+}
+
 /** Fire a window event, e.g. a keydown or a resize. */
 function fire(type, ev = {}) {
   for (const [t, fn] of winListeners) if (t === type) fn({ preventDefault() {}, ...ev });
@@ -137,6 +164,9 @@ function plan(labels, mode) {
   ui.state.weights = ui.state.weights.map(() => 2);
   labels.forEach(([l, ns], i) => { ui.state.sel[i] = chipIdx(l, ns); });
   ui.state.mode = mode;
+  // Module state is shared across tests, and a manual order left behind by one would
+  // silently re-order every fixture after it -- the same trap the weights reset fixed.
+  ui.state.order = null;
   ui.build();
   return ui.state.plan;
 }
@@ -964,175 +994,6 @@ test('scroll position survives a re-render', () => {
     'the devotions list jumped back to the top');
 });
 
-// --- rushing a star, and the custom order ---------------------------------------
-// Buying a specific celestial power early is a real way to play. The affinity cascade
-// already supports it; the cost is that the plan's numbering then describes a
-// different run from yours. These pin the offer to re-order around what you did.
-
-/**
- * A build where progress has deliberately run ahead of the suggested order.
- *
- * Take a whole late constellation that actually has an affinity requirement. Ticking
- * a single star of a shallow one is not enough: the only thing it completes may be a
- * Crossroads that already sits at step 1, leaving the bought set a prefix and nothing
- * to detect. (It did, and two tests failed for the helper's reasons, not the code's.)
- */
-function rushed() {
-  plan([['Chaos Damage'], ['Shield Damage Blocked'], ['Shield Block Chance']], 0);
-  ui.state.done = new Set();
-  ui.state.custom = null;
-  ui.state.offerSeen = null;   // tests share module state; a stale dismissal hides the prompt
-  const steps = ui.state.plan.schedule.path.filter(p => p.kind !== 'refund');
-  const deep = [...steps].reverse()
-    .find(p => Object.keys(ui.db.constellations[p.id].required ?? {}).length > 0);
-  assert.ok(deep, 'fixture has no constellation with an affinity requirement');
-  ui.toggleSteps(ui.plannedStars(deep.id).map(s => `${deep.id}:${s}`));
-  assert.ok(ui.progressLeadsPlan(), 'the fixture did not actually rush anything');
-  return deep;
-}
-
-const prefixOk = (schedule, bought) => {
-  let sawUnbought = false;
-  for (const p of schedule.path) {
-    if (p.kind === 'refund') continue;
-    if (!bought.has(p.id)) sawUnbought = true;
-    else if (sawUnbought) return false;
-  }
-  return true;
-};
-
-test('progress running ahead of the plan is detected, and only then', () => {
-  plan([['Cold Damage']], 2);
-  ui.state.done = new Set();
-  assert.equal(ui.progressLeadsPlan(), false, 'nothing bought should not count as ahead');
-
-  // Buying in the listed order is not "ahead", however far you get.
-  const steps = ui.state.plan.schedule.path.filter(p => p.kind !== 'refund');
-  for (const p of steps.slice(0, 3)) {
-    for (const s of ui.plannedStars(p.id)) ui.state.done.add(`${p.id}:${s}`);
-    assert.equal(ui.progressLeadsPlan(), false,
-      `buying step ${p.name} in order should not read as ahead`);
-  }
-
-  rushed();
-  assert.equal(ui.progressLeadsPlan(), true, 'rushing a late constellation was not detected');
-});
-
-test('the re-order puts what you bought first, legally, without changing the set', () => {
-  rushed();
-  const before = ui.state.plan.solution.map(e => `${e.id}:${e.starsTaken}`).sort().join('|');
-  const bought = ui.completedSet();
-
-  const custom = ui.reorderAroundProgress();
-  assert.ok(custom, 'no re-ordered schedule was produced');
-  assert.equal(custom.solution.map(e => `${e.id}:${e.starsTaken}`).sort().join('|'), before,
-    're-ordering changed the SET; it should only change the order');
-  assert.ok(prefixOk(custom.schedule, bought),
-    'what you bought is still not a prefix of the re-ordered path');
-  assert.ok(custom.schedule.totalPoints <= 55, `re-order spent ${custom.schedule.totalPoints}`);
-  for (const p of custom.schedule.path) {
-    assert.ok(p.runningPoints <= 55, `running total hit ${p.runningPoints} at ${p.name}`);
-  }
-});
-
-test('the re-order makes the running totals describe your run', () => {
-  // The whole point. Rushing Hyrian costs ~20 points, but its row claimed 48 because
-  // the numbering assumed you had walked the list.
-  rushed();
-  const bought = ui.completedSet();
-  const runAt = (sched) => {
-    const steps = sched.path.filter(p => p.kind !== 'refund');
-    return [...steps].reverse().find(p => bought.has(p.id)).runningPoints;
-  };
-  const claimed = runAt(ui.state.plan.schedule);
-  const actual = runAt(ui.reorderAroundProgress().schedule);
-  assert.ok(actual < claimed,
-    `re-order should lower the running total at your last pick (${claimed} -> ${actual})`);
-
-  // And it should equal what those constellations really cost.
-  const spent = [...bought].reduce((n, id) => n + ui.plannedStars(id).length, 0);
-  assert.equal(actual, spent, `running total ${actual} but the picks cost ${spent}`);
-});
-
-test('the offer appears only when it applies', () => {
-  plan([['Cold Damage']], 2);
-  ui.state.done = new Set(); ui.state.custom = null;
-  ui.render();
-  assert.doesNotMatch(app.innerHTML, /data-reorder/, 'offered a re-order with nothing bought');
-
-  rushed();
-  ui.render();
-  assert.match(app.innerHTML, /data-reorder/, 'did not offer a re-order after rushing');
-
-  click({ reorder: '1' });
-  assert.ok(ui.state.custom, 'clicking the offer produced no custom plan');
-  assert.equal(ui.state.mode, ui.CUSTOM, 'did not switch to the custom plan');
-  assert.doesNotMatch(app.innerHTML, /data-reorder/,
-    'still offering to re-order a path that is already re-ordered');
-  assert.match(app.innerHTML, /data-score="3"/, 'the Custom tab did not appear');
-});
-
-test('selecting the Custom tab shows the saved order, it does not re-solve', async () => {
-  // Mode tabs go through scheduleBuild(), which is debounced -- so the plan does not
-  // change on the click, it changes a couple of hundred milliseconds later. Asserting
-  // straight after the click tests nothing.
-  const settle = () => new Promise(r => setTimeout(r, 400));
-
-  rushed();
-  click({ reorder: '1' });
-  const sig = () => ui.state.plan.schedule.path.map(p => p.id + p.kind).join('|');
-  const custom = sig();
-
-  click({ score: '0' });                       // away to Passives only
-  await settle();
-  assert.notEqual(sig(), custom, 'leaving Custom did not change the plan');
-
-  click({ score: String(ui.CUSTOM) });         // and back
-  await settle();
-  assert.equal(sig(), custom, 'returning to Custom re-solved and lost the saved order');
-});
-
-test('accepting the re-order clears progress, and undo brings it back', () => {
-  // Clicking a deep star is ambiguous: "I already bought this" or "I want to rush
-  // this". Taking the re-order declares the second, so the ticks that pointed at the
-  // target are not a purchase record and the new order starts empty. Declining keeps
-  // them, which is the other reading.
-  rushed();
-  const pointed = [...ui.state.done].sort();
-  assert.ok(pointed.length > 0, 'the fixture should have ticked something');
-
-  click({ reorder: '1' });
-  assert.equal(ui.state.done.size, 0,
-    'accepting the re-order should leave nothing marked as bought');
-  assert.ok(ui.state.custom, 'the custom order was not kept');
-  assert.equal(ui.progressLeadsPlan(), false,
-    'with nothing bought there is nothing running ahead');
-
-  click({ undo: '1' });
-  assert.deepEqual([...ui.state.done].sort(), pointed,
-    'undo did not restore the ticks after a re-order');
-  assert.equal(ui.state.mode, ui.CUSTOM,
-    'undo covers progress only; it should not throw away the new order');
-});
-
-test('"Keep my ticks" dismisses the prompt and changes nothing', () => {
-  rushed();
-  const pointed = [...ui.state.done].sort();
-  ui.render();
-  assert.match(app.innerHTML, /class="modal"/, 'the prompt should be blocking the list');
-
-  click({ keepticks: '1' });
-  assert.deepEqual([...ui.state.done].sort(), pointed, 'declining changed the ticks');
-  assert.equal(ui.state.custom, null, 'declining built a custom order anyway');
-  assert.doesNotMatch(app.innerHTML, /class="modal"/, 'the prompt did not go away');
-
-  // And it stays gone across unrelated re-renders. It covers the list, so a prompt
-  // that came back would be a trap.
-  ui.state.plain = true; ui.render();
-  ui.state.plain = false; ui.render();
-  assert.doesNotMatch(app.innerHTML, /class="modal"/, 'the prompt came back on its own');
-});
-
 test('an unbought tick box is empty, not a dim check', () => {
   // It used to render the check glyph unconditionally and rely on colour alone to say
   // whether it was bought. On screen that read as "everything is ticked" while the
@@ -1169,54 +1030,8 @@ test('an unbought tick box is empty, not a dim check', () => {
     `list shows ${count(list, /ti-check/g)} checks but the summary says ${stated[1]} bought`);
 });
 
-test('ticking something else out of order asks again', () => {
-  // The dismissal is keyed to the bought set, not a one-time flag: a different set of
-  // picks is a different question, and going quiet forever would hide a real one.
-  rushed();
-  click({ keepticks: '1' });
-  ui.render();
-  assert.doesNotMatch(app.innerHTML, /class="modal"/);
 
-  const unbought = ui.state.plan.schedule.path
-    .filter(p => p.kind !== 'refund' && !ui.completedSet().has(p.id))
-    .find(p => Object.keys(ui.db.constellations[p.id].required ?? {}).length > 0);
-  ui.toggleSteps(ui.plannedStars(unbought.id).map(s => `${unbought.id}:${s}`));
-  ui.render();
 
-  if (ui.progressLeadsPlan()) {
-    assert.match(app.innerHTML, /class="modal"/,
-      'new out-of-order progress should raise the question again');
-  }
-});
-
-test('the prompt is an overlay on the list, not a banner above it', () => {
-  rushed();
-  ui.render();
-  const h = app.innerHTML;
-  assert.match(h, /class="dwrap"/, 'no positioned wrapper for the overlay');
-  assert.ok(h.indexOf('class="dscroll"') < h.indexOf('class="modal"'),
-    'the overlay must come after the list it covers');
-  // The summary line is the last thing inside the scroller, so the overlay coming
-  // after it confirms the overlay is a SIBLING of the list, not a row within it --
-  // otherwise it would scroll away with the content it is supposed to cover.
-  assert.ok(h.indexOf('class="total"') < h.indexOf('class="modal"'),
-    'the overlay is inside the scrolling content instead of covering it');
-});
-
-test('changing the tags drops the custom order', () => {
-  // It is a re-ordering of one particular set of constellations. Change the tags and
-  // that set changes, so the saved order refers to nothing.
-  rushed();
-  click({ reorder: '1' });
-  assert.ok(ui.state.custom);
-
-  const spare = ui.chips.findIndex(c => c.label === 'Armor' && c.ns === 'character');
-  click({ add: String(spare), button: '1' });
-  assert.equal(ui.state.custom, null, 'the custom order survived a tag change');
-  assert.notEqual(ui.state.mode, ui.CUSTOM, 'left the mode pointing at a plan that is gone');
-  ui.render();
-  assert.doesNotMatch(app.innerHTML, /data-score="3"/, 'the Custom tab outlived its plan');
-});
 
 // --- celestial powers in the UI ---------------------------------------------------
 
@@ -1230,8 +1045,7 @@ function planWith(entries, mode = 1) {
   ui.state.sel = ui.state.sel.map(() => null);
   entries.forEach(([i, w], slot) => { ui.state.sel[slot] = i; ui.state.weights[slot] = w; });
   ui.state.mode = mode;
-  ui.state.custom = null;
-  ui.state.offerSeen = null;
+  ui.state.order = null;
   ui.state.done = new Set();
   ui.build();
   return ui.state.plan;
@@ -1670,7 +1484,7 @@ test('locked, the build controls are inert even if a click reaches them', () => 
   click({ score: '2' });
   click({ resetprogress: '1' });
   click({ reset: '1' });
-  click({ add: String(chipIdx('Fire Damage')) });
+  click({ add: String(chipIdx('Fire Damage')), button: 1 });
   click({ step: 'x', keys: ui.pathStarKeys().slice(0, 3).join(',') });
 
   assert.equal(ui.state.sel.join(','), tags, 'a tag changed while locked');
@@ -1752,20 +1566,309 @@ test('the lock and its dismissal survive a reload', () => {
   }
 });
 
-test('the rush-offer cannot appear while locked', () => {
-  // Out-of-order ticking is what triggers it and the lock makes that unreachable, but
-  // a lock whose job is "no surprises" should not lean on another feature's invariant.
-  lockFixture();
-  const keys = ui.pathStarKeys();
-  ui.state.done = new Set(keys.slice(-3));   // progress far ahead of the order
-  ui.state.offerSeen = null;
 
+// --- dragging a constellation into your own order ----------------------------
+// A drag is a REQUEST. What comes back is whatever the scheduler can legally make of
+// it: dropping something where the game will not allow it lands it as early as the
+// game does allow, with its enablers pulled forward. Where even that will not fit in
+// 55 points, the drag is undone and said so -- never silently ignored.
+
+const orderOf = (plan = ui.state.plan) => plan.schedule.path
+  .filter(p => p.kind !== 'refund').map(p => p.id);
+
+/** Fresh plan with no manual order and nothing ticked. */
+function orderFixture(labels = [['Cold Damage'], ['Health']], mode = 1) {
   ui.state.locked = false;
-  ui.render();
-  assert.match(app.innerHTML, /data-reorder/, 'this fixture should provoke the rush offer');
+  ui.state.order = null;
+  ui.state.orderNote = null;
+  const p = plan(labels, mode);
+  ui.state.done = new Set();
+  return p;
+}
 
+/** Drag through the page's own handlers, and report whether the order actually moved. */
+function drag(from, to) {
+  const before = orderOf();
+  dragRow(from, to);
+  return orderOf().join() !== before.join() || ui.state.orderNote === 'failed';
+}
+
+/** Every constellation's affinity requirement met by those COMPLETED before it. */
+function assertLegal(schedule, msg = '') {
+  const held = {};
+  for (const step of schedule.path) {
+    const c = ui.db.constellations[step.id];
+    for (const [a, n] of Object.entries(c.required ?? {})) {
+      assert.ok((held[a] ?? 0) >= n,
+        `${msg}${c.name} scheduled with ${held[a] ?? 0} ${a}, needing ${n}`);
+    }
+    const grant = step.kind === 'refund' ? -1 : (step.points >= c.starCount ? 1 : 0);
+    for (const [a, n] of Object.entries(c.granted ?? {})) held[a] = (held[a] ?? 0) + n * grant;
+  }
+}
+
+test('dragging a constellation earlier moves it earlier', () => {
+  orderFixture();
+  const before = orderOf();
+  assert.ok(before.length >= 4, 'fixture too short to reorder meaningfully');
+
+  const from = before.length - 1;
+  const moved = before[from];
+  assert.ok(drag(from, 0), 'the drag was rejected outright');
+
+  const after = orderOf();
+  assert.ok(after.indexOf(moved) < from,
+    `${moved} did not move earlier (was ${from}, now ${after.indexOf(moved)})`);
+});
+
+test('a drag re-schedules and never re-solves', () => {
+  // Two reasons this matters. The set is the answer to your TAGS, and a drag is not a
+  // change to your tags. And solveBest() runs local search against a time budget, so
+  // re-solving the same tags can legitimately return a different set -- meaning a
+  // drag that re-solved would change the build every so often, unreproducibly.
+  const p = orderFixture();
+  const solutionBefore = p.solution;
+  const setBefore = [...orderOf()].sort();
+  const pointsBefore = p.schedule.totalPoints;
+
+  drag(orderOf().length - 1, 0);
+
+  assert.equal(ui.state.plan.solution, solutionBefore,
+    'the solution object was replaced, so something re-solved');
+  assert.deepEqual([...orderOf()].sort(), setBefore, 'the dragged plan has a different set');
+  assert.equal(ui.state.plan.schedule.totalPoints, pointsBefore,
+    'reordering changed the point cost');
+});
+
+test('every legal drag produces a playable path', () => {
+  // Sweep, rather than trusting one hand-picked case: drag each constellation to the
+  // front in turn and check what comes back is something the game would allow.
+  orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+  const before = orderOf();
+  let honoured = 0, refused = 0;
+
+  for (let i = 1; i < before.length; i++) {
+    orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+    drag(i, 0);
+    assertLegal(ui.state.plan.schedule, `dragging ${before[i]} to the front: `);
+    if (ui.state.orderNote === 'failed') refused++;
+    else honoured++;
+  }
+
+  assert.ok(honoured > 0, 'no drag in this fixture was honoured at all');
+  // Not asserted to be zero: some arrangements genuinely cost more than 55 points.
+  assert.ok(refused < before.length - 1, 'every single drag was refused');
+});
+
+test('an impossible position lands as early as the rules allow, not where asked', () => {
+  // The "auto-resolve by cascading" answer. Something with an affinity requirement
+  // cannot be first, because what grants that affinity has to come first -- so it
+  // should move, but not to the front, and never be refused outright.
+  orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+  const before = orderOf();
+  const idx = before.findIndex((id, i) =>
+    i > 1 && Object.keys(ui.db.constellations[id].required ?? {}).length > 0);
+  assert.ok(idx > 1, 'fixture has nothing with an affinity requirement to drag');
+  const deep = before[idx];
+
+  drag(idx, 0);
+  assert.notEqual(ui.state.orderNote, 'failed', 'this fixture refused the drag; pick another');
+  const after = orderOf();
+
+  assert.ok(after.indexOf(deep) < idx, 'it did not move at all');
+  assert.ok(after.indexOf(deep) > 0,
+    'it was placed first, which its affinity requirement should have made impossible');
+  assertLegal(ui.state.plan.schedule);
+});
+
+test('the enablers come forward with what you dragged', () => {
+  // Not enough that the dragged constellation ends up legal -- the things it needed
+  // have to have MOVED to make that so, and nothing else should have been dragged in
+  // front of it for the ride.
+  orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+  const before = orderOf();
+  const idx = before.findIndex((id, i) =>
+    i > 2 && Object.keys(ui.db.constellations[id].required ?? {}).length > 0);
+  const deep = before[idx];
+
+  drag(idx, 0);
+  assert.notEqual(ui.state.orderNote, 'failed', 'this fixture refused the drag; pick another');
+  const after = orderOf();
+
+  const aheadBefore = before.slice(0, idx);
+  const aheadAfter = after.slice(0, after.indexOf(deep));
+  assert.ok(aheadAfter.length < aheadBefore.length,
+    'nothing was displaced; the drag achieved nothing');
+
+  // Crossroads are exempt, and finding that out is the point of this test: the
+  // scheduler is free to insert a bootstrap Crossroads that was NOT in the path
+  // before, because buying one is how an affinity threshold gets crossed early. It is
+  // an enabler like any other, refunded later once the constellations behind it stand
+  // on their own. Everything else ahead of the dragged constellation must be
+  // something that was already ahead of it -- nothing else gets a free ride forward.
+  const carried = aheadAfter.filter(id => !ui.db.constellations[id].crossroads);
+  assert.ok(carried.every(id => aheadBefore.includes(id)),
+    'a non-Crossroads that was not ahead of it before was pulled in front of it');
+});
+
+test('an order that cannot fit is undone and reported, not silently ignored', () => {
+  // The failure this test exists for was real: pulling a constellation forward can
+  // force a Crossroads bootstrap that nothing later releases, so a plan that fits in
+  // 55 points in one order needs 56 in another. The first implementation fell back to
+  // the solver's schedule and said nothing, and the drag looked broken.
+  //
+  // Sweep for a fixture that genuinely cannot honour a drag rather than asserting one
+  // exists in a case picked by hand.
+  let found = null;
+  outer:
+  for (const labels of [[['Chaos Damage'], ['Shield Damage Blocked']],
+                        [['Cold Damage'], ['Health']],
+                        [['Physical Damage'], ['Armor']]]) {
+    orderFixture(labels, 0);
+    const n = orderOf().length;
+    for (let i = 1; i < n; i++) {
+      orderFixture(labels, 0);
+      const was = orderOf();
+      drag(i, 0);
+      if (ui.state.orderNote === 'failed') { found = { was, i }; break outer; }
+    }
+  }
+  assert.ok(found, 'no arrangement in any fixture was infeasible; this test proves nothing');
+
+  assert.equal(ui.state.order, null,
+    'a refused drag left a stored order the path does not reflect');
+  assert.deepEqual(orderOf(), found.was, 'a refused drag still changed the path');
+});
+
+test('clearing the order goes back to the solver\'s own path', () => {
+  orderFixture();
+  const solver = orderOf();
+
+  drag(solver.length - 1, 0);
+  assert.notDeepEqual(orderOf(), solver, 'the drag did nothing, so this proves nothing');
+
+  click({ clearorder: '1' });
+  assert.equal(ui.state.order, null, 'the order was not cleared');
+  assert.deepEqual(orderOf(), solver, 'clearing did not restore the solver order');
+  assert.equal(ui.state.plan.schedule, ui.state.plan.solverSchedule,
+    'clearing rebuilt a schedule instead of restoring the one already computed');
+});
+
+test('the manual order survives a reload', () => {
+  const store = new Map();
+  const real = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: k => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: k => store.delete(k),
+  };
+  try {
+    orderFixture();
+    drag(orderOf().length - 1, 0);
+    const want = [...ui.state.order];
+    ui.save();
+
+    ui.state.order = null;
+    ui.load();
+    assert.deepEqual(ui.state.order, want, 'the dragged order did not survive a reload');
+  } finally {
+    globalThis.localStorage = real;
+    ui.state.order = null;
+  }
+});
+
+test('changing a tag or the scoring mode drops the order', () => {
+  // It is a sequence over one particular set of constellations. A different solve is a
+  // different set, and constellations you never ranked would sort behind everything
+  // you did -- the "points of nothing before your first wanted pick" failure the path
+  // ordering exists to prevent.
+  orderFixture();
+  drag(orderOf().length - 1, 0);
+  assert.ok(ui.state.order, 'no order to drop');
+
+  click({ score: '2' });
+  assert.equal(ui.state.order, null, 'the order survived a scoring-mode change');
+
+  drag(orderOf().length - 1, 0);
+  assert.ok(ui.state.order, 'no order to drop');
+
+  click({ add: String(chipIdx('Fire Damage')), button: 1 });
+  assert.equal(ui.state.order, null, 'the order survived a tag change');
+});
+
+test('ticking does not disturb the order', () => {
+  // Progress and order are independent: following the path must not silently rewrite
+  // it, which is exactly what the old rush-offer did.
+  orderFixture();
+  drag(orderOf().length - 1, 0);
+  const want = [...ui.state.order];
+  const path = orderOf();
+
+  const keys = ui.pathStarKeys();
+  click({ star: keys[0] });
+  click({ star: keys[1] });
+
+  assert.deepEqual(ui.state.order, want, 'ticking changed the manual order');
+  assert.deepEqual(orderOf(), path, 'ticking re-ordered the path');
+});
+
+test('refund steps are not draggable and do not shift the indices', () => {
+  // Crossroads are inserted and refunded by the scheduler, so they are not yours to
+  // place. data-drag counts only the rows that are; counting every row instead would
+  // drift by one per Crossroads, and a drag would land near where you aimed.
+  orderFixture();
+  ui.state.plain = true;
+  ui.render();
+
+  const rows = [...app.innerHTML.matchAll(/<div class="(prow[^"]*)"([^>]*)>/g)];
+  const refunds = rows.filter(m => m[1].includes('pref'));
+  assert.ok(refunds.length > 0, 'fixture has no Crossroads refund to test against');
+  for (const m of refunds) {
+    assert.ok(!m[2].includes('data-drag'), 'a refund row was given a drag index');
+    assert.ok(!m[2].includes('draggable'), 'a refund row was made draggable');
+  }
+
+  const idxs = [...app.innerHTML.matchAll(/data-drag="(\d+)"/g)].map(m => +m[1]);
+  assert.deepEqual(idxs, idxs.map((_, i) => i), 'drag indices are not a dense 0..n-1 run');
+  assert.equal(idxs.length, orderOf().length,
+    'drag indices and the refund-free path are different lengths');
+  ui.state.plain = false;
+});
+
+test('locked, rows are not draggable', () => {
+  orderFixture();
+  ui.state.plain = true;
   ui.state.locked = true;
   ui.render();
-  assert.doesNotMatch(app.innerHTML, /data-reorder/, 'the rush offer appeared while locked');
+  assert.doesNotMatch(app.innerHTML, /draggable="true"/, 'rows stayed draggable while locked');
   ui.state.locked = false;
+  ui.state.plain = false;
+});
+
+
+test('a refused drag says so on screen', () => {
+  // The note is the whole difference between "the tool refused, and here is why" and
+  // "the control is broken". Rendered, not just recorded in state.
+  let found = false;
+  outer:
+  for (const labels of [[['Chaos Damage'], ['Shield Damage Blocked']],
+                        [['Physical Damage'], ['Armor']]]) {
+    orderFixture(labels, 0);
+    const n = orderOf().length;
+    for (let i = 1; i < n; i++) {
+      orderFixture(labels, 0);
+      drag(i, 0);
+      if (ui.state.orderNote === 'failed') { found = true; break outer; }
+    }
+  }
+  assert.ok(found, 'no arrangement was infeasible; this test proves nothing');
+
+  ui.render();
+  assert.match(app.innerHTML, /class="ordernote"/, 'a refused drag left no explanation on screen');
+
+  // And it goes away once you do something the tool could honour.
+  orderFixture();
+  drag(orderOf().length - 1, 0);
+  ui.render();
+  assert.doesNotMatch(app.innerHTML, /class="ordernote"/, 'the note outlived the drag it described');
 });
