@@ -2110,15 +2110,22 @@ if (typeof window !== 'undefined') {
 
 // Controls the lock freezes. Each is also rendered `disabled` while locked, so a
 // disabled button never fires a click and this list is the second line of defence
-// rather than the first -- but it IS load-bearing for [data-step], which lives on a
-// row that stays clickable so its stars can be clicked.
+// rather than the first. It is genuinely load-bearing for [data-undo], which has a
+// keyboard route with no button to disable.
+//
+// [data-step] is deliberately NOT here. In Detail the star rows are nested INSIDE the
+// card, and the card carries data-step -- so closest('[data-step]') matches on a star
+// click too, and sweeping it here swallowed every tick the lock was supposed to allow.
+// The handler already resolves that precedence by checking [data-star] first; the
+// whole-constellation tick is frozen inside its own branch, below, where that order
+// still holds.
 //
 // Not frozen, and deliberately: [data-plain] (Overview/Detail is pure presentation
 // and re-renders without re-solving), [data-tab] and [data-cat] (browsing the tag
 // library changes nothing). Freezing those would protect nothing and would take
 // away the second view exactly when you are following the path and want it.
 const LOCKED_OUT = ['data-reset', 'data-rm', 'data-setw', 'data-add', 'data-score',
-  'data-resetprogress', 'data-reorder', 'data-keepticks', 'data-undo', 'data-step'];
+  'data-resetprogress', 'data-reorder', 'data-keepticks', 'data-undo'];
 
 /** Should the lock swallow this click? Raises the dialog unless it's been dismissed. */
 function lockSwallows(e) {
@@ -2260,8 +2267,17 @@ app.addEventListener('click', e => {
   }
 
   // Clicking the card header ticks or clears the whole constellation at once.
+  //
+  // Reached only after [data-star] has had its turn, which matters: a star sits inside
+  // the card, so both match and the star must win. That ordering is why the lock's
+  // block on this lives here rather than in LOCKED_OUT.
   const st = e.target.closest('[data-step]');
   if (st && app.contains(st)) {
+    if (state.locked) {
+      // No frontier reading of "tick all seven of these", so it is simply refused.
+      if (!state.lockWarnSeen) { state.dialog = 'frontier'; render(); }
+      return;
+    }
     pushHistory();
     toggleSteps((st.dataset.keys || '').split(',').filter(Boolean));
     render();

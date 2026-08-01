@@ -1584,6 +1584,42 @@ test('ticking at the frontier adds exactly one star', () => {
   assert.ok(ui.state.done.has(next), 'the next star was not bought');
 });
 
+test('locked, a star still ticks when its card is a data-step ancestor', () => {
+  // The star rows are nested INSIDE the card in Detail, and the card carries
+  // data-step -- so a real click on a star matches BOTH selectors through closest().
+  // The first version of the lock swept data-step generically, before the star branch
+  // got a look, and silently froze the one thing the lock is supposed to allow.
+  //
+  // Every other test here fires a dataset carrying one key at a time, which no real
+  // element does. Passing both is what models the nesting.
+  lockFixture();
+  tickPrefix(6);
+  const { next } = ui.frontier();
+  ui.state.locked = true;
+  const before = ui.state.done.size;
+
+  click({ star: next, step: 'whatever', keys: 'a,b,c' });
+
+  assert.ok(ui.state.done.has(next), 'a star inside a card could not be ticked while locked');
+  assert.equal(ui.state.done.size, before + 1, 'the card ticked too, not just the star');
+});
+
+test('locked, a whole-constellation tick is still refused', () => {
+  // The other half of the same precedence: the card's own checkbox, with no star
+  // under the pointer, must stay frozen. Fixing the bug above by dropping the block
+  // altogether would pass the test above and fail this one.
+  lockFixture();
+  tickPrefix(6);
+  ui.state.locked = true;
+  ui.state.lockWarnSeen = true;
+  const before = [...ui.state.done].sort();
+
+  click({ step: 'whatever', keys: ui.pathStarKeys().slice(10, 15).join(',') });
+
+  assert.deepEqual([...ui.state.done].sort(), before,
+    'a whole constellation was ticked while locked');
+});
+
 test('locked, a star off the frontier does nothing at all', () => {
   lockFixture();
   const keys = tickPrefix(10);
