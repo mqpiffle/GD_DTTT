@@ -136,6 +136,11 @@
   /* Misc shadows, not tied to any one accent. */
   --shadow-soft:rgba(0,0,0,.65);     /* reused by .tip and .mbox */
   --overlay-scrim:rgba(6,6,6,.82);   /* the rush-offer modal's backdrop */
+  /* The locked left pane. Far weaker than the modal's backdrop on purpose: that one
+     is covering something you must stop reading, this one is saying "not now" about
+     something you should still be able to read. Tuned to sit just past "is that
+     dimmed?" and well short of unreadable. */
+  --overlay-locked:rgba(11,11,20,.42);
 
   /* Affinity hues. Already named via the .af-* classes below; now also variables
      so anything outside those five rules can reference the same colors without
@@ -172,6 +177,15 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    read). .lbl is the exception: both panes' section titles -- Target tags,
    Coverage, Power scoring, Tag library on the left, Devotions on the right --
    read at --fs-base so no title looks smaller than its siblings. */
+/* Locked, the whole selection column washes back. A SCRIM rather than `opacity` on
+   the pane: opacity multiplies down the tree, so the already-dimmed disabled controls
+   inside would have gone to a third of what they are and the column would read as
+   broken rather than as resting. A scrim composites once, over everything, evenly.
+   pointer-events:none so the tag library underneath can still be scrolled and browsed
+   -- reading is never locked, only changing. */
+.selpane{position:relative}
+.selpane.locked::after{content:'';position:absolute;inset:-4px;z-index:2;
+  background:var(--overlay-locked);border-radius:10px;pointer-events:none}
 .selpane .lbl,.dispane .lbl{font-size:var(--fs-base)}
 .selpane .plainbtn{font-size:var(--fs-base)}
 .selpane .plainbtn i{font-size:var(--fs-base)}
@@ -1767,7 +1781,7 @@ function render() {
   // in the space between the count and Reset all, rather than its own row below the
   // slots -- one fewer row saves vertical space the same way the inline scoring row
   // did.
-  let h = `<div class="col"><div class="selpane"><p class="lbl" style="display:flex;align-items:center;gap:8px">
+  let h = `<div class="col"><div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
     <span>Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
     <span class="status">${state.solving
       ? '<span class="pulse"></span>solving'
