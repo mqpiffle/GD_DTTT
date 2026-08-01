@@ -26,7 +26,7 @@ const srcUrl = new URL(`file://${srcDir.replace(/\\/g, '/')}/`).href;
 const source = block[1].replace(/(['"])\.\/(?=[\w.])/g, `$1${srcUrl}`)
   + '\nexport { state, chips, build, render, toggleStar, toggleSteps, plannedStars,'
   + ' db, completedSet, treeGutter, starIdxs, progressLeadsPlan,'
-  + ' reorderAroundProgress, CUSTOM, history };\n';
+  + ' reorderAroundProgress, CUSTOM, history, frontier, pathStarKeys, save, load };\n';
 
 // Listeners are captured, not discarded, so tests can go through the real click
 // handler. Testing the exported functions alone leaves the wiring untested -- and
@@ -83,7 +83,8 @@ const SEL = {
   '[data-score]': 'score', '[data-plain]': 'plain', '[data-reset]': 'reset',
   '[data-setw]': 'setw', '[data-star]': 'star', '[data-step]': 'step',
   '[data-undo]': 'undo', '[data-reorder]': 'reorder', '[data-add]': 'add',
-  '[data-keepticks]': 'keepticks',
+  '[data-keepticks]': 'keepticks', '[data-lock]': 'lock', '[data-dialog]': 'dialog',
+  '[data-rm]': 'rm', '[data-resetprogress]': 'resetprogress',
 };
 
 /** Fire a click as if on an element carrying `dataset`. */
@@ -1483,3 +1484,252 @@ test('the ledger reports the scheduler\'s own points and affinity', () => {
   }
 });
 
+
+// --- the lock ----------------------------------------------------------------
+// The lock's promise is that while it is on, one click can never do more than one
+// star. Everything below is arithmetic or state, per the convention: how it LOOKS
+// locked is something to check in the browser.
+
+/** Fresh fixture, unlocked, nothing ticked, dialog cleared. */
+function lockFixture(labels = [['Cold Damage'], ['Health']], mode = 1) {
+  ui.state.locked = false;
+  ui.state.lockWarnSeen = false;
+  ui.state.dialog = null;
+  const p = plan(labels, mode);
+  ui.state.done = new Set();
+  return p;
+}
+
+/** Tick the first n stars of the path directly, as if walked from the top. */
+function tickPrefix(n) {
+  const keys = ui.pathStarKeys();
+  ui.state.done = new Set(keys.slice(0, n));
+  return keys;
+}
+
+test('the frontier is the first unbought star and the last bought one', () => {
+  lockFixture();
+  const keys = tickPrefix(6);
+
+  const { next, prev } = ui.frontier();
+  assert.equal(prev, keys[5], 'prev should be the last star bought');
+  assert.equal(next, keys[6], 'next should be the first star not bought');
+});
+
+test('the frontier survives a hole in your progress', () => {
+  // Holes are ordinary: ticking while UNLOCKED is unconstrained and people tick
+  // ahead, which is the whole reason the rush-offer flow existed. next has to point
+  // into the gap and prev at the far end of the run, or locking after a session of
+  // free ticking would strand you.
+  lockFixture();
+  const keys = tickPrefix(6);
+  ui.state.done.delete(keys[2]);
+
+  const { next, prev } = ui.frontier();
+  assert.equal(next, keys[2], 'next should point into the gap, not past it');
+  assert.equal(prev, keys[5], 'prev should still be the furthest star bought');
+});
+
+test('un-ticking at the frontier removes exactly one star', () => {
+  // The point of the whole design. toggleStar() clears the subtree on the way out and
+  // repairAffinity() then drops anything standing on affinity that just left, so an
+  // un-tick low in the path is destructive. At the frontier both are provably no-ops.
+  lockFixture();
+  const keys = tickPrefix(14);
+  const { prev } = ui.frontier();
+
+  ui.state.locked = true;
+  const before = ui.state.done.size;
+  click({ star: prev });
+
+  assert.equal(ui.state.done.size, before - 1,
+    'un-ticking the last bought star took something else with it');
+  assert.ok(!ui.state.done.has(prev), 'the star clicked is still bought');
+});
+
+test('the danger is real in this fixture, and the frontier is exempt from it', () => {
+  // Without this, the test above passes just as well against a fixture where nothing
+  // could have cascaded anyway -- which is how a safety property gets a green tick
+  // while protecting nothing. So: sweep every bought star, un-tick it UNLOCKED, and
+  // count how many take others with them. Several must, and prev must not be one.
+  lockFixture();
+  const keys = tickPrefix(14);
+  const full = new Set(keys.slice(0, 14));
+  const { prev } = ui.frontier();
+
+  const cascades = [];
+  for (const k of full) {
+    ui.state.done = new Set(full);
+    click({ star: k });
+    if (ui.state.done.size < full.size - 1) cascades.push(k);
+  }
+  ui.state.done = new Set(full);
+
+  assert.ok(cascades.length > 0,
+    'no star in this fixture cascades, so it cannot demonstrate anything about the lock');
+  assert.ok(!cascades.includes(prev),
+    'the last bought star cascaded, which is the thing the frontier rule assumes cannot happen');
+});
+
+test('ticking at the frontier adds exactly one star', () => {
+  lockFixture();
+  tickPrefix(6);
+  const { next } = ui.frontier();
+
+  ui.state.locked = true;
+  const before = ui.state.done.size;
+  click({ star: next });
+
+  assert.equal(ui.state.done.size, before + 1, 'ticking the next star did more than one thing');
+  assert.ok(ui.state.done.has(next), 'the next star was not bought');
+});
+
+test('locked, a star off the frontier does nothing at all', () => {
+  lockFixture();
+  const keys = tickPrefix(10);
+  ui.state.locked = true;
+  ui.state.lockWarnSeen = true;      // hushed: the click should be a pure no-op
+  const before = [...ui.state.done].sort();
+
+  click({ star: keys[0] });          // bought, but not prev
+  click({ star: keys[3] });          // bought, but not prev
+  click({ star: keys[20] });         // unbought, but not next
+
+  assert.deepEqual([...ui.state.done].sort(), before, 'an off-frontier click changed progress');
+  assert.equal(ui.state.dialog, null, 'hushed, but the dialog came up anyway');
+});
+
+test('an off-frontier click explains itself until you say stop', () => {
+  lockFixture();
+  const keys = tickPrefix(10);
+  ui.state.locked = true;
+
+  click({ star: keys[0] });
+  assert.equal(ui.state.dialog, 'frontier', 'no explanation offered for a dead click');
+
+  click({ dialog: 'hush' });
+  assert.equal(ui.state.dialog, null, 'the dialog did not close');
+  assert.equal(ui.state.lockWarnSeen, true, 'the preference did not stick');
+
+  click({ star: keys[0] });
+  assert.equal(ui.state.dialog, null, 'the dialog came back after being dismissed for good');
+});
+
+test('locked, the build controls are inert even if a click reaches them', () => {
+  // The markup disables these too, so a real browser never fires the click. This is
+  // the second line: a disabled attribute that gets dropped from one control during a
+  // refactor should not silently re-open the build.
+  lockFixture();
+  tickPrefix(4);
+  ui.state.locked = true;
+  ui.state.lockWarnSeen = true;
+
+  const tags = ui.state.sel.join(',');
+  const weights = ui.state.weights.join(',');
+  const done = [...ui.state.done].sort();
+  const mode = ui.state.mode;
+
+  click({ setw: '0:3' });
+  click({ rm: '0' });
+  click({ score: '2' });
+  click({ resetprogress: '1' });
+  click({ reset: '1' });
+  click({ add: String(chipIdx('Fire Damage')) });
+  click({ step: 'x', keys: ui.pathStarKeys().slice(0, 3).join(',') });
+
+  assert.equal(ui.state.sel.join(','), tags, 'a tag changed while locked');
+  assert.equal(ui.state.weights.join(','), weights, 'a weight changed while locked');
+  assert.equal(ui.state.mode, mode, 'the scoring mode changed while locked');
+  assert.deepEqual([...ui.state.done].sort(), done, 'progress changed while locked');
+});
+
+test('undo is frozen by the lock', () => {
+  // Undo restores a whole snapshot of state.done, so one keystroke can reach far past
+  // the frontier -- exactly what the lock is for.
+  lockFixture();
+  tickPrefix(4);
+  const { next } = ui.frontier();
+  click({ star: next });             // unlocked: pushes a snapshot
+
+  ui.state.locked = true;
+  ui.state.lockWarnSeen = true;
+  const done = [...ui.state.done].sort();
+
+  fire('keydown', { ctrlKey: true, key: 'z' });
+  click({ undo: '1' });
+
+  assert.deepEqual([...ui.state.done].sort(), done, 'undo reached past the lock');
+});
+
+test('unlocking asks first', () => {
+  lockFixture();
+  ui.state.locked = true;
+
+  click({ lock: '1' });
+  assert.equal(ui.state.locked, true, 'one click took the lock off without asking');
+  assert.equal(ui.state.dialog, 'unlock', 'no confirmation offered');
+
+  click({ dialog: 'cancel' });
+  assert.equal(ui.state.locked, true, 'cancelling the dialog unlocked anyway');
+  assert.equal(ui.state.dialog, null, 'the dialog stayed up');
+
+  click({ lock: '1' });
+  click({ dialog: 'unlock' });
+  assert.equal(ui.state.locked, false, 'confirming did not unlock');
+});
+
+test('locking is immediate -- only the way out is guarded', () => {
+  lockFixture();
+  click({ lock: '1' });
+  assert.equal(ui.state.locked, true, 'putting the guard up should not need confirming');
+  assert.equal(ui.state.dialog, null, 'locking raised a dialog');
+});
+
+test('the lock and its dismissal survive a reload', () => {
+  // Reloading mid-run must not quietly hand back the controls the lock was put up to
+  // freeze -- and being asked to re-dismiss the same dialog every session would make
+  // "don't show this again" a lie.
+  const store = new Map();
+  const real = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: k => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: k => store.delete(k),
+  };
+  try {
+    lockFixture();
+    tickPrefix(5);
+    ui.state.locked = true;
+    ui.state.lockWarnSeen = true;
+    ui.save();
+
+    ui.state.locked = false;
+    ui.state.lockWarnSeen = false;
+    ui.load();
+
+    assert.equal(ui.state.locked, true, 'the lock came off over a reload');
+    assert.equal(ui.state.lockWarnSeen, true, '"don\'t show this again" did not survive');
+  } finally {
+    globalThis.localStorage = real;
+    ui.state.locked = false;
+    ui.state.lockWarnSeen = false;
+  }
+});
+
+test('the rush-offer cannot appear while locked', () => {
+  // Out-of-order ticking is what triggers it and the lock makes that unreachable, but
+  // a lock whose job is "no surprises" should not lean on another feature's invariant.
+  lockFixture();
+  const keys = ui.pathStarKeys();
+  ui.state.done = new Set(keys.slice(-3));   // progress far ahead of the order
+  ui.state.offerSeen = null;
+
+  ui.state.locked = false;
+  ui.render();
+  assert.match(app.innerHTML, /data-reorder/, 'this fixture should provoke the rush offer');
+
+  ui.state.locked = true;
+  ui.render();
+  assert.doesNotMatch(app.innerHTML, /data-reorder/, 'the rush offer appeared while locked');
+  ui.state.locked = false;
+});

@@ -335,6 +335,15 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
   line-height:1.35;color:var(--ink-15);white-space:pre;padding-top:2px;letter-spacing:0}
 .star.snext .stree{color:var(--accent-current-muted)}
 .star.sdone .stree{opacity:.45}
+/* The two ends of your progress under the lock. `snext` already carries the "you are
+   here" treatment, so `sprev` only needs to say "and you can step back to here" --
+   a left bar in the same colour, no fill, so the forward end stays the louder of the
+   two. Anything else goes flat: dimmed and default-cursor, so a click that does
+   nothing looks like a control that isn't offered rather than one that failed.
+   Text stays legible -- the tooltips still work, reading is never locked. */
+.star.sprev{box-shadow:inset 3px 0 0 var(--accent-current-muted)}
+.star.slocked{opacity:.5;cursor:default}
+.star.slocked:hover{background:none}
 .star .stxt{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
 .star .nm2{color:var(--ink-2);margin-right:2px}
 .tg{display:inline-block;font-size:var(--fs-sm);line-height:1;padding:3px 7px;border-radius:999px;background:var(--line-7);border:1px solid var(--line-3);color:var(--ink-2)}
@@ -411,6 +420,13 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .plainbtn.on{border-color:var(--ink-1);color:var(--ink-1)}
 .plainbtn[disabled]{opacity:.35;cursor:default}
 .plainbtn i{font-size:var(--fs-sm);vertical-align:-2px;margin-right:1px}
+/* Engaged, the lock is the one control in the header that must read at a glance from
+   across the room -- half the page is greyed out and this is the thing that explains
+   why. It takes the success green rather than a new hue: nothing is wrong, something
+   is being held safe, and green is already "this is as you wanted it" in Coverage.
+   Never disabled -- it is how you get back out. */
+.lockbtn.on{border-color:var(--accent-success);color:var(--accent-success)}
+.lockbtn.on:hover{border-color:var(--accent-success-bright);color:var(--accent-success-bright)}
 /* The re-order question, as a modal over the devotions list.
    It interrupts because it is a fork, not a nicety: until it's answered the numbers
    below describe a different playthrough from yours. Both ways out are explicit --
@@ -472,7 +488,10 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .pck i{width:17px;height:17px;border:1px solid var(--line-4);border-radius:4px;
   display:flex;align-items:center;justify-content:center;font-size:var(--fs-sm);
   transition:border-color .12s,color .12s,background .12s}
-.pck:hover i{border-color:var(--ink-9);color:var(--ink-9)}
+.pck:hover:not([disabled]) i{border-color:var(--ink-9);color:var(--ink-9)}
+/* Locked, Overview's box still SAYS where you are -- it just isn't a control any
+   more. Dimmed rather than blanked so the three states stay readable. */
+.pck[disabled]{opacity:.45;cursor:default}
 .pck.on{color:var(--accent-success)}
 .pck.on i{border-color:var(--accent-success);background:var(--tint-success-strong)}
 .pck.part{color:var(--accent-warn-deep)}
@@ -658,6 +677,26 @@ const state = {
   // to stay out. Keyed by the bought set rather than a plain boolean so that ticking
   // something else out of order asks again, which is a different question.
   offerSeen: null,
+  // --- the lock ---------------------------------------------------------------
+  // Optional, off by default, and app-wide: a safety rail so a build can't be
+  // dismantled by haphazard clicking while you're following it in game. Locked, the
+  // only live controls are the two ends of your progress -- tick the next star,
+  // un-tick the last one you bought -- and everything that shapes the build goes
+  // read-only.
+  //
+  // Confining un-ticks to the frontier is what makes this cheap: it isn't a policy
+  // laid over toggleStar(), it removes the destructive case entirely. The last bought
+  // star has no bought descendants (they would be later in the path) and nothing
+  // bought earlier stands on affinity it granted (that affinity arrived last), so
+  // BOTH cascades in toggleStar() are provably no-ops at the frontier. Hence no undo
+  // to offer and no confirmation to write for the common case.
+  locked: false,
+  // Dismissal for the "you're locked" dialog. Suppresses the DIALOG, never the rule --
+  // once set, an out-of-frontier click simply does nothing.
+  lockWarnSeen: false,
+  // Transient, never persisted: 'unlock' (confirm leaving the lock) or 'frontier'
+  // (you clicked a star the lock doesn't cover).
+  dialog: null,
   // Power chips that can no longer fit alongside what's already chosen. Computed after
   // the solve rather than inside it -- the sweep costs ~250ms, which would be felt on
   // every keystroke for something that only starts blocking at four powers.
@@ -743,6 +782,11 @@ function save() {
       open: [...state.open],
       done: [...state.done],
       plain: state.plain,
+      // The lock is an input like any other -- reloading mid-run should not quietly
+      // hand back the controls it was put up to freeze. lockWarnSeen is a preference
+      // and outlives any one build; state.dialog is transient and never stored.
+      locked: state.locked,
+      lockWarnSeen: state.lockWarnSeen,
     }));
   } catch { /* private mode or quota; running without persistence is fine */ }
 }
@@ -769,6 +813,8 @@ function load() {
   if (Array.isArray(saved.open)) state.open = new Set(saved.open);
   if (Array.isArray(saved.done)) state.done = new Set(saved.done);
   state.plain = saved.plain === true;
+  state.locked = saved.locked === true;
+  state.lockWarnSeen = saved.lockWarnSeen === true;
   return picked().length > 0;
 }
 
@@ -1021,11 +1067,12 @@ function pathHtml() {
   // The next STAR is the same idea one level down: the first star in the whole path
   // you haven't bought. It has to be resolved across every step before any row is
   // built, or each constellation would only be able to point at its own first star
-  // and several would claim to be next at once.
-  const nextKey = schedule.path
-    .filter(p => p.kind !== 'refund')
-    .flatMap(p => starKeysFor(db.constellations[p.id], p.points, starsFor.get(p.id)))
-    .find(k => !state.done.has(k)) ?? null;
+  // and several would claim to be next at once. It comes from frontier() so that the
+  // highlight and the lock cannot disagree about which star is next. prevKey is only
+  // meaningful while locked -- unlocked, every star is clickable and marking one end
+  // would just be decoration.
+  const { next: nextKey, prev } = frontier();
+  const prevKey = state.locked ? prev : null;
 
   let step = 0;
   const rows = schedule.path.map(p => {
@@ -1033,7 +1080,7 @@ function pathHtml() {
     const refund = p.kind === 'refund';
     const num = refund ? '\u21a9' : String(++step).padStart(2, '0');
     const stars = refund ? { html: '', keys: [] }
-      : starList(c, p.points, starsFor.get(p.id), nextKey);
+      : starList(c, p.points, starsFor.get(p.id), nextKey, prevKey);
     const complete = !refund && stars.keys.length > 0 && stars.keys.every(k => state.done.has(k));
     return { p, c, refund, num, step, stars, complete };
   });
@@ -1109,15 +1156,23 @@ function plainHtml(rows, schedule) {
     // Same data-step/data-keys contract the cards use, so the existing handler ticks
     // the whole constellation and both views read one set of keys. Overview and
     // Detail can't drift apart because there is nothing to keep in sync.
+    // This box buys or clears a WHOLE constellation, which is a bulk edit however you
+    // look at it, so the lock disables it outright rather than trying to find a
+    // frontier reading of "tick all seven of these". Locked, Detail is where you tick:
+    // it is the star-at-a-time view, which is what the lock is shaped around.
+    // Disabled rather than hidden -- the three states still say where you are, and
+    // Overview's job of showing you the shape of the run is untouched.
     const tick = refund || !stars.keys.length ? '<span class="pck ghost"></span>'
-      : `<button class="pck${complete ? ' on' : part ? ' part' : ''}"
+      : `<button class="pck${complete ? ' on' : part ? ' part' : ''}"${state.locked ? ' disabled' : ''}
            data-step="${esc(`${p.id}:${step}`)}"
            data-keys="${esc(stars.keys.join(','))}"
            aria-pressed="${complete}"
            aria-label="${complete ? 'Clear' : 'Mark'} ${esc(p.name)} as bought"
-           title="${complete ? `Bought -- click to clear` : part
+           title="${state.locked
+             ? `Locked -- switch to Detail to tick stars one at a time`
+             : `${complete ? `Bought -- click to clear` : part
              ? `${doneCount} of ${stars.keys.length} stars bought -- click to finish`
-             : `Mark all ${stars.keys.length} stars bought`} -- ${esc(p.name)}"
+             : `Mark all ${stars.keys.length} stars bought`} -- ${esc(p.name)}`}"
          ><i class="${complete ? 'ti ti-check' : part ? 'ti ti-minus' : ''}"></i></button>`;
 
     return `<div class="${cls}">
@@ -1249,6 +1304,51 @@ const starKeysFor = (c, taken, chosenStars) =>
   starIdxs(c, taken, chosenStars).map(i => `${c.id}:${i + 1}`);
 
 /**
+ * Every star of the current plan, in the order you would buy them. Refund steps carry
+ * no stars of their own, so they drop out.
+ *
+ * One ordered list is the single source of truth for both ends of your progress, and
+ * for the "you are here" highlight. Deriving them separately is how two of them end up
+ * disagreeing about where you are.
+ */
+function pathStarKeys() {
+  if (!state.plan) return [];
+  const { schedule, solution } = state.plan;
+  const starsFor = new Map(solution.map(e => [e.id, e.stars]));
+  return schedule.path
+    .filter(p => p.kind !== 'refund')
+    .flatMap(p => starKeysFor(db.constellations[p.id], p.points, starsFor.get(p.id)));
+}
+
+/**
+ * The two ends of your progress: the next star to buy and the last one you bought.
+ * These are the only stars the lock leaves clickable.
+ *
+ * Both are defined off path ORDER, not off a contiguous run, which is what makes them
+ * survive progress with holes in it -- and holes are ordinary, since ticking while
+ * unlocked is unconstrained and people do tick ahead.
+ *
+ *   next = the first UNBOUGHT star. Always legally purchasable even with a hole
+ *          before it: everything earlier is bought, and a parent always has a lower
+ *          index than its child, so its parent is among them.
+ *   prev = the last BOUGHT star. Always a clean single removal: nothing bought sits
+ *          after it, so toggleStar()'s subtree clear and repairAffinity() have
+ *          nothing to take with them.
+ *
+ * With a hole the two sit far apart -- next points into the gap while prev is at the
+ * far end of your run. That is the intended reading: fill the gap before going on.
+ */
+function frontier() {
+  const keys = pathStarKeys();
+  let next = null, prev = null;
+  for (const k of keys) {
+    if (state.done.has(k)) prev = k;
+    else if (next == null) next = k;
+  }
+  return { next, prev };
+}
+
+/**
  * Box-drawing gutter showing which star hangs off which.
  *
  * Safe to draw as a flat list because purchase order IS depth-first order in all 109
@@ -1286,7 +1386,7 @@ function treeGutter(c, shownIdxs) {
   return out;
 }
 
-function starList(c, taken, chosenStars, nextKey) {
+function starList(c, taken, chosenStars, nextKey, prevKey) {
   if (!c.perStar) return { html: '', keys: [] };
   const want = new Set(picked().map(i => chips[i].id));
   const idxs = starIdxs(c, taken, chosenStars);
@@ -1315,8 +1415,15 @@ function starList(c, taken, chosenStars, nextKey) {
     const tipAttrs = isPower
       ? tipData(starName || c.name, c.powerEffects?.[i])
       : tipData('', c.starEffects?.[i]);
+    // While locked, every star except the two ends of your progress is inert. It has
+    // to LOOK inert: once the dialog has been hushed, an unmarked dead click is
+    // indistinguishable from a bug. Marked on the row rather than by disabling
+    // anything, because the row is a div carrying the tooltip -- you can still read
+    // what a star gives while locked, you just can't buy it out of turn.
+    const inert = state.locked && sk !== nextKey && sk !== prevKey;
     rows.push(`<div class="star${state.done.has(sk) ? ' sdone' : ''}${
-      sk === nextKey ? ' snext' : ''}"${tipAttrs} data-star="${esc(sk)}">
+      sk === nextKey ? ' snext' : ''}${sk === prevKey ? ' sprev' : ''}${
+      inert ? ' slocked' : ''}"${tipAttrs} data-star="${esc(sk)}">
       <span class="sn">${i + 1}</span>
       <span class="stree">${gutter.get(i + 1) ?? ''}</span>
       <span class="stxt">${label}${mine.map(m => `<span class="tg">${esc(m)}</span>`).join('')}${
@@ -1667,8 +1774,8 @@ function render() {
       : state.plan
         ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55`
         : chosenCount ? '' : 'pick a tag to begin'}</span>
-    <button class="rb" data-reset="1"${chosenCount || state.plan ? '' : ' disabled'}
-      title="Reset all" aria-label="Reset all"><i class="ti ti-minus"></i></button></p>`;
+    <button class="rb" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
+      title="${state.locked ? 'Locked' : 'Reset all'}" aria-label="Reset all"><i class="ti ti-minus"></i></button></p>`;
   for (let i = 0; i < MAX; i++) {
     const s = state.sel[i];
     if (s == null) continue;
@@ -1689,10 +1796,10 @@ function render() {
            // Unicode stars, not the icon font: `ti-star-filled` renders nothing in the
            // Tabler webfont build we load, so every FILLED star was invisible and a
            // three-star tag showed no stars at all.
-           return `<button class="star" data-setw="${i}:${level}"
+           return `<button class="star" data-setw="${i}:${level}"${state.locked ? ' disabled' : ''}
              aria-label="Set priority to ${level} of ${MAX_WEIGHT}"
              aria-pressed="${state.weights[i] === level}"
-             title="${['low', 'medium', 'high'][d] ?? level} priority"
+             title="${state.locked ? 'Locked' : `${['low', 'medium', 'high'][d] ?? level} priority`}"
              ><span class="${on ? 'on' : ''}">${on ? '\u2605' : '\u2606'}</span></button>`;
          }).join('')
        }</span>`;
@@ -1700,7 +1807,8 @@ function render() {
        <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:var(--fs-base);opacity:.6">pet</span>' : ''}${
          isPower ? ' <span class="cpc">CP</span>' : ''}</span>
        ${control}
-       <button class="rb" data-rm="${i}" aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button></div>`;
+       <button class="rb" data-rm="${i}"${state.locked ? ' disabled' : ''}
+         aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button></div>`;
   }
   if (chosenCount < MAX) {
     h += `<div class="slot empty"><span>${chosenCount ? 'Add another' : 'Pick a tag below'}</span>
@@ -1732,7 +1840,8 @@ function render() {
   }
   h += `<div class="scoregroup" role="group" aria-label="Power scoring">${
     tabs.map(([i, label, sub]) =>
-      `<button class="scoreopt${state.mode === i ? ' on' : ''}" data-score="${i}"
+      `<button class="scoreopt${state.mode === i ? ' on' : ''}" data-score="${i}"${
+        state.locked ? ' disabled' : ''}
         aria-pressed="${state.mode === i}"${
           i === CUSTOM ? ` title="${esc(sub)}"` : ''}>${esc(label)}</button>`).join('')
   }</div>`;
@@ -1767,8 +1876,10 @@ function render() {
             ? `${c.label} can't fit alongside the powers you've already chosen`
             : `${c.label} -- ${c.min} of ${consName(c.cons)}'s ${c.size} stars`)
           : c.label;
-        return `<button class="${cls}" data-add="${i}"${used || blocked ? ' disabled' : ''}
-          title="${esc(title)}" aria-label="Add ${esc(c.label)}">
+        // Browsing the library stays open while locked -- only ADDING is frozen. You
+        // can still read what a chip would have cost you without unlocking.
+        return `<button class="${cls}" data-add="${i}"${used || blocked || state.locked ? ' disabled' : ''}
+          title="${esc(state.locked ? `${c.label} -- locked` : title)}" aria-label="Add ${esc(c.label)}">
           ${esc(c.label)}<span class="rb"><i class="ti ti-${
             used ? 'check' : blocked ? 'ban' : 'plus'}"></i></span></button>`;
       }).join('') + '</div>';
@@ -1782,8 +1893,14 @@ function render() {
   h += `<p class="lbl" style="display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
     <span style="display:flex;gap:6px">
-    <button class="plainbtn" data-resetprogress="1"${state.done.size ? '' : ' disabled'}
-      title="${state.done.size
+    <button class="plainbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
+      aria-pressed="${state.locked}"
+      title="${state.locked
+        ? 'Locked -- tick the next star or un-tick the last one. Click to unlock and change the build'
+        : 'Lock the build: everything goes read-only except ticking off the next star'}"><i
+      class="ti ti-lock${state.locked ? '' : '-open'}"></i> ${state.locked ? 'Locked' : 'Lock'}</button>
+    <button class="plainbtn" data-resetprogress="1"${state.locked || !state.done.size ? ' disabled' : ''}
+      title="${state.locked ? 'Locked' : state.done.size
         ? `Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'} bought) -- tags and plan stay`
         : 'No progress to clear'}"><i class="ti ti-refresh"></i> Reset</button>
     <button class="plainbtn${state.plain ? ' on' : ''}" data-plain="1"
@@ -1798,8 +1915,51 @@ function render() {
   // with the tool will run ahead of a custom order too. No guard is needed to hide it
   // after re-ordering -- re-ordering makes progress a prefix, so the condition goes
   // false on its own.
-  const asking = progressLeadsPlan() && boughtSignature() !== state.offerSeen;
+  // The rush-offer can't fire while locked: out-of-order ticking is what triggers it,
+  // and the lock makes out-of-order ticking unreachable. Guarded anyway rather than
+  // left to that argument, because a lock whose whole job is "no surprise dialogs"
+  // shouldn't depend on a second feature's invariant to keep one off the screen.
+  const asking = !state.locked && progressLeadsPlan() && boughtSignature() !== state.offerSeen;
   h += `<div class="dwrap"><div class="dscroll">` + pathHtml() + '</div>';
+  // Both lock dialogs share the rush-offer's shell. They sit over the devotions list
+  // rather than the whole app because that is what they are about -- which stars you
+  // may click -- and it keeps the left column readable while you answer.
+  if (state.dialog === 'unlock') {
+    const n = state.done.size;
+    h += `<div class="modal"><div class="mbox">
+      <p class="mtitle">Unlock the build?</p>
+      <p class="mtext">Tags, weights, power scoring and Reset all become editable
+        again${n ? `, and any change re-solves the path. Your ${n} ticked star${
+        n === 1 ? '' : 's'} survive that` : ''}.</p>
+      <div class="mopts">
+        <button class="mbtn go" data-dialog="unlock">
+          <b>Unlock</b>
+          <span>Go back to changing the build</span>
+        </button>
+        <button class="mbtn" data-dialog="cancel">
+          <b>Stay locked</b>
+          <span>Carry on ticking off the path</span>
+        </button>
+      </div>
+    </div></div>`;
+  } else if (state.dialog === 'frontier') {
+    h += `<div class="modal"><div class="mbox">
+      <p class="mtitle">That one's locked</p>
+      <p class="mtext">While locked you can tick the next star or un-tick the last one
+        you bought &mdash; that's it. Unlock to go further back, or to change the
+        build.</p>
+      <div class="mopts">
+        <button class="mbtn go" data-dialog="cancel">
+          <b>Got it</b>
+          <span>Carry on</span>
+        </button>
+        <button class="mbtn" data-dialog="hush">
+          <b>Got it, stop telling me</b>
+          <span>Clicks outside those two stars will just do nothing</span>
+        </button>
+      </div>
+    </div></div>`;
+  }
   if (asking) {
     h += `<div class="modal"><div class="mbox">
       <p class="mtitle">Rushing something?</p>
@@ -1923,13 +2083,70 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', fitPanels);
   window.addEventListener('scroll', hideTip, true);
   window.addEventListener('keydown', e => {
+    // Undo is frozen by the lock along with its button. It restores a whole snapshot
+    // of state.done, so it can reach past the frontier in one keystroke -- the exact
+    // move the lock exists to prevent. It is also no longer needed: locked ticking
+    // can't cascade, so there is nothing to recover from.
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      if (state.locked) return;
       if (undo()) { e.preventDefault(); render(); }
     }
   });
 }
 
+// Controls the lock freezes. Each is also rendered `disabled` while locked, so a
+// disabled button never fires a click and this list is the second line of defence
+// rather than the first -- but it IS load-bearing for [data-step], which lives on a
+// row that stays clickable so its stars can be clicked.
+//
+// Not frozen, and deliberately: [data-plain] (Overview/Detail is pure presentation
+// and re-renders without re-solving), [data-tab] and [data-cat] (browsing the tag
+// library changes nothing). Freezing those would protect nothing and would take
+// away the second view exactly when you are following the path and want it.
+const LOCKED_OUT = ['data-reset', 'data-rm', 'data-setw', 'data-add', 'data-score',
+  'data-resetprogress', 'data-reorder', 'data-keepticks', 'data-undo', 'data-step'];
+
+/** Should the lock swallow this click? Raises the dialog unless it's been dismissed. */
+function lockSwallows(e) {
+  if (!state.locked) return false;
+  const hit = LOCKED_OUT.find(a => {
+    const el = e.target.closest(`[${a}]`);
+    return el && app.contains(el);
+  });
+  if (!hit) return false;
+  if (!state.lockWarnSeen) { state.dialog = 'frontier'; render(); }
+  return true;
+}
+
 app.addEventListener('click', e => {
+  // The lock's own controls have to keep working while locked, so they are checked
+  // before anything is swallowed.
+  const lk = e.target.closest('[data-lock]');
+  if (lk && app.contains(lk)) {
+    // Locking is immediate; unlocking asks. The asymmetry is the point -- putting the
+    // guard up should be frictionless, taking it down is the thing you might be doing
+    // by accident.
+    if (state.locked) state.dialog = 'unlock';
+    else { state.locked = true; state.dialog = null; }
+    render();
+    return;
+  }
+  const dg = e.target.closest('[data-dialog]');
+  if (dg && app.contains(dg)) {
+    const act = dg.dataset.dialog;
+    if (act === 'unlock') state.locked = false;
+    // "Don't show this again" is answered by which button you press, rather than by a
+    // checkbox that then needs a separate confirm. Same decision, one click, and no
+    // way to tick the box and then cancel -- which would have left it ambiguous
+    // whether the preference was meant to stick.
+    if (act === 'hush') state.lockWarnSeen = true;
+    state.dialog = null;
+    render();
+    return;
+  }
+
+  if (lockSwallows(e)) return;
+
   // Scope every lookup INSIDE the app root. `closest('[data-mode]')` used to walk
   // all the way up to the host's <html data-mode="dark">, match it, and swallow
   // every click in the widget. Hence data-score, plus the app.contains guard.
@@ -2010,8 +2227,20 @@ app.addEventListener('click', e => {
 
   const star = e.target.closest('[data-star]');
   if (star && app.contains(star)) {
+    const key = star.dataset.star;
+    if (state.locked) {
+      // Exactly two stars are live: tick the next one, un-tick the last one bought.
+      // Comparing against both ends rather than asking "is it bought?" is what keeps
+      // this a single rule -- an unbought star that isn't next and a bought star that
+      // isn't prev are the same mistake and get the same answer.
+      const { next, prev } = frontier();
+      if (key !== next && key !== prev) {
+        if (!state.lockWarnSeen) { state.dialog = 'frontier'; render(); }
+        return;
+      }
+    }
     pushHistory();
-    toggleStar(star.dataset.star);
+    toggleStar(key);
     render();
     return;
   }
