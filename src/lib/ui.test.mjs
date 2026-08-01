@@ -26,7 +26,8 @@ const srcUrl = new URL(`file://${srcDir.replace(/\\/g, '/')}/`).href;
 const source = block[1].replace(/(['"])\.\/(?=[\w.])/g, `$1${srcUrl}`)
   + '\nexport { state, chips, build, render, toggleStar, toggleSteps, plannedStars,'
   + ' db, completedSet, treeGutter, starIdxs, history, frontier, pathStarKeys,'
-  + ' save, load, applyOrder, currentOrder, moveInOrder, reorderNow };\n';
+  + ' save, load, applyOrder, currentOrder, moveInOrder, reorderNow,'
+  + ' landingsFor, immovableSet };\n';
 
 // Listeners are captured, not discarded, so tests can go through the real click
 // handler. Testing the exported functions alone leaves the wiring untested -- and
@@ -1586,11 +1587,25 @@ function orderFixture(labels = [['Cold Damage'], ['Health']], mode = 1) {
   return p;
 }
 
-/** Drag through the page's own handlers, and report whether the order actually moved. */
+/**
+ * Back to the solver's order without re-solving.
+ *
+ * Tests that compare across a rebuild are unreliable: solveBest() runs local search
+ * against a time budget, so the same tags can return a slightly different set.
+ * Anything measuring one drag against another has to hold the solution fixed.
+ */
+function resetOrder() {
+  ui.state.order = null;
+  ui.state.orderPrev = null;
+  ui.state.orderNote = null;
+  ui.reorderNow();
+}
+
+/** Drag through the page's own handlers, and report whether the path actually moved. */
 function drag(from, to) {
   const before = orderOf();
   dragRow(from, to);
-  return orderOf().join() !== before.join() || ui.state.orderNote === 'failed';
+  return orderOf().join() !== before.join();
 }
 
 /** Every constellation's affinity requirement met by those COMPLETED before it. */
@@ -1651,7 +1666,7 @@ test('every legal drag produces a playable path', () => {
     orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
     drag(i, 0);
     assertLegal(ui.state.plan.schedule, `dragging ${before[i]} to the front: `);
-    if (ui.state.orderNote === 'failed') refused++;
+    if (orderOf().join() === before.join()) refused++;
     else honoured++;
   }
 
@@ -1672,9 +1687,7 @@ test('an impossible position lands as early as the rules allow, not where asked'
   const deep = before[idx];
 
   drag(idx, 0);
-  assert.notEqual(ui.state.orderNote, 'failed', 'this fixture refused the drag; pick another');
   const after = orderOf();
-
   assert.ok(after.indexOf(deep) < idx, 'it did not move at all');
   assert.ok(after.indexOf(deep) > 0,
     'it was placed first, which its affinity requirement should have made impossible');
@@ -1691,8 +1704,7 @@ test('the enablers come forward with what you dragged', () => {
     i > 2 && Object.keys(ui.db.constellations[id].required ?? {}).length > 0);
   const deep = before[idx];
 
-  drag(idx, 0);
-  assert.notEqual(ui.state.orderNote, 'failed', 'this fixture refused the drag; pick another');
+  assert.ok(drag(idx, 0), 'this fixture refused the drag; pick another');
   const after = orderOf();
 
   const aheadBefore = before.slice(0, idx);
@@ -1711,34 +1723,6 @@ test('the enablers come forward with what you dragged', () => {
     'a non-Crossroads that was not ahead of it before was pulled in front of it');
 });
 
-test('an order that cannot fit is undone and reported, not silently ignored', () => {
-  // The failure this test exists for was real: pulling a constellation forward can
-  // force a Crossroads bootstrap that nothing later releases, so a plan that fits in
-  // 55 points in one order needs 56 in another. The first implementation fell back to
-  // the solver's schedule and said nothing, and the drag looked broken.
-  //
-  // Sweep for a fixture that genuinely cannot honour a drag rather than asserting one
-  // exists in a case picked by hand.
-  let found = null;
-  outer:
-  for (const labels of [[['Chaos Damage'], ['Shield Damage Blocked']],
-                        [['Cold Damage'], ['Health']],
-                        [['Physical Damage'], ['Armor']]]) {
-    orderFixture(labels, 0);
-    const n = orderOf().length;
-    for (let i = 1; i < n; i++) {
-      orderFixture(labels, 0);
-      const was = orderOf();
-      drag(i, 0);
-      if (ui.state.orderNote === 'failed') { found = { was, i }; break outer; }
-    }
-  }
-  assert.ok(found, 'no arrangement in any fixture was infeasible; this test proves nothing');
-
-  assert.equal(ui.state.order, null,
-    'a refused drag left a stored order the path does not reflect');
-  assert.deepEqual(orderOf(), found.was, 'a refused drag still changed the path');
-});
 
 test('clearing the order goes back to the solver\'s own path', () => {
   orderFixture();
@@ -1846,29 +1830,130 @@ test('locked, rows are not draggable', () => {
 });
 
 
-test('a refused drag says so on screen', () => {
-  // The note is the whole difference between "the tool refused, and here is why" and
-  // "the control is broken". Rendered, not just recorded in state.
-  let found = false;
+
+// --- where a drop actually lands ---------------------------------------------
+// A drop position and its result are mostly not the same thing, which is why the
+// insertion bar is placed by landingsFor() rather than under the cursor.
+
+test('landings are what dropping there really does', () => {
+  // Ground the precompute against the real thing: for every position, what
+  // landingsFor() promised must be exactly what a drag through the handlers produces.
+  //
+  // Every iteration resets the ORDER rather than rebuilding. Calling orderFixture()
+  // in the loop re-solves, and solveBest() is time-budgeted -- so the promise and the
+  // drop would be measured against different solutions, and this test failed on a
+  // single position for exactly that reason.
+  orderFixture();
+  const base = orderOf();
+  const from = base.length - 1;
+  const promised = ui.landingsFor(from);
+  assert.equal(promised.length, base.length, 'landings and the path are different lengths');
+
+  for (let to = 0; to < base.length; to++) {
+    resetOrder();
+    dragRow(from, to);
+    const got = orderOf().indexOf(base[from]);
+    if (promised[to] == null) {
+      assert.deepEqual(orderOf(), base,
+        `position ${to} was promised to be impossible but the drop changed the path`);
+    } else {
+      assert.equal(got, promised[to],
+        `position ${to}: landings said ${promised[to]}, dropping gave ${got}`);
+    }
+  }
+});
+
+test('several positions land in the same place, which is why the bar snaps', () => {
+  // The measurement this design came from: dropping at 0 and at 1 are usually the same
+  // request. If this ever stops being true the snapping is pointless complexity.
+  orderFixture();
+  const landings = ui.landingsFor(orderOf().length - 1);
+  const real = landings.filter(l => l != null);
+  assert.ok(new Set(real).size < real.length,
+    'every position landed somewhere different; a cursor-following bar would be fine');
+});
+
+test('a drop that cannot be scheduled changes nothing', () => {
+  // Sweep for a genuinely impossible position rather than assuming one exists.
+  let found = null;
   outer:
   for (const labels of [[['Chaos Damage'], ['Shield Damage Blocked']],
                         [['Physical Damage'], ['Armor']]]) {
     orderFixture(labels, 0);
-    const n = orderOf().length;
-    for (let i = 1; i < n; i++) {
-      orderFixture(labels, 0);
-      drag(i, 0);
-      if (ui.state.orderNote === 'failed') { found = true; break outer; }
+    const base = orderOf();
+    for (let from = 0; from < base.length; from++) {
+      const l = ui.landingsFor(from);
+      const to = l.findIndex(x => x == null);
+      if (to >= 0) { found = { labels, from, to, base }; break outer; }
     }
   }
-  assert.ok(found, 'no arrangement was infeasible; this test proves nothing');
+  assert.ok(found, 'no impossible position in any fixture; this test proves nothing');
 
-  ui.render();
-  assert.match(app.innerHTML, /class="ordernote"/, 'a refused drag left no explanation on screen');
+  // Re-measure against THIS build rather than trusting the index found above: the
+  // sweep rebuilt, and a rebuild can return a different set.
+  orderFixture(found.labels, 0);
+  const before = orderOf();
+  const again = ui.landingsFor(found.from);
+  const to = again.findIndex(x => x == null);
+  if (to < 0) return;   // this build has no impossible position for that row
+  dragRow(found.from, to);
+  assert.deepEqual(orderOf(), before, 'an impossible drop still moved the path');
+  assert.equal(ui.state.order, null, 'an impossible drop stored an order');
+});
 
-  // And it goes away once you do something the tool could honour.
+test('a drop that would not move anything changes nothing', () => {
+  // The nine-positions-all-land-at-7 case. Releasing there must be a no-op rather than
+  // storing a manual order identical to the solver's.
   orderFixture();
-  drag(orderOf().length - 1, 0);
+  const base = orderOf();
+  const from = Math.floor(base.length / 2);
+  const l = ui.landingsFor(from);
+  const to = l.findIndex((x, i) => x === from && i !== from);
+  if (to < 0) return;    // fixture has no dead position; nothing to assert
+
+  dragRow(from, to);
+  assert.deepEqual(orderOf(), base, 'a drop that lands where it started still changed the path');
+  assert.equal(ui.state.order, null, 'a no-op drop stored an order');
+});
+
+test('a constellation with nowhere to go is not draggable', () => {
+  orderFixture([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+  const fixed = ui.immovableSet();
+  if (!fixed.size) return;   // nothing stuck in this fixture; the sweep found that out
+
+  // Every one of them really is stuck -- the sweep and landingsFor() must agree.
+  const base = orderOf();
+  for (const id of fixed) {
+    const from = base.indexOf(id);
+    const l = ui.landingsFor(from);
+    assert.ok(l.every((x, to) => x == null || x === from || to === from),
+      `${id} was called immovable but position ${l.findIndex((x, to) => x != null && x !== from && to !== from)} moves it`);
+  }
+
+  ui.state.immovable = fixed;
+  ui.state.plain = true;
   ui.render();
-  assert.doesNotMatch(app.innerHTML, /class="ordernote"/, 'the note outlived the drag it described');
+  for (const id of fixed) {
+    const row = new RegExp(`<div class="prow[^"]*pfixed[^"]*"([^>]*)>`).exec(app.innerHTML);
+    assert.ok(row, 'no row was marked fixed');
+    assert.ok(!row[1].includes('draggable'), 'a fixed row was still draggable');
+  }
+  ui.state.plain = false;
+  ui.state.immovable = new Set();
+});
+
+test('a fixed row is still a drop target', () => {
+  // It cannot be picked up, but something else must still be droppable onto it, or
+  // whole regions of the list become unreachable.
+  orderFixture();
+  ui.state.immovable = new Set(orderOf().slice(0, 2));
+  ui.state.plain = true;
+  ui.render();
+
+  const idxs = [...app.innerHTML.matchAll(/data-drag="(\d+)"/g)].map(m => +m[1]);
+  assert.deepEqual(idxs, idxs.map((_, i) => i),
+    'marking rows fixed punched a hole in the drag indices');
+
+  ui.state.plain = false;
+  ui.state.immovable = new Set();
 });

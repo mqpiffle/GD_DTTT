@@ -484,6 +484,11 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    the thing being moved, and at 26px tall a handle would be a smaller target than the
    row itself for no gain. The checkbox keeps its own pointer cursor, so the two
    affordances don't fight. */
+/* Fixed in place: still a drop target, just not a source. Left at ordinary opacity --
+   the row's content is as true as any other, and dimming it would say the STEP is
+   lesser rather than that one interaction is unavailable. `cursor:default` and the
+   absence of the grab cursor carry it. */
+.prow.pfixed{cursor:default}
 .prow.pdrag{cursor:grab}
 .prow.pdrag:active{cursor:grabbing}
 .prow.dragging{opacity:.4}
@@ -493,11 +498,11 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    pixel as the marker moves, and the list would shiver during the drag. */
 .prow.dropbefore{box-shadow:inset 0 2px 0 var(--accent-current)}
 .prow.dropafter{box-shadow:inset 0 -2px 0 var(--accent-current)}
-/* Amber, not red: the drop was refused by the point cap, which is the game's rule,
-   not a mistake you made. Sits above the list because it is about the drag you just
-   attempted, not about any one row. */
-.ordernote{margin:0 0 8px;font-size:var(--fs-sm);line-height:1.45;color:var(--accent-warn)}
-.ordernote i{margin-right:4px}
+/* Red bar: this position cannot be scheduled inside 55 points, and releasing here
+   will do nothing. Red only ever appears DURING a drag, where it means "not this one"
+   about a thing you are still holding -- not an error about the state of the build. */
+.prow.dropbad{box-shadow:inset 0 2px 0 var(--accent-danger)}
+.prow.dropbad.dropafter{box-shadow:inset 0 -2px 0 var(--accent-danger)}
 .prow .pn,.prow .pp,.prow .pr,.prow .ph{font-variant-numeric:tabular-nums;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm);color:var(--ink-10)}
 .phead .pp,.phead .pr,.phead .ph{text-align:right}
@@ -724,7 +729,15 @@ const state = {
   // that one constellation alone doesn't fit either. Worth re-testing before adding
   // anything like it back.
   orderPrev: null,
-  // 'failed' when a drag could not be honoured at all. Cleared by the next drag.
+  // 'failed' when a stored order could not be applied to the build that came back.
+  //
+  // A DRAG can no longer produce this: infeasible positions are refused during the
+  // drag, before you let go. It survives for the one case that can't be caught that
+  // way -- a saved order restored on load, against a build re-solved from scratch.
+  // solveBest() is time-budgeted, so the same tags can return a slightly different
+  // set, and an order over constellations that are no longer all there may not
+  // schedule. Surfaced in the Order button's tooltip rather than as a banner, because
+  // it is rare and the button has already flipped back to saying "Order".
   orderNote: null,
   // --- the lock ---------------------------------------------------------------
   // Optional, off by default, and app-wide: a safety rail so a build can't be
@@ -750,6 +763,17 @@ const state = {
   // the solve rather than inside it -- the sweep costs ~250ms, which would be felt on
   // every keystroke for something that only starts blocking at four powers.
   blocked: new Set(),
+  // Constellations with nowhere legal to go: every position either leaves them where
+  // they are or costs more than 55 points. They are not draggable at all, because
+  // offering a drag that can only ever be refused is the same mistake as offering a
+  // power chip that can't fit -- see `blocked` above, which exists for exactly that.
+  //
+  // Swept off the critical path like `blocked` is: the check is one schedulePath() per
+  // candidate position per row, so it is quadratic in the path length. It early-exits
+  // on the first position that works, which most rows reach immediately, but the worst
+  // case is ~160ms on an 18-step path and that is not something to spend inside a
+  // render.
+  immovable: new Set(),
 };
 let renderedTab = state.tab;
 
@@ -971,6 +995,7 @@ function build() {
   clearHistory();
   render();
   scheduleBlockedSweep();
+  scheduleMovableSweep();
 }
 
 // How well each requested tag is actually served by the built path. At five tags a
@@ -1248,12 +1273,19 @@ function plainHtml(rows, schedule) {
     // and removes on its own as the order changes, so it isn't yours to place -- and
     // dragIndex counts only the rows that are, so the indices match currentOrder().
     // Frozen while locked, like everything else that changes the build.
-    const canDrag = !refund && !state.locked;
+    // Fixed in place: nowhere it could go is both schedulable and different from
+    // where it already is. It keeps its data-drag index -- it is still a valid thing to
+    // drop something else onto -- but it cannot be picked up.
+    const fixed = !refund && state.immovable.has(p.id);
+    const canDrag = !refund && !state.locked && !fixed;
     const dragAttrs = canDrag
       ? ` draggable="true" data-drag="${dragIndex++}"`
       : (refund ? '' : ` data-drag="${dragIndex++}"`);
+    const fixedTip = fixed && !state.locked
+      ? ' title="Fixed here -- every other position either changes nothing or costs more than 55 points"'
+      : '';
 
-    return `<div class="${cls}${canDrag ? ' pdrag' : ''}"${dragAttrs}>
+    return `<div class="${cls}${canDrag ? ' pdrag' : ''}${fixed ? ' pfixed' : ''}"${dragAttrs}${fixedTip}>
       <span class="pn">${refund ? '↩' : num}</span>
       ${tick}
       <span class="pd">${hits ? '●' : '○'}</span>
@@ -1727,6 +1759,57 @@ function scheduleBlockedSweep() {
   }, 260);
 }
 
+let movableTimer = null;
+
+/**
+ * Which rows have nowhere to go? One landing sweep per row, early-exiting as soon as a
+ * position is found that both schedules and actually moves it.
+ */
+function immovableSet() {
+  const base = currentOrder();
+  const out = new Set();
+  if (!state.plan) return out;
+  const saved = state.order;
+  const solution = state.plan.solution;
+  try {
+    for (let from = 0; from < base.length; from++) {
+      let movable = false;
+      for (let to = 0; to < base.length && !movable; to++) {
+        if (to === from) continue;
+        const ids = [...base];
+        const [moved] = ids.splice(from, 1);
+        ids.splice(to, 0, moved);
+        state.order = ids;
+        const sched = applyOrder(solution);
+        if (!sched) continue;
+        const landed = sched.path.filter(p => p.kind !== 'refund').map(p => p.id).indexOf(moved);
+        if (landed !== from) movable = true;
+      }
+      if (!movable) out.add(base[from]);
+    }
+  } finally {
+    state.order = saved;
+  }
+  return out;
+}
+
+/** Run the sweep off the critical path, and only where it can be seen. */
+function scheduleMovableSweep() {
+  clearTimeout(movableTimer);
+  // Only Overview can drag, so only Overview needs the answer. This is what keeps the
+  // cost off anyone who never opens it.
+  if (!state.plain || !state.plan || state.locked) {
+    if (state.immovable.size) { state.immovable = new Set(); render(); }
+    return;
+  }
+  movableTimer = setTimeout(() => {
+    const found = immovableSet();
+    const same = found.size === state.immovable.size
+      && [...found].every(id => state.immovable.has(id));
+    if (!same) { state.immovable = found; render(); }
+  }, 120);
+}
+
 /**
  * Re-schedule a solved set into the order you dragged it into.
  *
@@ -1802,6 +1885,36 @@ function applyOrder(solution) {
 function currentOrder() {
   if (!state.plan) return [];
   return state.plan.schedule.path.filter(p => p.kind !== 'refund').map(p => p.id);
+}
+
+/**
+ * Where would the row at `from` end up if dropped at each position in turn?
+ *
+ * Returns an array parallel to the path: the resulting index, or null where that
+ * arrangement cannot be scheduled within the cap. Pure -- it restores state.order
+ * before returning, so it can be called mid-drag without disturbing anything.
+ */
+function landingsFor(from) {
+  const base = currentOrder();
+  if (!state.plan || from < 0 || from >= base.length) return null;
+  const saved = state.order;
+  const solution = state.plan.solution;
+  const out = [];
+  try {
+    for (let to = 0; to < base.length; to++) {
+      const ids = [...base];
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+      state.order = ids;
+      const sched = applyOrder(solution);
+      out.push(sched
+        ? sched.path.filter(p => p.kind !== 'refund').map(p => p.id).indexOf(moved)
+        : null);
+    }
+  } finally {
+    state.order = saved;
+  }
+  return out;
 }
 
 /**
@@ -2025,7 +2138,9 @@ function render() {
     <span style="display:flex;gap:6px">
     <button class="plainbtn orderbtn${state.order ? ' on' : ''}" data-clearorder="1"${
       state.order ? '' : ' disabled'}
-      title="${state.order
+      title="${state.orderNote === 'failed'
+        ? 'Your saved order does not fit this build and was dropped -- the constellations it arranged are not all here any more'
+        : state.order
         ? 'Your own order. Click to go back to the one the solver chose'
         : state.plain
           ? 'Drag a row to move it. The path re-plans around it, pulling in whatever it needs first'
@@ -2046,13 +2161,6 @@ function render() {
         ? 'Back to one card per step, with the stars to click'
         : 'The whole path in one column -- every pick in order, at a glance'}">${
       state.plain ? 'Detail' : 'Overview'}</button></span></p>`;
-  // A drag that couldn't be honoured has to say so. Silence would be indistinguishable
-  // from a broken control, which is what the first version of this shipped as.
-  if (state.orderNote === 'failed') {
-    h += `<p class="ordernote"><i class="ti ti-alert-triangle"></i> That position needs more
-      than 55 points &mdash; pulling it forward forces a Crossroads nothing later pays
-      back. Left as it was.</p>`;
-  }
   h += `<div class="dwrap"><div class="dscroll">` + pathHtml() + '</div>';
   // Both lock dialogs share the modal shell. They sit over the devotions list
   // rather than the whole app because that is what they are about -- which stars you
@@ -2251,6 +2359,20 @@ function lockSwallows(e) {
 // deliberately unreadable during dragover in most browsers.
 let dragFrom = null;
 let dragOver = null;
+// Where each drop position would actually LAND the dragged row, computed once when
+// the drag starts: landings[to] is the resulting index, or null if that arrangement
+// cannot be scheduled inside the point cap.
+//
+// Worth precomputing rather than resolving after the fact, because a drop position and
+// its result mostly are not the same thing. Measured over three rows of an 18-step
+// path: dropping at 0 or at 1 gives an identical result, nine consecutive positions in
+// one fixture all leave the row exactly where it was, and in another every position
+// but one exceeds 55 points. A bar that follows the cursor is confidently wrong in all
+// three cases.
+//
+// It costs 5-13ms for a whole path -- one schedulePath() per position at ~0.5ms -- so
+// it happens on dragstart, not per dragover.
+let landings = null;
 
 const dragIndexOf = el => {
   const row = el?.closest?.('[data-drag]');
@@ -2264,15 +2386,30 @@ function paintDrop() {
   }
   if (dragFrom == null) return;
   const rows = app.querySelectorAll?.('[data-drag]') ?? [];
+  const land = dropTarget();
   for (const el of rows) {
     const i = +el.dataset.drag;
     if (i === dragFrom) el.classList.add('dragging');
-    // The marker goes on the side the row will land on, so it reads as "here", not
-    // "this row". Dropping onto a row above means before it; below, after it.
-    if (i === dragOver && i !== dragFrom) {
+    if (dragOver == null) continue;
+    // The bar marks where the row will ACTUALLY end up, not where the cursor is. It
+    // therefore stops moving while you drag across positions that resolve to the same
+    // place -- which is the honest reading of those positions, not a stuck control.
+    if (land.at != null && i === land.at && i !== dragFrom) {
       el.classList.add(i < dragFrom ? 'dropbefore' : 'dropafter');
     }
+    // Nothing fits: mark the row under the cursor in red instead, since there is no
+    // landing position to mark.
+    if (land.at == null && i === dragOver) {
+      el.classList.add('dropbad', i < dragFrom ? 'dropbefore' : 'dropafter');
+    }
   }
+}
+
+/** Where the current cursor position would land, and whether it can be scheduled. */
+function dropTarget() {
+  if (dragFrom == null || dragOver == null) return { at: null, ok: false };
+  const at = landings?.[dragOver] ?? null;
+  return { at, ok: at != null && at !== dragFrom };
 }
 
 app.addEventListener('dragstart', e => {
@@ -2280,6 +2417,7 @@ app.addEventListener('dragstart', e => {
   if (i == null || state.locked) return;
   dragFrom = i;
   dragOver = null;
+  landings = landingsFor(i);
   // Firefox refuses to start a drag unless something is set.
   try { e.dataTransfer.setData('text/plain', String(i)); e.dataTransfer.effectAllowed = 'move'; } catch { /* not fatal */ }
   paintDrop();
@@ -2301,14 +2439,20 @@ app.addEventListener('drop', e => {
   e.preventDefault();
   const to = dragIndexOf(e.target) ?? dragOver;
   const from = dragFrom;
+  // A drop the scheduler can't take is simply cancelled. The bar was already red, so
+  // it has been refused before you let go rather than explained afterwards -- which is
+  // why there is no longer a note to write.
+  const landed = to == null ? null : landings?.[to] ?? null;
   dragFrom = dragOver = null;
-  if (to == null || to === from) { paintDrop(); return; }
+  landings = null;
+  if (to == null || to === from || landed == null || landed === from) { paintDrop(); return; }
   if (moveInOrder(from, to)) {
     // Re-schedule, do NOT re-solve. The set is the answer to your tags and a drag is
     // not a change to your tags -- and solveBest() is time-budgeted, so re-solving
     // could quietly hand back a different set of constellations.
     reorderNow();
     render();
+    scheduleMovableSweep();   // a new order means new answers about what can move
   } else {
     paintDrop();
   }
@@ -2318,6 +2462,7 @@ app.addEventListener('drop', e => {
 // and neither of which fires drop.
 app.addEventListener('dragend', () => {
   dragFrom = dragOver = null;
+  landings = null;
   paintDrop();
 });
 
@@ -2332,6 +2477,7 @@ app.addEventListener('click', e => {
     if (state.locked) state.dialog = 'unlock';
     else { state.locked = true; state.dialog = null; }
     render();
+    scheduleMovableSweep();   // locked, nothing drags, so the answer is dropped
     return;
   }
   const dg = e.target.closest('[data-dialog]');
@@ -2354,6 +2500,7 @@ app.addEventListener('click', e => {
     dropOrder();
     reorderNow();     // back to the solver's own schedule; still no re-solve
     render();
+    scheduleMovableSweep();
     return;
   }
 
@@ -2382,7 +2529,14 @@ app.addEventListener('click', e => {
 
   // Pure view switch -- no re-solve, so it can't disturb the plan or the ticks.
   const pl = e.target.closest('[data-plain]');
-  if (pl && app.contains(pl)) { state.plain = !state.plain; render(); return; }
+  if (pl && app.contains(pl)) {
+    state.plain = !state.plain;
+    render();
+    // Only Overview drags, so the sweep is paid for on the way in rather than kept
+    // warm for someone who never opens it.
+    scheduleMovableSweep();
+    return;
+  }
 
   // A star click must win over the card click that would otherwise bubble to it.
   const rs = e.target.closest('[data-reset]');
