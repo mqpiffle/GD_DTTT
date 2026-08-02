@@ -232,10 +232,19 @@ export function solutionFromVars(model, values) {
   const byC = new Map();
   for (const [name, v] of Object.entries(values)) {
     if (v < 0.5 || !name.startsWith('y_')) continue;
-    const [, ci] = name.split('_');
-    byC.set(+ci, (byC.get(+ci) ?? 0) + 1);
+    const [, ci, j] = name.split('_');
+    if (!byC.has(+ci)) byC.set(+ci, []);
+    byC.get(+ci).push(+j + 1);      // y_<ci>_<j> is 0-based; stars are 1-based
   }
   return [...byC.entries()]
-    .map(([ci, starsTaken]) => ({ id: model.meta.constellations[ci], starsTaken }))
+    // WHICH stars, not just how many. 58 of 109 constellations branch, so "4 stars of
+    // Akeron's Scorpion" is a choice rather than a prefix -- {1,2,3,5} reaches the
+    // power, {1,2,3,4} does not. Returning only a count let a caller assume the prefix
+    // and silently score a different build from the one the solver chose.
+    .map(([ci, stars]) => ({
+      id: model.meta.constellations[ci],
+      starsTaken: stars.length,
+      stars: stars.sort((a, b) => a - b),
+    }))
     .filter(e => e.starsTaken > 0);
 }

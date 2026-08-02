@@ -18,12 +18,31 @@ import { buildModel, solutionFromVars } from './milp.mjs';
 import { solveBest } from './solver.mjs';
 import { priorityFor, trySchedule } from './select.mjs';
 
+// glpk.js ships two builds. The default entry drives the solver from a Web Worker,
+// which is right in a browser and throws `Worker is not defined` under Node, where
+// there is no such global. The package's `./node` subpath is the same solver without
+// the worker.
+//
+// Worth knowing because the failure was invisible: loadGlpk() catches everything and
+// returns null, so an unusable glpk fell back to local search and reported "no glpk.js
+// installed" while it was sitting right there in node_modules.
+const GLPK_ENTRIES = typeof Worker === 'undefined'
+  ? ['glpk.js/node', 'glpk.js']
+  : ['glpk.js', 'glpk.js/node'];
+
 let glpkPromise;
 async function loadGlpk() {
   if (glpkPromise === undefined) {
-    glpkPromise = import('glpk.js')
-      .then(m => (typeof m.default === 'function' ? m.default() : m.default ?? m))
-      .catch(() => null);
+    glpkPromise = (async () => {
+      for (const entry of GLPK_ENTRIES) {
+        try {
+          const m = await import(/* @vite-ignore */ entry);
+          const g = typeof m.default === 'function' ? await m.default() : m.default ?? m;
+          if (g && g.GLP_MAX !== undefined) return g;
+        } catch { /* try the next entry */ }
+      }
+      return null;
+    })();
   }
   return glpkPromise;
 }

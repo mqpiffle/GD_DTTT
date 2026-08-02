@@ -2,7 +2,7 @@
   "name": "gd-dttt",
   "version": "0.1.0",
   "private": true,
-  "description": "GD_DTTT — Grim Dawn Devotion Theory-craft and Tracker Tool. Pick keyword tags or name a celestial power, get an ordered devotion path you can follow in game.",
+  "description": "GD_DTTT \u2014 Grim Dawn Devotion Theory-craft and Tracker Tool. Pick keyword tags or name a celestial power, get an ordered devotion path you can follow in game.",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -10,9 +10,13 @@
     "serve": "python3 -m http.server 8080",
     "build:keywords": "node scripts/build-keywords.mjs",
     "build:index": "node scripts/build-ui-index.mjs",
-    "check:version": "node scripts/check-version.mjs"
+    "check:version": "node scripts/check-version.mjs",
+    "certify": "node scripts/certify.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "glpk.js": "^5.0.0"
   }
 }
