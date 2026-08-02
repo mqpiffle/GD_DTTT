@@ -362,17 +362,35 @@ let proofSeq = 0;
 /** Inputs the proof was asked about, so a late reply to an old question is dropped. */
 const proofKey = () => JSON.stringify([wantedList(), state.mode, db.maxPoints ?? 55]);
 
+// Absence of the "optimal" marker has to be diagnosable, and on screen it cannot be:
+// it means "still working", "could not prove it", "worker never started" and "you
+// changed your mind" all at once, and only the third is a fault. So each says which it
+// is in the console. Nothing user-facing -- someone who doesn't open devtools is
+// unaffected, and someone reporting "I never see optimal" can now say why.
+const proofLog = (...a) => { try { console.info('[proof]', ...a); } catch { /* no console */ } };
+
 function getProofWorker() {
   if (proofWorker !== undefined) return proofWorker;
   proofWorker = null;
-  if (typeof Worker === 'undefined') return proofWorker;
+  if (typeof Worker === 'undefined') {
+    proofLog('no Worker in this environment; builds will not be proven');
+    return proofWorker;
+  }
   try {
     const w = new Worker(new URL('./solve-worker.mjs', import.meta.url), { type: 'module' });
     w.addEventListener('message', onProof);
     // A worker that dies takes the proof with it, not the app.
-    w.addEventListener('error', () => { proofWorker = null; });
+    w.addEventListener('error', (err) => {
+      proofWorker = null;
+      proofLog('worker failed to start or crashed; builds will not be proven.',
+        'This is the one case that is a fault rather than an answer:', err?.message ?? err);
+    });
     proofWorker = w;
-  } catch { proofWorker = null; }
+    proofLog('worker started');
+  } catch (err) {
+    proofWorker = null;
+    proofLog('could not create the worker; builds will not be proven:', err?.message ?? err);
+  }
   return proofWorker;
 }
 
@@ -389,14 +407,18 @@ function askForProof() {
 let pendingProof = null;
 
 function onProof(e) {
-  const { id, optimal, solution } = e.data ?? {};
+  const { id, optimal, solution, reason } = e.data ?? {};
   // Three ways a reply is worthless: it answers a question we have moved on from, it
   // answers the current question but the inputs changed and changed back to something
   // that re-solved meanwhile, or it could not prove anything.
   if (!pendingProof || id !== pendingProof.id) return;
-  if (proofKey() !== pendingProof.key) return;
+  if (proofKey() !== pendingProof.key) { proofLog('answer discarded: the tags moved on'); return; }
   pendingProof = null;
-  if (!optimal || !solution?.length || !state.plan) return;
+  if (!optimal || !solution?.length || !state.plan) {
+    proofLog('not proven for these tags:', reason ?? 'no reason given',
+      '-- the build shown is local search, which is correct but may not be the best one');
+    return;
+  }
 
   // Re-schedule here rather than trusting a path built elsewhere: only this side knows
   // whether a manual drag order is in force, and applying it is the same work either way.
@@ -404,8 +426,12 @@ function onProof(e) {
   try {
     schedule = schedulePath(solution, db, db.maxPoints ?? 55,
       { priority: priorityFor(wantedList(), state.mode) });
-  } catch { return; }   // proven set, but not orderable within the cap -- keep what we have
+  } catch {
+    proofLog('proved a better set, but it cannot be ordered inside 55 points; keeping the current build');
+    return;
+  }
 
+  proofLog('proven optimal; swapping the build in');
   state.plan = { schedule: orderedSchedule(solution, schedule), solution,
                  solverSchedule: schedule, mode: state.plan.mode, proven: true };
   render();
