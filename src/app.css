@@ -133,6 +133,22 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 *{box-sizing:border-box}
 .wrap{max-width:900px;margin:0 auto}
 .col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+/* The global bar. Above both panes because a character is the scope they sit inside --
+   the left is what you asked for, the right is what you got, and both belong to
+   whichever character is selected.
+   Deliberately a general bar with a left region for identity and a right for actions:
+   import, export and sharing all want this space later. */
+.topbar{display:flex;align-items:center;gap:6px;margin:0 0 14px;padding-bottom:12px;
+  border-bottom:1px solid var(--line-8)}
+.tbspace{flex:1}
+/* The switcher and the rename field are the same size and sit in the same place, so
+   swapping one for the other does not move the buttons beside them. */
+.cpick,.cname{height:30px;min-width:190px;max-width:340px;box-sizing:border-box;
+  padding:0 8px;border-radius:6px;border:1px solid var(--line-4);background:var(--surface-6);
+  color:var(--ink-1);font:inherit;font-size:var(--fs-base)}
+.cpick{cursor:pointer}
+.cpick:hover,.cname:hover{border-color:var(--ink-12)}
+.cname:focus,.cpick:focus-visible{outline:none;border-color:var(--ink-1)}
 /* Back to a single column: the three-across grid coupled card heights within a row,
    and the slack that created was worse than the space it saved. */
 .cards{display:block}

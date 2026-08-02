@@ -64,6 +64,13 @@ const app = {
       if (!this._html.includes('class="tip"')) return null;
       return (boxes[sel] ??= makeTip());
     }
+    // The rename field, when the bar is showing one. Value is settable by a test the
+    // way a person would type into it.
+    if (sel === '[data-cname]') {
+      if (!this._html.includes('data-cname=')) return null;
+      return (boxes[sel] ??= { value: /data-cname="1" value="([^"]*)"/.exec(this._html)?.[1] ?? '',
+                               focus() {}, select() {} });
+    }
     if (sel !== '.scroll' && sel !== '.dscroll') return null;
     if (!this._html.includes(`class="${sel.slice(1)}"`)) return null;
     return (boxes[sel] ??= makeBox());
@@ -87,7 +94,15 @@ const SEL = {
   '[data-undo]': 'undo', '[data-add]': 'add',
   '[data-lock]': 'lock', '[data-dialog]': 'dialog', '[data-clearorder]': 'clearorder',
   '[data-rm]': 'rm', '[data-resetprogress]': 'resetprogress',
+  '[data-cnew]': 'cnew', '[data-cdup]': 'cdup', '[data-crename]': 'crename',
+  '[data-cdel]': 'cdel', '[data-cswitch]': 'cswitch',
 };
+
+/** Fire a `change` on an element carrying `dataset`, as a <select> does. */
+function change(dataset) {
+  const el = { dataset, value: dataset.value, closest: sel => (dataset[SEL[sel]] != null ? el : null) };
+  for (const [type, fn] of listeners) if (type === 'change') fn({ target: el });
+}
 
 /** Fire a click as if on an element carrying `dataset`. */
 function click(dataset) {
@@ -2519,5 +2534,178 @@ test('only the unreached power carries the "not scheduled" note', () => {
       }
     }
     ui.state.plain = false;
+  } finally { s.restore(); }
+});
+
+// --- the global bar ----------------------------------------------------------
+
+test('the bar lists every character and marks the active one', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.addChar({});
+    plan([['Fire Damage']], 1);
+    ui.render();
+
+    const opts = [...app.innerHTML.matchAll(/<option value="([^"]+)"( selected)?>([^<]*)</g)];
+    assert.equal(opts.length, 2, 'the switcher does not list both characters');
+    const sel = opts.filter(o => o[2]);
+    assert.equal(sel.length, 1, 'exactly one option should be selected');
+    assert.equal(sel[0][1], ui.charList().find(c => c.name === 'Fire Damage').id,
+      'the selected option is not the active character');
+  } finally { s.restore(); }
+});
+
+test('choosing another character in the switcher loads it', () => {
+  // Through the change handler, not switchChar() directly: a <select> announces itself
+  // with `change`, and the wiring is the part worth testing.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    const cold = ui.charList()[0].id;
+    ui.addChar({});
+    plan([['Fire Damage']], 1);
+    ui.render();
+
+    change({ cswitch: '1', value: cold });
+    assert.equal(ui.chips[ui.state.sel[0]].label, 'Cold Damage', 'switching did not load the character');
+  } finally { s.restore(); }
+});
+
+test('the new and duplicate buttons do different things', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.state.done = new Set(ui.pathStarKeys().slice(0, 3));
+
+    click({ cdup: '1' });
+    assert.equal(ui.state.done.size, 3, 'duplicate did not carry the progress across');
+    assert.equal(ui.chips[ui.state.sel[0]].label, 'Cold Damage', 'duplicate did not carry the tags');
+
+    click({ cnew: '1' });
+    assert.equal(ui.state.done.size, 0, 'a new character arrived with progress');
+    assert.equal(ui.state.sel.filter(x => x != null).length, 0, 'a new character arrived with tags');
+    assert.equal(ui.charList().length, 3, 'expected three characters by now');
+  } finally { s.restore(); }
+});
+
+test('rename swaps the switcher for a field, and commits on the second click', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.render();
+    assert.match(app.innerHTML, /data-cswitch/, 'no switcher to begin with');
+
+    click({ crename: '1' });
+    assert.match(app.innerHTML, /data-cname/, 'rename did not open a field');
+    assert.doesNotMatch(app.innerHTML, /data-cswitch/, 'the switcher is still there while renaming');
+
+    app.querySelector('[data-cname]').value = 'Fire Sorc';
+    click({ crename: '1' });
+    assert.equal(ui.activeChar().name, 'Fire Sorc', 'the rename did not commit');
+    assert.match(app.innerHTML, /data-cswitch/, 'the switcher did not come back');
+  } finally { s.restore(); }
+});
+
+test('Escape abandons a rename, Enter commits it', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.render();
+    const before = ui.activeChar().name;
+
+    click({ crename: '1' });
+    app.querySelector('[data-cname]').value = 'Discarded';
+    fire('keydown', { key: 'Escape' });
+    assert.equal(ui.activeChar().name, before, 'Escape committed the rename anyway');
+    assert.match(app.innerHTML, /data-cswitch/, 'Escape left the field open');
+
+    click({ crename: '1' });
+    app.querySelector('[data-cname]').value = 'Kept';
+    fire('keydown', { key: 'Enter' });
+    assert.equal(ui.activeChar().name, 'Kept', 'Enter did not commit the rename');
+  } finally { s.restore(); }
+});
+
+test('deleting asks first, and only then deletes', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.addChar({});
+    plan([['Fire Damage']], 1);
+    ui.render();
+
+    click({ cdel: '1' });
+    assert.equal(ui.charList().length, 2, 'the delete button deleted without asking');
+    assert.match(app.innerHTML, /data-dialog="delchar"/, 'no confirmation offered');
+
+    click({ dialog: 'cancel' });
+    assert.equal(ui.charList().length, 2, 'cancelling deleted it anyway');
+
+    click({ cdel: '1' });
+    click({ dialog: 'delchar' });
+    assert.equal(ui.charList().length, 1, 'confirming did not delete');
+    assert.equal(ui.activeChar().name, 'Cold Damage', 'did not fall back to the remaining character');
+  } finally { s.restore(); }
+});
+
+test('the only character cannot be deleted', () => {
+  // Deleting it would leave nowhere to put your tags, and the replacement-on-empty rule
+  // makes the button a no-op that looks like it did something.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.render();
+    assert.match(app.innerHTML, /data-cdel="1" disabled/, 'delete is offered for the only character');
+
+    click({ cdel: '1' });
+    assert.equal(ui.state.dialog, null, 'it asked anyway');
+    assert.equal(ui.charList().length, 1);
+  } finally { s.restore(); }
+});
+
+test('the lock does not stop you changing character', () => {
+  // The lock protects a build's contents. A locked character you could not leave would
+  // be a trap rather than a safety rail.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    const cold = ui.charList()[0].id;
+    ui.addChar({});
+    plan([['Fire Damage']], 1);
+    ui.state.locked = true;
+    ui.state.lockWarnSeen = true;
+    ui.render();
+
+    change({ cswitch: '1', value: cold });
+    assert.equal(ui.chips[ui.state.sel[0]].label, 'Cold Damage', 'the lock blocked switching character');
+    assert.equal(ui.state.locked, false, 'the unlocked character arrived locked');
+
+    // And the click-driven actions too, which switching alone does not cover: the
+    // switcher goes through `change`, so a lock guard in the click handler would be
+    // invisible to the assertion above. Creating or duplicating a character does not
+    // modify the locked one, so neither has any business being frozen.
+    change({ cswitch: '1', value: ui.charList().find(c => c.name === 'Fire Damage').id });
+    ui.state.locked = true;
+    const before = ui.charList().length;
+    click({ cnew: '1' });
+    assert.equal(ui.charList().length, before + 1, 'the lock blocked creating a character');
+
+    ui.state.locked = true;
+    click({ cdup: '1' });
+    assert.equal(ui.charList().length, before + 2, 'the lock blocked duplicating a character');
+
+    ui.state.locked = true;
+    click({ crename: '1' });
+    assert.equal(ui.state.renaming, true, 'the lock blocked renaming');
+    click({ crename: '1' });
   } finally { s.restore(); }
 });

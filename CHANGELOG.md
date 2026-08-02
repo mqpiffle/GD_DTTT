@@ -4,21 +4,22 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
-## 0.2.4 — 2 Aug 2026
-
-The "Not scheduled to pick" pill no longer draws a bullet through its own text.
-
 ## 0.2.3 — 2 Aug 2026
 
-Detail's CP badge dims like Overview's, from the same builder, so the two views cannot
-disagree about whether a power is actually being taken. An unreached power's tooltip
-also carries a "Not scheduled to pick" pill on its own line under the name.
+**A global bar, and many characters.** The bar sits above both panes, because a
+character is the scope they sit inside: switch character and both the tags you asked
+for and the path you got change together. New, duplicate, rename and delete live there.
+Duplicate copies everything including your ticks, so a variation you want to compare
+starts from where you actually are. Deleting asks first, and the last character cannot
+be deleted.
 
-## 0.2.2 — 2 Aug 2026
+The lock does not freeze any of it. It protects a build's contents, and a locked
+character you could not leave would be a trap rather than a safety rail.
 
-The dimmed CP badge loses its native tooltip and is desaturated further. The browser
-tooltip fired on the same hover as the styled one and covered the power's effect list,
-which is the thing you opened it for. The dimming already says what it said.
+**Celestial power badges** now distinguish a power the build reaches from one it stops
+short of, in both views. 40 of the 62 powers sit below the end of their constellation,
+so a partial take can leave the power unbought; the badge dims rather than implying you
+get it, and its tooltip says "Not scheduled to pick".
 
 ## 0.2.1 — 2 Aug 2026
 

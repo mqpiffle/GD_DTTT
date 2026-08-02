@@ -107,6 +107,9 @@ const state = {
   // Transient, never persisted: 'unlock' (confirm leaving the lock) or 'frontier'
   // (you clicked a star the lock doesn't cover).
   dialog: null,
+  // Renaming swaps the switcher for a text field in place. Transient: an interrupted
+  // rename should not survive a reload as a half-open control.
+  renaming: false,
   // Power chips that can no longer fit alongside what's already chosen. Computed after
   // the solve rather than inside it -- the sweep costs ~250ms, which would be felt on
   // every keystroke for something that only starts blocking at four powers.
@@ -373,6 +376,18 @@ function stash() {
   if (!doc) return;
   doc.chars[doc.active] = { ...doc.chars[doc.active], ...captureChar() };
   if (!doc.chars[doc.active].named) doc.chars[doc.active].name = autoName();
+}
+
+/**
+ * Take whatever is in the rename field and apply it.
+ *
+ * Reads the live input rather than tracking every keystroke in state: a rename is one
+ * decision, and re-rendering the bar on each character typed would move the caret.
+ */
+function commitRename() {
+  const input = app.querySelector?.('[data-cname]');
+  if (input && doc) renameChar(doc.active, input.value);
+  state.renaming = false;
 }
 
 function switchChar(id) {
@@ -1812,7 +1827,45 @@ function render() {
   // Reset. It used to be a round `.rb` minus, byte-identical to the remove button on
   // every tag pill -- same glyph, same size, same shape, for two actions as different
   // as "drop this tag" and "wipe the tags, the path and all your progress".
-  let h = `<div class="col"><div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
+  let h = '';
+
+  // --- the global bar ---------------------------------------------------------
+  // Above both panes, because a character is the scope everything else sits inside:
+  // the left pane is what you asked for and the right is what you got, and both belong
+  // to whichever character is selected. Putting the switcher inside either one would
+  // misrepresent that.
+  //
+  // Built as a general bar rather than a character widget. Import, export and sharing
+  // all want this space, so it has a left region for identity and a right for actions.
+  //
+  // A native <select> for switching. It is keyboard accessible for free, needs no
+  // outside-click or escape handling, and nothing else here hand-rolls a dropdown.
+  // Tabs would read better at three characters and break at eight, especially with
+  // auto-names like "Cold Damage + Health".
+  const chars = charList();
+  const cur = activeChar() ?? {};
+  h += '<div class="topbar">';
+  h += state.renaming
+    ? `<input class="cname" data-cname="1" value="${esc(cur.name ?? '')}"
+         aria-label="Character name" maxlength="60" autofocus>`
+    : `<select class="cpick" data-cswitch="1" aria-label="Character">${
+        chars.map(c => `<option value="${esc(c.id)}"${
+          c.id === doc.active ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
+      }</select>`;
+  h += `<span class="tbspace"></span>
+    <button class="plainbtn iconbtn" data-cnew="1" title="New character"
+      aria-label="New character"><i class="ti ti-plus"></i></button>
+    <button class="plainbtn iconbtn" data-cdup="1" title="Duplicate this character, progress and all"
+      aria-label="Duplicate character"><i class="ti ti-copy"></i></button>
+    <button class="plainbtn iconbtn" data-crename="1" title="${
+      state.renaming ? 'Done' : 'Rename this character'}"
+      aria-label="Rename character"><i class="ti ti-${state.renaming ? 'check' : 'pencil'}"></i></button>
+    <button class="plainbtn iconbtn" data-cdel="1"${chars.length > 1 ? '' : ' disabled'}
+      title="${chars.length > 1 ? 'Delete this character' : 'The only character cannot be deleted'}"
+      aria-label="Delete character"><i class="ti ti-trash"></i></button>`;
+  h += '</div>';
+
+  h += `<div class="col"><div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
     <span style="flex:1">Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
     <button class="plainbtn iconbtn" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
       title="${state.locked ? 'Locked' : 'Reset everything: tags, path and progress'}"
@@ -1984,6 +2037,24 @@ function render() {
         </button>
       </div>
     </div></div>`;
+  } else if (state.dialog === 'delchar') {
+    const c = activeChar() ?? {};
+    const n = state.done.size;
+    h += `<div class="modal"><div class="mbox">
+      <p class="mtitle">Delete ${esc(c.name ?? 'this character')}?</p>
+      <p class="mtext">Its tags, its path${n ? ` and its ${n} ticked star${n === 1 ? '' : 's'}` : ''
+        } go with it. Your other characters are untouched.</p>
+      <div class="mopts">
+        <button class="mbtn go" data-dialog="delchar">
+          <b>Delete</b>
+          <span>There is no undo for this</span>
+        </button>
+        <button class="mbtn" data-dialog="cancel">
+          <b>Keep it</b>
+          <span>Leave this character alone</span>
+        </button>
+      </div>
+    </div></div>`;
   } else if (state.dialog === 'frontier') {
     h += `<div class="modal"><div class="mbox">
       <p class="mtitle">That one's locked</p>
@@ -2007,6 +2078,14 @@ function render() {
   h += '</div></div></div><div class="tip" role="tooltip" aria-hidden="true"></div>';
   app.innerHTML = h;
   save();
+
+  // A rename field that appears unfocused makes you click the thing you just asked for.
+  // `autofocus` only fires on initial page parse, so focus it here after each render.
+  if (state.renaming) {
+    const nameInput = app.querySelector?.('[data-cname]');
+    nameInput?.focus?.();
+    nameInput?.select?.();
+  }
 
   // Size before restoring scroll: setting scrollTop on an unsized box clamps to 0.
   fitPanels();
@@ -2117,6 +2196,11 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', fitPanels);
   window.addEventListener('scroll', hideTip, true);
   window.addEventListener('keydown', e => {
+    if (state.renaming && (e.key === 'Enter' || e.key === 'Escape')) {
+      if (e.key === 'Enter') commitRename(); else state.renaming = false;
+      render();
+      return;
+    }
     // Undo is frozen by the lock along with its button. It restores a whole snapshot
     // of state.done, so it can reach past the frontier in one keystroke -- the exact
     // move the lock exists to prevent. It is also no longer needed: locked ticking
@@ -2276,6 +2360,15 @@ app.addEventListener('dragend', () => {
   paintDrop();
 });
 
+// A <select> announces itself with `change`, not `click`. Registered separately rather
+// than folded into the click handler, because a click anywhere on a select would fire
+// before the value has moved.
+app.addEventListener('change', (e) => {
+  const sw = e.target?.closest?.('[data-cswitch]');
+  if (!sw || !app.contains(sw)) return;
+  if (switchChar(sw.value)) { state.renaming = false; scheduleBuild(); }
+});
+
 app.addEventListener('click', e => {
   // The lock's own controls have to keep working while locked, so they are checked
   // before anything is swallowed.
@@ -2294,6 +2387,12 @@ app.addEventListener('click', e => {
   if (dg && app.contains(dg)) {
     const act = dg.dataset.dialog;
     if (act === 'unlock') state.locked = false;
+    if (act === 'delchar' && doc) {
+      deleteChar(doc.active);
+      state.dialog = null;
+      scheduleBuild();
+      return;
+    }
     // "Don't show this again" is answered by which button you press, rather than by a
     // checkbox that then needs a separate confirm. Same decision, one click, and no
     // way to tick the box and then cancel -- which would have left it ambiguous
@@ -2301,6 +2400,30 @@ app.addEventListener('click', e => {
     if (act === 'hush') state.lockWarnSeen = true;
     state.dialog = null;
     render();
+    return;
+  }
+
+  // Before lockSwallows(). The lock freezes a character's build; it does not freeze
+  // navigating between characters, and a locked character you cannot leave would be a
+  // trap rather than a safety rail.
+  const cn = e.target.closest('[data-cnew]');
+  if (cn && app.contains(cn)) { addChar({}); state.renaming = false; scheduleBuild(); return; }
+
+  const cd = e.target.closest('[data-cdup]');
+  if (cd && app.contains(cd)) { addChar({ from: doc.active }); state.renaming = false; scheduleBuild(); return; }
+
+  const cr = e.target.closest('[data-crename]');
+  if (cr && app.contains(cr)) {
+    // Second click commits, which is why the icon becomes a tick while renaming.
+    if (state.renaming) commitRename();
+    else state.renaming = true;
+    render();
+    return;
+  }
+
+  const cx = e.target.closest('[data-cdel]');
+  if (cx && app.contains(cx)) {
+    if (charList().length > 1) { state.dialog = 'delchar'; render(); }
     return;
   }
 
