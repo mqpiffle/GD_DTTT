@@ -4,6 +4,12 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.6 — 2 Aug 2026
+
+The save reader is now verified against the game rather than only against itself. Name,
+level, unspent attribute and skill points, money and both devotion numbers all match a
+real character's sheet.
+
 ## 0.2.5 — 2 Aug 2026
 
 The save reader now reads a real Fangs of Asterkarn save, which the previous version

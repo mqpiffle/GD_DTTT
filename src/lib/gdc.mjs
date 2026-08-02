@@ -187,6 +187,17 @@ function skipBlock(r, len) {
  * The older values are still accepted. Nothing here needs them, but rejecting a save
  * this code could read would be a gratuitous way to fail.
  *
+ * VERIFIED against that save with the game open beside it: name, level, unspent
+ * attribute points, unspent skill points, money, and both devotion numbers all match
+ * what the character sheet shows.
+ *
+ * The attributes need a word, because they look wrong. They are BASE values -- Farker
+ * reads 82/98/146 where the sheet says 387/434/305, because the sheet adds mastery
+ * bars, gear and devotion on top. The base numbers check out through the game's own
+ * arithmetic instead: attributes start at 50 and each point adds 8, so 4 + 6 + 12
+ * points are spent, and with 5 unspent that is 27 -- exactly what a level 28 character
+ * has earned. Health and energy are base figures for the same reason.
+ *
  * @returns { name, sex, classId, level, hardcore, bio: {...} }
  */
 export function readCharacterSummary(bytes) {

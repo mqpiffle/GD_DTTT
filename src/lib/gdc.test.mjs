@@ -251,9 +251,30 @@ test('a real save reads with plausible values', { skip: !fs.existsSync(REAL) && 
   assert.ok(c.bio.devotionPoints >= 0 && c.bio.devotionPoints <= c.bio.totalDevotion,
     `${c.bio.devotionPoints} unspent of ${c.bio.totalDevotion} earned is impossible`);
 
-  // Attributes start at 50 and only go up; health and energy are always positive.
+  // Attributes are BASE values, not what the character sheet shows: the sheet adds
+  // mastery bars, gear and devotion on top. Farker reads 82/98/146 against a displayed
+  // 387/434/305, and that is correct rather than broken.
+  //
+  // What makes them checkable anyway is the game's own arithmetic. Every attribute
+  // starts at 50 and each point spent adds exactly 8, so (value - 50) / 8 must be a
+  // whole number -- and the total spent, plus the unspent points, must equal what a
+  // character of this level has earned: one per level from 2 onward.
+  //
+  // Nothing in the parser knows about that relationship, so it is a genuinely
+  // independent check. On Farker it closes exactly: 4 + 6 + 12 spent, 5 unspent, 27
+  // earned at level 28.
+  let spent = 0;
   for (const [k, v] of Object.entries({ physique: c.bio.physique, cunning: c.bio.cunning, spirit: c.bio.spirit })) {
     assert.ok(v >= 50 && v < 10000, `${k} of ${v} is outside a plausible range`);
+    const points = (v - 50) / 8;
+    assert.ok(Number.isInteger(points),
+      `${k} of ${v} is not 50 plus a whole number of 8-point steps, so it is not a base attribute`);
+    spent += points;
   }
+  const earned = spent + c.bio.attributePoints;
+  assert.ok(earned >= c.level - 1 && earned <= c.level + 12,
+    `${spent} attribute points spent and ${c.bio.attributePoints} unspent is ${earned}, `
+    + `which a level ${c.level} character could not have earned`);
+
   assert.ok(c.bio.health > 0 && c.bio.energy > 0, 'health and energy should be positive');
 });
