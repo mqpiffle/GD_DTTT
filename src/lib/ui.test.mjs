@@ -2128,3 +2128,47 @@ test('a range keeps both ends rather than summing its low values', () => {
   assert.ok(shown.includes(`${tidy(found.lo)}-${tidy(found.hi)}`),
     `${found.label}: expected the range ${tidy(found.lo)}-${tidy(found.hi)}, row shows "${shown}"`);
 });
+
+// --- proving a build in the background ---------------------------------------
+// The proof is strictly additive. Everything below pins that: with no Worker (which is
+// the case under node, and in any browser where the file fails to load) the app must
+// behave exactly as it did before the worker existed.
+
+test('with no Worker available the app solves and renders as before', () => {
+  assert.equal(typeof globalThis.Worker, 'undefined',
+    'this test is meaningless if a Worker exists; it is asserting the fallback path');
+
+  const p = plan([['Cold Damage'], ['Health']], 1);
+  assert.ok(p, 'no plan produced without a worker');
+  assert.ok(p.solution.length > 0, 'empty solution');
+  assert.ok(p.schedule.totalPoints > 0 && p.schedule.totalPoints <= 55,
+    `implausible point total ${p.schedule.totalPoints}`);
+
+  ui.render();
+  assert.match(app.innerHTML, /constellations/, 'status line missing');
+});
+
+test('an unproven build says nothing about optimality', () => {
+  // Silence has to mean "nobody asked", not "it is worse". Most builds are never
+  // proven -- no glpk installed, no worker, or the proof is still running -- so a badge
+  // that appeared by default would be a claim the tool cannot support.
+  plan([['Cold Damage'], ['Health']], 1);
+  ui.render();
+  assert.doesNotMatch(app.innerHTML, /class="proven"/,
+    'an unproven build claimed to be optimal');
+  assert.ok(!ui.state.plan.proven, 'plan flagged proven without a proof');
+});
+
+test('a proven plan renders the marker and keeps the same shape', () => {
+  // Simulates what onProof() installs, so the render path is covered even though the
+  // worker itself cannot run here.
+  const p = plan([['Cold Damage'], ['Health']], 1);
+  ui.state.plan = { ...p, proven: true };
+  ui.render();
+  assert.match(app.innerHTML, /class="proven"[^>]*>optimal</, 'no optimal marker on a proven plan');
+
+  // And the rest of the panel is unchanged by the flag.
+  assert.match(app.innerHTML, new RegExp(`${p.solution.length} constellations`),
+    'the constellation count changed when the plan was marked proven');
+  ui.state.plan = p;
+});

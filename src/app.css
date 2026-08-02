@@ -566,6 +566,11 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    headline. nowrap because .cn already clips with an ellipsis, and a magnitude that
    wrapped would change the row height and break the bar column's alignment. */
 .covrow .cmag{color:var(--ink-9);font-size:var(--fs-base);white-space:nowrap}
+/* "optimal" in the status line. Quiet on purpose: it is a fact about the build, not an
+   achievement, and it appears a second or two after the build itself -- something that
+   arrived late and shouted would be worse than not saying it. */
+.status .proven{color:var(--accent-success);font-size:var(--fs-sm);letter-spacing:.04em;
+  text-transform:uppercase;margin-left:5px;cursor:help}
 .covrow.maxed .cmag{color:var(--accent-success)}
 /* Sits between the bar and the count. As the LAST element it reserved 32px to the right
    of the numbers on every row, so the counts never reached the column edge -- and on the

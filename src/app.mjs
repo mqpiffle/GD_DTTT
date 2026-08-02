@@ -335,7 +335,7 @@ function build() {
   // search against a TIME budget, so re-solving the same tags can return a different
   // set, and "dragging never changes the set" would then be true only by luck.
   state.plan = { schedule: orderedSchedule(solution, schedule), solution,
-                 solverSchedule: schedule, mode: state.mode };
+                 solverSchedule: schedule, mode: state.mode, proven: false };
   state.error = null;
   // A new path means the old snapshots describe a build that is no longer on screen.
   // Restoring one would tick constellations you can't see. Ticks themselves survive a
@@ -343,6 +343,72 @@ function build() {
   clearHistory();
   render();
   scheduleBlockedSweep();
+  scheduleMovableSweep();
+  askForProof();
+}
+
+// --- proving the build optimal, in the background ----------------------------
+// Local search is what you see first, always, because it is instant. It is also
+// measurably not optimal: certified against glpk on eight tag combinations it came in
+// between 3.8% and 34.2% below the proven best, and giving it 8s instead of 350ms
+// changed nothing, so it is stuck rather than rushed.
+//
+// So the proof runs in a worker and replaces the plan when it lands. Nothing waits for
+// it. If Workers are unavailable, if the file fails to load, or if glpk.js is not
+// installed, `worker` stays null and the app is exactly what it was.
+let proofWorker;
+let proofSeq = 0;
+
+/** Inputs the proof was asked about, so a late reply to an old question is dropped. */
+const proofKey = () => JSON.stringify([wantedList(), state.mode, db.maxPoints ?? 55]);
+
+function getProofWorker() {
+  if (proofWorker !== undefined) return proofWorker;
+  proofWorker = null;
+  if (typeof Worker === 'undefined') return proofWorker;
+  try {
+    const w = new Worker(new URL('./solve-worker.mjs', import.meta.url), { type: 'module' });
+    w.addEventListener('message', onProof);
+    // A worker that dies takes the proof with it, not the app.
+    w.addEventListener('error', () => { proofWorker = null; });
+    proofWorker = w;
+  } catch { proofWorker = null; }
+  return proofWorker;
+}
+
+function askForProof() {
+  const w = getProofWorker();
+  if (!w || !state.plan) return;
+  const wanted = wantedList();
+  if (!wanted.length) return;
+  proofSeq += 1;
+  pendingProof = { id: proofSeq, key: proofKey() };
+  w.postMessage({ id: proofSeq, wanted, mode: state.mode, cap: db.maxPoints ?? 55 });
+}
+
+let pendingProof = null;
+
+function onProof(e) {
+  const { id, optimal, solution } = e.data ?? {};
+  // Three ways a reply is worthless: it answers a question we have moved on from, it
+  // answers the current question but the inputs changed and changed back to something
+  // that re-solved meanwhile, or it could not prove anything.
+  if (!pendingProof || id !== pendingProof.id) return;
+  if (proofKey() !== pendingProof.key) return;
+  pendingProof = null;
+  if (!optimal || !solution?.length || !state.plan) return;
+
+  // Re-schedule here rather than trusting a path built elsewhere: only this side knows
+  // whether a manual drag order is in force, and applying it is the same work either way.
+  let schedule;
+  try {
+    schedule = schedulePath(solution, db, db.maxPoints ?? 55,
+      { priority: priorityFor(wantedList(), state.mode) });
+  } catch { return; }   // proven set, but not orderable within the cap -- keep what we have
+
+  state.plan = { schedule: orderedSchedule(solution, schedule), solution,
+                 solverSchedule: schedule, mode: state.plan.mode, proven: true };
+  render();
   scheduleMovableSweep();
 }
 
@@ -1449,7 +1515,11 @@ function render() {
     <span class="status">${state.solving
       ? '<span class="pulse"></span>solving'
       : state.plan
-        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55`
+        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55${
+            // Only ever shown when a background proof came back and confirmed it.
+            // Absence means "not proven", never "worse" -- most builds are never
+            // asked about, and silence is the honest default.
+            state.plan.proven ? ' <span class="proven" title="Proven optimal: no legal 55-point build scores higher for these tags">optimal</span>' : ''}`
         : chosenCount ? '' : 'pick a tag to begin'}</span>
     <button class="rb" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
       title="${state.locked ? 'Locked' : 'Reset all'}" aria-label="Reset all"><i class="ti ti-minus"></i></button></p>`;
