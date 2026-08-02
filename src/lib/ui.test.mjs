@@ -96,6 +96,7 @@ const SEL = {
   '[data-rm]': 'rm', '[data-resetprogress]': 'resetprogress',
   '[data-cnew]': 'cnew', '[data-cdup]': 'cdup', '[data-crename]': 'crename',
   '[data-cdel]': 'cdel', '[data-cswitch]': 'cswitch',
+  '[data-ctl]': 'ctl', '[data-ctlin]': 'ctlin',
 };
 
 /** Fire a `change` on an element carrying `dataset`, as a <select> does. */
@@ -2707,5 +2708,100 @@ test('the lock does not stop you changing character', () => {
     click({ crename: '1' });
     assert.equal(ui.state.renaming, true, 'the lock blocked renaming');
     click({ crename: '1' });
+  } finally { s.restore(); }
+});
+
+// --- controls ----------------------------------------------------------------
+// A control proposes tags; the picker still owns them. These pin the bridge between
+// the two, not the controls' own arithmetic -- that lives in controls.test.mjs.
+
+test('switching a control on fills the picker with its tags', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'meta-offense' });
+    const picked = ui.state.sel.filter(x => x != null).map(i => ui.chips[i].label);
+    assert.deepEqual(picked, ['Offensive Ability', 'Attack Speed', 'Crit Damage'],
+      'meta offense did not land in the picker');
+    assert.equal(ui.state.weights[0], 3, 'the control\'s weight was not applied');
+  } finally { s.restore(); }
+});
+
+test('a control\'s tags are ordinary tags you can still edit', () => {
+  // The whole design: a control proposes, it does not take the picker away. If these
+  // stop behaving like hand-picked tags, the "playground not checklist" line is broken.
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'turtle' });
+    click({ setw: '0:1' });
+    assert.equal(ui.state.weights[0], 1, 'could not change a weight a control set');
+    // `button: 1` because the remove handler reaches its target through
+    // closest('button'), which the harness only matches when the dataset says so.
+    click({ rm: '1', button: 1 });
+    assert.equal(ui.state.sel[1], null, 'could not remove a tag a control chose');
+  } finally { s.restore(); }
+});
+
+test('switching a control off leaves your tags alone', () => {
+  // Turning a control off should not throw away a selection you may have edited by
+  // hand. Clearing would be the destructive reading of an undo.
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'meta-offense' });
+    const before = ui.state.sel.filter(x => x != null).length;
+    click({ ctl: 'meta-offense' });
+    assert.equal(ui.state.controls.length, 0, 'the control stayed on');
+    assert.equal(ui.state.sel.filter(x => x != null).length, before,
+      'switching a control off cleared the tags it had proposed');
+  } finally { s.restore(); }
+});
+
+test('the resistance equaliser only acts once it has numbers', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'resist-equalizer' });
+    assert.equal(ui.state.sel.filter(x => x != null).length, 0,
+      'the equaliser guessed tags before being given any resistances');
+
+    // Type a dire chaos resistance, as the form would.
+    change({ ctlin: 'chaos', value: '15' });
+    const picked = ui.state.sel.filter(x => x != null).map(i => ui.chips[i].label);
+    assert.deepEqual(picked, ['Chaos Resistance'], 'a typed resistance produced no tag');
+    assert.equal(ui.state.weights[0], 3, 'a 15% resistance should be weighted hardest');
+  } finally { s.restore(); }
+});
+
+test('control inputs belong to the character, not the app', () => {
+  // Your resistances are a fact about THIS character's gear. Carrying them to another
+  // character would be worse than losing them: they would look authoritative.
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'resist-equalizer' });
+    change({ ctlin: 'aether', value: '20' });
+    const first = ui.charList()[0].id;
+
+    ui.addChar({});
+    assert.equal(ui.state.controls.length, 0, 'a new character inherited a control');
+    assert.deepEqual(ui.state.controlInputs, {}, 'a new character inherited resistances');
+
+    ui.switchChar(first);
+    assert.deepEqual(ui.state.controls, ['resist-equalizer'], 'the control did not come back');
+    assert.equal(ui.state.controlInputs.aether, 20, 'the resistances did not come back');
+  } finally { s.restore(); }
+});
+
+test('a control\'s inputs are only shown while it is on', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.doesNotMatch(app.innerHTML, /data-ctlin/, 'inputs shown for a control that is off');
+    click({ ctl: 'resist-equalizer' });
+    ui.render();
+    assert.match(app.innerHTML, /data-ctlin="chaos"/, 'no inputs shown for the active control');
   } finally { s.restore(); }
 });

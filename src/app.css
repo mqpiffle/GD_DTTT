@@ -131,8 +131,37 @@
 body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-family:system-ui,sans-serif;
   font-size:var(--fs-base);line-height:1.5}
 *{box-sizing:border-box}
-.wrap{max-width:900px;margin:0 auto}
-.col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.wrap{max-width:1160px;margin:0 auto}
+/* Three columns: intent, then what you asked for, then what you got. The controls
+   column is fixed and narrow because it is a list of switches, not content -- letting
+   it flex would take width from the two panes that actually hold things. The 900px
+   canvas grew to 1160 to pay for it, which leaves the original two panes their width. */
+.col{display:grid;grid-template-columns:236px minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+/* Controls decide the tags, which decide the path, so the lock freezes them along with
+   everything else that shapes the build. Same scrim as the selection column. */
+.ctlpane{position:relative}
+.ctlpane.locked::after{content:'';position:absolute;inset:-4px;z-index:2;
+  background:var(--overlay-locked);border-radius:10px;pointer-events:none}
+.ctl{display:block;width:100%;text-align:left;margin:0 0 6px;padding:9px 11px;border-radius:8px;
+  border:1px solid var(--line-4);background:var(--surface-2);color:var(--ink-3);
+  font:inherit;cursor:pointer}
+.ctl b{display:block;font-size:var(--fs-base);font-weight:600;color:var(--ink-1)}
+.ctl:hover:not([disabled]){border-color:var(--ink-9);background:var(--surface-8)}
+/* An engaged control takes the app's white-border treatment, the same as a lit scoring
+   tile, so "this is on" means one thing everywhere. */
+.ctl.on{border-color:var(--ink-1);background:var(--surface-9)}
+.ctl[disabled]{opacity:.5;cursor:default}
+/* A control's inputs appear only while it is on, indented under it so they read as
+   belonging to it rather than as a separate panel. */
+.ctlin{margin:-2px 0 10px;padding:8px 10px;border:1px solid var(--line-8);
+  border-top:0;border-radius:0 0 8px 8px;background:var(--surface-1)}
+.ctlin label{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:var(--fs-sm);color:var(--ink-6);margin:0 0 4px}
+.ctlin input{width:62px;flex:none;box-sizing:border-box;padding:2px 6px;border-radius:5px;
+  border:1px solid var(--line-4);background:var(--surface-6);color:var(--ink-1);
+  font:inherit;font-size:var(--fs-sm);text-align:right}
+.ctlin input:focus{outline:none;border-color:var(--ink-1)}
+.ctlnote{margin:6px 0 0;font-size:var(--fs-sm);line-height:1.45;color:var(--accent-warn)}
 /* The global bar. Above both panes because a character is the scope they sit inside --
    the left is what you asked for, the right is what you got, and both belong to
    whichever character is selected.

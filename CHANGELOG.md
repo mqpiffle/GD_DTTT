@@ -4,6 +4,24 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.3.1 — 2 Aug 2026
+
+**Controls.** A new column on the left holds four ways of saying what you want, which
+then fill the tag picker for you: meta offense, turtle mode, attributes first, and a
+resistance equaliser. They stack, in the order you switch them on, and a tag two
+controls both want keeps the higher of the two weights rather than counting twice.
+
+The equaliser asks for the ten numbers off your character sheet rather than deriving
+them from a save. Item affix values are rolled per item from a seed, so deriving them
+would mean reimplementing the game's RNG, and the sheet's numbers are better anyway:
+they already include conversions, set bonuses, augments and skill buffs. Fire, cold and
+lightning share one entry, because ELEMENTAL RESISTANCE is the only chip the tree
+offers — the weakest of the three drives the weight. A resistance at 75 or above is
+ignored.
+
+Controls propose; they never overrule you. What they place lands in the picker where
+you can edit it, and switching the last one off leaves your tags where they are.
+
 ## 0.3.0 — 2 Aug 2026
 
 **A Grim Dawn save can be read.** `readCharacter()` returns the character's name, class,

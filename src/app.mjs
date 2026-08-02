@@ -16,6 +16,7 @@ import { buildDb, priorityFor } from './lib/select.mjs';
 import { solveBest, blockedPowers } from './lib/solver.mjs';
 import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
+import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
 
 const MAX = 5;
 // [button label, tooltip]. The label is short enough to read as a tile; the
@@ -110,6 +111,13 @@ const state = {
   // Renaming swaps the switcher for a text field in place. Transient: an interrupted
   // rename should not survive a reload as a half-open control.
   renaming: false,
+  // --- controls ---------------------------------------------------------------
+  // Which controls are switched on, in the order they were switched on. Order is
+  // priority: at the five-tag limit the earlier one keeps its tags.
+  controls: [],
+  // Numbers a control asked for -- currently the ten resistances off your character
+  // sheet. Kept per character, because they describe that character's gear.
+  controlInputs: {},
   // Power chips that can no longer fit alongside what's already chosen. Computed after
   // the solve rather than inside it -- the sweep costs ~250ms, which would be felt on
   // every keystroke for something that only starts blocking at four powers.
@@ -222,7 +230,8 @@ const STORE_V1 = 'gd-devotion-planner:v1';
 const STORE = 'gd-devotion-planner:v2';
 
 /** Fields owned by a character. Everything else in `state` is a preference or derived. */
-const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked'];
+const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked',
+  'controls', 'controlInputs'];
 
 let doc = null;      // { v, active, order: [id], chars: { id: {...} }, prefs: {...} }
 let charSeq = 0;
@@ -255,6 +264,10 @@ function captureChar() {
     order: state.order,
     done: [...state.done],
     locked: state.locked,
+    // A control choice and the numbers behind it belong to the character: your
+    // resistances are a fact about this character's gear, not a preference.
+    controls: [...state.controls],
+    controlInputs: { ...state.controlInputs },
   };
 }
 
@@ -278,6 +291,9 @@ function applyChar(c = {}) {
   state.orderNote = null;
   state.done = new Set(Array.isArray(c.done) ? c.done : []);
   state.locked = c.locked === true;
+  state.controls = Array.isArray(c.controls) ? [...c.controls] : [];
+  state.controlInputs = (c.controlInputs && typeof c.controlInputs === 'object')
+    ? { ...c.controlInputs } : {};
   // Belongs to the character being left behind, not the one arriving.
   clearHistory();
 }
@@ -285,7 +301,7 @@ function applyChar(c = {}) {
 const blankChar = () => ({
   name: 'New character', named: false,
   tags: Array(MAX).fill(null), weights: Array(MAX).fill(DEFAULT_WEIGHT),
-  mode: 0, order: null, done: [], locked: false,
+  mode: 0, order: null, done: [], locked: false, controls: [], controlInputs: {},
 });
 
 /** A fresh document with one empty character. */
@@ -384,6 +400,30 @@ function stash() {
  * Reads the live input rather than tracking every keystroke in state: a rename is one
  * decision, and re-rendering the bar on each character typed would move the caret.
  */
+/**
+ * Push the active controls' tags into the picker and re-solve.
+ *
+ * The tags land in the ordinary slots, which is the point: a control PROPOSES. You can
+ * see what it chose, change a weight, drop one, add your own. Nothing about the picker
+ * knows a control put them there.
+ *
+ * With no controls on, this leaves your tags alone rather than clearing them -- turning
+ * a control off should not throw away a selection you may have edited by hand.
+ */
+function applyControlsToTags() {
+  const { tags } = applyControls(state.controls, { inputs: state.controlInputs });
+  if (!state.controls.length) { render(); return; }
+  state.sel = Array(MAX).fill(null);
+  state.weights = Array(MAX).fill(DEFAULT_WEIGHT);
+  tags.forEach(({ tag, weight }, i) => {
+    const idx = chips.findIndex(c => c.id === tag);
+    if (idx >= 0) { state.sel[i] = idx; state.weights[i] = clampWeight(weight); }
+  });
+  // A different set of tags is a different set of constellations.
+  dropOrder();
+  scheduleBuild();
+}
+
 function commitRename() {
   const input = app.querySelector?.('[data-cname]');
   if (input && doc) renameChar(doc.active, input.value);
@@ -1865,7 +1905,42 @@ function render() {
       aria-label="Delete character"><i class="ti ti-trash"></i></button>`;
   h += '</div>';
 
-  h += `<div class="col"><div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
+  // --- controls column --------------------------------------------------------
+  // Leftmost, because a control is upstream of everything to its right: it decides the
+  // tags, which decide the path. The three columns read left to right as intent, then
+  // what you asked for, then what you got.
+  h += `<div class="col"><div class="ctlpane${state.locked ? ' locked' : ''}">
+    <p class="lbl">Controls</p>`;
+  for (const c of CONTROLS) {
+    const on = state.controls.includes(c.id);
+    h += `<button class="ctl${on ? ' on' : ''}" data-ctl="${esc(c.id)}"${
+      state.locked ? ' disabled' : ''} aria-pressed="${on}" title="${esc(c.blurb)}">
+      <b>${esc(c.label)}</b></button>`;
+    // A control's inputs appear only when it is switched on. Asking for ten numbers
+    // from a control you have not chosen would be noise.
+    if (on && c.inputs.length) {
+      h += '<div class="ctlin">';
+      for (const i of c.inputs) {
+        const v = state.controlInputs[i.key];
+        h += `<label><span>${esc(i.label)}</span><input type="number" data-ctlin="${esc(i.key)}"
+          value="${v == null ? '' : esc(String(v))}" placeholder="—"${
+          state.locked ? ' disabled' : ''}></label>`;
+      }
+      h += '</div>';
+    }
+  }
+  if (state.controls.length) {
+    const { dropped } = applyControls(state.controls, { inputs: state.controlInputs });
+    // Say what did not fit. Silently discarding half of what was asked for is the
+    // failure this exists to avoid.
+    if (dropped.length) {
+      h += `<p class="ctlnote">${dropped.length} tag${dropped.length === 1 ? '' : 's'} did
+        not fit in ${MAX}. Turn a control off, or reorder by switching them on again.</p>`;
+    }
+  }
+  h += '</div>';
+
+  h += `<div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
     <span style="flex:1">Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
     <button class="plainbtn iconbtn" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
       title="${state.locked ? 'Locked' : 'Reset everything: tags, path and progress'}"
@@ -2364,6 +2439,17 @@ app.addEventListener('dragend', () => {
 // than folded into the click handler, because a click anywhere on a select would fire
 // before the value has moved.
 app.addEventListener('change', (e) => {
+  const ci = e.target?.closest?.('[data-ctlin]');
+  if (ci && app.contains(ci)) {
+    const raw = String(ci.value ?? '').trim();
+    // An emptied field forgets the number rather than storing zero -- zero is a real
+    // resistance value and would read as "dire" rather than "unknown".
+    if (raw === '') delete state.controlInputs[ci.dataset.ctlin];
+    else state.controlInputs[ci.dataset.ctlin] = Number(raw);
+    applyControlsToTags();
+    return;
+  }
+
   const sw = e.target?.closest?.('[data-cswitch]');
   if (!sw || !app.contains(sw)) return;
   if (switchChar(sw.value)) { state.renaming = false; scheduleBuild(); }
@@ -2424,6 +2510,19 @@ app.addEventListener('click', e => {
   const cx = e.target.closest('[data-cdel]');
   if (cx && app.contains(cx)) {
     if (charList().length > 1) { state.dialog = 'delchar'; render(); }
+    return;
+  }
+
+  const ct = e.target.closest('[data-ctl]');
+  if (ct && app.contains(ct)) {
+    if (state.locked) return;
+    const id = ct.dataset.ctl;
+    // Switching a control off and on again moves it to the end, which is how you
+    // reorder priority without a second control for doing so.
+    state.controls = state.controls.includes(id)
+      ? state.controls.filter(x => x !== id)
+      : [...state.controls, id];
+    applyControlsToTags();
     return;
   }
 
