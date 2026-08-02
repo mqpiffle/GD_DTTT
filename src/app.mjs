@@ -1575,18 +1575,21 @@ function render() {
         ? 'Your own order. Click to go back to the one the solver chose'
         : state.plain
           ? 'Drag a row to move it. The path re-plans around it, pulling in whatever it needs first'
-          : 'Switch to Overview to drag steps into your own order'}"><i
+          : 'Switch to Overview to drag steps into your own order'}"
+      aria-label="${state.order ? 'Clear your custom order' : 'Custom order'}"><i
       class="ti ti-arrows-sort"></i> ${state.order ? 'Custom order' : 'Order'}</button>
-    <button class="plainbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
+    <button class="plainbtn iconbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
       aria-pressed="${state.locked}"
+      aria-label="${state.locked ? 'Unlock the build' : 'Lock the build'}"
       title="${state.locked
         ? 'Locked -- tick the next star or un-tick the last one. Click to unlock and change the build'
         : 'Lock the build: everything goes read-only except ticking off the next star'}"><i
-      class="ti ti-lock${state.locked ? '' : '-open'}"></i> ${state.locked ? 'Locked' : 'Lock'}</button>
-    <button class="plainbtn" data-resetprogress="1"${state.locked || !state.done.size ? ' disabled' : ''}
+      class="ti ti-lock${state.locked ? '' : '-open'}"></i></button>
+    <button class="plainbtn iconbtn" data-resetprogress="1"${state.locked || !state.done.size ? ' disabled' : ''}
+      aria-label="Clear progress"
       title="${state.locked ? 'Locked' : state.done.size
         ? `Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'} bought) -- tags and plan stay`
-        : 'No progress to clear'}"><i class="ti ti-refresh"></i> Reset</button>
+        : 'No progress to clear'}"><i class="ti ti-refresh"></i></button>
     <button class="plainbtn${state.plain ? ' on' : ''}" data-plain="1"
       title="${state.plain
         ? 'Back to one card per step, with the stars to click'

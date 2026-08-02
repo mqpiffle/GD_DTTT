@@ -402,6 +402,15 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .plainbtn.on{border-color:var(--ink-1);color:var(--ink-1)}
 .plainbtn[disabled]{opacity:.35;cursor:default}
 .plainbtn i{font-size:var(--fs-sm);vertical-align:-2px;margin-right:1px}
+/* Icon-only variant. The Devotions header had four labelled controls competing with
+   the section title; Lock and Reset are the two whose icons carry the meaning on their
+   own -- a padlock and a refresh arrow need no gloss, where "Order" and
+   "Overview/Detail" both name a thing you cannot draw.
+   Square padding rather than the pill's 3px/9px, and the icon loses the right margin
+   that only existed to separate it from a label. `aria-label` and `title` carry
+   everything the words did, so nothing is lost to a screen reader or a hover. */
+.plainbtn.iconbtn{padding:3px 6px;line-height:1}
+.plainbtn.iconbtn i{margin-right:0}
 /* Engaged, the lock is the one control in the header that must read at a glance from
    across the room -- half the page is greyed out and this is the thing that explains
    why. It takes the success green rather than a new hue: nothing is wrong, something
