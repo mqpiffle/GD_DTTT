@@ -218,6 +218,17 @@ function skipBlock(r, len) {
  */
 export function readCharacterSummary(bytes) {
   const r = new Reader(bytes);
+  return readSummary(r);
+}
+
+/**
+ * The header and bio, from a reader positioned at the very start.
+ *
+ * Split out so `readCharacter` can carry on from where this stops. The reader's
+ * position and key ARE the parse state -- there is no seeking back -- so anything that
+ * reads further has to continue from the same reader rather than start a new one.
+ */
+function readSummary(r) {
   r.begin();
 
   if (r.int() !== MAGIC) throw new Error('not a Grim Dawn character file');
@@ -285,4 +296,131 @@ export function readCharacterSummary(bytes) {
   return { name, sex, classId, level, hardcore, fileVersion, version, bio, at: r.pos };
 }
 
-export const __test = { Reader, MAGIC, XOR_KEY, PRIME, skipBlock };
+
+/** Open a block: returns its id, declared length, and where the payload starts. */
+function openBlock(r) {
+  const id = r.int();
+  const len = r.int({ advance: false });
+  if (len < 0 || r.pos + len > r.data.length) {
+    throw new Error(`block ${id} claims ${len} bytes, which runs past the end of the file`);
+  }
+  return { id, len, start: r.pos };
+}
+
+/** Run to a block's declared end and consume its marker. */
+function closeBlock(r, b) {
+  while (r.pos < b.start + b.len) r.byte();
+  if (r.int({ advance: false }) !== 0) {
+    throw new Error(`block ${b.id} did not end where its length said`);
+  }
+}
+
+/** A nested block whose contents are of no interest. */
+function skipNested(r) {
+  closeBlock(r, openBlock(r));
+}
+
+/**
+ * Walk from the bio to the skill list, which is where devotions live.
+ *
+ * Every block between here and there is skipped, but two of them are CONTAINERS and
+ * cannot be skipped flat -- see skipBlock() for why nested blocks break a byte-by-byte
+ * skip. Both need only their own header fields read; their nested blocks are then
+ * skipped by length, so no item is ever parsed.
+ *
+ *   3  inventory  version, allGood, numSacks, focused, selected, then N sack blocks,
+ *                 then a flat equipment tail
+ *   4  stash      version, numTabs, then N tab blocks
+ *   5  respawn    flat        6  teleport   flat
+ *   7  markers    flat       17  shrines    flat
+ *   8  SKILLS     what we came for
+ */
+function walkToSkills(r) {
+  const inv = openBlock(r);
+  if (inv.id !== 3) throw new Error(`expected the inventory block, found ${inv.id}`);
+  r.int();                       // version
+  r.bool();                      // allGood
+  const sacks = r.int();
+  r.int(); r.int();              // focused, selected
+  for (let i = 0; i < sacks; i++) skipNested(r);
+  closeBlock(r, inv);            // the equipment tail is flat
+
+  const stash = openBlock(r);
+  if (stash.id !== 4) throw new Error(`expected the stash block, found ${stash.id}`);
+  r.int();                       // version
+  const tabs = r.int();
+  for (let i = 0; i < tabs; i++) skipNested(r);
+  closeBlock(r, stash);
+
+  // Four flat lists. Their ids are checked rather than assumed, because arriving at the
+  // wrong block is the symptom of a desynchronised key and it should say so here rather
+  // than produce nonsense skills.
+  for (const expect of [5, 6, 7, 17]) {
+    const b = openBlock(r);
+    if (b.id !== expect) throw new Error(`expected block ${expect}, found ${b.id}`);
+    closeBlock(r, b);
+  }
+
+  const skills = openBlock(r);
+  if (skills.id !== 8) throw new Error(`expected the skill block, found ${skills.id}`);
+  return skills;
+}
+
+/**
+ * Every skill the character has a record for, devotions included.
+ *
+ * A skill is: name (a DBR path), level, enabled, then a fixed 15-byte tail and two
+ * strings. iagd's tail is 14 bytes; Fangs of Asterkarn added one. Found by reading a
+ * name, then scanning forward a byte at a time for the offset at which the NEXT value
+ * decodes as a string beginning "records/" -- 23 bytes, of which 8 are the two empty
+ * strings, leaving 15.
+ *
+ * `level` is what matters: a devotion star is 1 when bought and 0 when not, and the
+ * levels of the devotion entries sum to the points spent.
+ */
+function readSkills(r, block) {
+  const version = r.int();
+  if (version !== 8) throw new Error(`unsupported skill-block version ${version}`);
+  const count = r.int();
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const name = r.string();
+    const level = r.int();
+    const enabled = r.byte() === 1;
+    for (let k = 0; k < 15; k++) r.byte();
+    r.string();                  // autocast skill
+    r.string();                  // autocast controller
+    out.push({ name, level, enabled });
+  }
+  // The block runs on past the skills -- iagd has a commented-out item-skill section
+  // there. Nothing needs it, and stopping short is fine because the caller does not
+  // read anything after.
+  return out;
+}
+
+const DEVOTION_PREFIX = 'records/skills/devotion/';
+
+/**
+ * A character's summary plus the devotion stars they have actually bought.
+ *
+ * The stars come back as DBR paths, which is deliberate: `devotions.raw.json` stores
+ * exactly the same string as each star's `ref`, so matching a save onto the planner's
+ * stars is a lookup rather than a matching problem.
+ *
+ * VERIFIED against a real save. Farker, level 28, has 12 devotion records of which 9
+ * are at level 1, summing to the 9 points the game reports as spent. Reconstructing
+ * affinity from the completed constellations gives 1 ascendant and 6 primordial, which
+ * is exactly what the devotion screen shows.
+ */
+export function readCharacter(bytes) {
+  const r = new Reader(bytes);
+  const summary = readSummary(r);
+  const block = walkToSkills(r);
+  const skills = readSkills(r, block);
+  const devotions = skills
+    .filter(s => s.name.startsWith(DEVOTION_PREFIX) && s.level > 0)
+    .map(s => s.name);
+  return { ...summary, devotions, skills };
+}
+
+export const __test = { Reader, MAGIC, XOR_KEY, PRIME, skipBlock, walkToSkills, readSkills };

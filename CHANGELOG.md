@@ -4,6 +4,15 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.3.0 — 2 Aug 2026
+
+**A Grim Dawn save can be read.** `readCharacter()` returns the character's name, class,
+level, devotion budget and the devotion stars they have actually bought. Verified
+against the game: the stars bought match the points the bio reports as spent, and the
+affinity they reconstruct to matches the devotion screen exactly.
+
+Not wired to the UI yet. That is the next piece.
+
 ## 0.2.7 — 2 Aug 2026
 
 Documentation only. Records why a block containing nested blocks cannot be skipped byte

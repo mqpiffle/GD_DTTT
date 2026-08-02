@@ -15,7 +15,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterSummary, __test } from './gdc.mjs';
+import { readCharacterSummary, readCharacter, __test } from './gdc.mjs';
 
 const { MAGIC, XOR_KEY, PRIME } = __test;
 
@@ -277,4 +277,61 @@ test('a real save reads with plausible values', { skip: !fs.existsSync(REAL) && 
     + `which a level ${c.level} character could not have earned`);
 
   assert.ok(c.bio.health > 0 && c.bio.energy > 0, 'health and energy should be positive');
+});
+
+test('a real save yields the devotions the character has bought', { skip: !fs.existsSync(REAL) && 'no player.gdc alongside the repo' }, () => {
+  const c = readCharacter(fs.readFileSync(REAL));
+
+  assert.ok(c.skills.length > 0, 'no skills parsed at all');
+  assert.ok(c.skills.every(s => s.name.startsWith('records/')),
+    'a skill name is not a record path, so the skill records are misaligned');
+
+  // The count is checkable against the bio, which is parsed hundreds of bytes earlier
+  // and by completely separate code. A devotion star is level 1 when bought, so the
+  // number bought must equal the points the bio says are spent.
+  const spent = c.bio.totalDevotion - c.bio.devotionPoints;
+  assert.equal(c.devotions.length, spent,
+    `${c.devotions.length} devotion stars bought but the bio says ${spent} points are spent`);
+  assert.ok(c.devotions.every(d => d.startsWith('records/skills/devotion/')));
+});
+
+test('the devotions map onto the planner\'s own stars', { skip: !fs.existsSync(REAL) && 'no player.gdc alongside the repo' }, () => {
+  // The whole reason the stars come back as DBR paths: devotions.raw.json stores the
+  // same string as each star's `ref`, so this is a lookup rather than a matching
+  // problem. If that ever stops being true, import breaks here rather than silently
+  // importing nothing.
+  const rawPath = path.join(import.meta.dirname, '../../devotions.raw.json');
+  if (!fs.existsSync(rawPath)) return;   // raw extract is gitignored; skip where absent
+  const raw = JSON.parse(fs.readFileSync(rawPath, 'utf8'));
+  const byRef = new Map();
+  for (const con of raw) for (const st of con.stars) byRef.set(st.ref, { con, st });
+
+  const c = readCharacter(fs.readFileSync(REAL));
+  for (const d of c.devotions) {
+    assert.ok(byRef.has(d), `no star in devotions.raw.json matches ${d}`);
+  }
+
+  // And the strongest check available: rebuild the character's AFFINITY from the stars
+  // and compare it with the game. Affinity lands only on a completed constellation, so
+  // this exercises the star-to-constellation mapping, the completion rule and the grant
+  // table at once -- none of which the parser knows anything about.
+  //
+  // Keyed by constellation ID, not name: the five Crossroads all display as
+  // "Crossroads", and keying by name silently merges them. That cost an ascendant point
+  // and looked like a parse error.
+  const taken = new Map();
+  for (const d of c.devotions) {
+    const { con } = byRef.get(d);
+    taken.set(con.id, (taken.get(con.id) ?? 0) + 1);
+  }
+  const held = {};
+  for (const [id, n] of taken) {
+    const con = raw.find(x => x.id === id);
+    if (n < con.starCount) continue;      // partial takes grant nothing
+    for (const [k, v] of Object.entries(con.granted ?? {})) held[k] = (held[k] ?? 0) + v;
+  }
+  const total = Object.values(held).reduce((a, b) => a + b, 0);
+  assert.ok(total > 0, 'no affinity reconstructed; the completion rule is not firing');
+  assert.ok(total <= c.bio.totalDevotion,
+    `${total} affinity from ${c.bio.totalDevotion} points earned is impossible`);
 });
