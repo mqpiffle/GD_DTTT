@@ -33,6 +33,9 @@
   "conversionPercentage": "{0}% Damage Conversion",
 
   "_comment_dot_resist_durations": "Resistance to the DURATION of an incoming DoT, distinct from resisting its damage.",
+  "_comment_heal_duration": "Fangs of Asterkarn turned Wayward Soul (Chariot of the Dead) from a flat heal into a percentage heal spread over a duration -- skillLifeBonus out, skillLifePercentBuffDuration in. iagd has no label for it because no ITEM grants one. Only star in the tree that carries it.",
+  "skillLifePercentBuffDuration": "{0} Second Heal Duration",
+
   "defensiveBleedingDuration": "{0}% Reduced Bleeding Duration",
   "defensiveColdDuration": "{0}% Reduced Frost Duration",
   "defensiveFireDuration": "{0}% Reduced Burn Duration",

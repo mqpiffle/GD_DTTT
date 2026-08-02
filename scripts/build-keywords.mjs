@@ -141,7 +141,16 @@ function finish(map, space) {
       : (c.merged || c.stars.size >= (BROWSE_MIN_STARS[space] ?? 5)),
   }));
 
-  out.sort((a, b) => b.starCount - a.starCount || a.keyword.localeCompare(b.keyword));
+  // Null-safe on `keyword`, and deliberately so. A field with no label sorts last
+  // rather than crashing the build: reconcile-labels.mjs already reports gaps into
+  // label-review.json, which is the designed channel for them, and a stack trace out
+  // of Array.sort is a worse signal than a finished build plus a named warning below.
+  //
+  // This bit for real. Merging gdx3 introduced exactly one new stat field
+  // (skillLifePercentBuffDuration, on Wayward Soul) and the whole pipeline stopped on
+  // `null.localeCompare`, several steps away from anything that mentioned it.
+  out.sort((a, b) => b.starCount - a.starCount
+    || (a.keyword ?? '\uffff').localeCompare(b.keyword ?? '\uffff'));
   return out;
 }
 
@@ -162,6 +171,14 @@ for (const ns of ['character', 'pet']) {
     + ` | search-only ${String(a.length - browse.length).padStart(3)} | merged ${merged.length}`
     + ` | unnamed ${a.filter(x => !x.keyword).length}`,
   );
+}
+const unlabelled = [...result.character, ...result.pet].filter(x => !x.keyword);
+if (unlabelled.length) {
+  console.log();
+  console.log(`WARNING: ${unlabelled.length} field famil${unlabelled.length === 1 ? 'y has' : 'ies have'} no label.`);
+  console.log('Add them to labels.extra.json (never labels.json, which is regenerated):');
+  for (const u of unlabelled) console.log(`  ${u.id}  -- ${u.starCount} star(s)`);
+  console.log();
 }
 console.log('written to', outPath);
 console.log();

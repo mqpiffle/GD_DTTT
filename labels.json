@@ -832,6 +832,7 @@
  "skillCooldownTime": "{0} Seconds Skill Recharge",
  "skillLifeBonus": "{0} Health Restored",
  "skillLifePercent": "{0}% Health Restored",
+ "skillLifePercentBuffDuration": "{0} Second Heal Duration",
  "skillManaCost": "{0} Energy Cost",
  "skillManaCostReduction": "-{0} Energy Cost",
  "skillProjectileNumber": "{0} Projectile",

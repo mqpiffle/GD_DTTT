@@ -2502,6 +2502,24 @@
    "browsable": false
   },
   {
+   "id": "skillLifePercentBuffDuration",
+   "keyword": "Second Heal Duration",
+   "namespace": "character",
+   "category": "Leech & Sustain",
+   "merged": false,
+   "searchTerms": [
+    "Second Heal Duration"
+   ],
+   "fields": [
+    "skillLifePercentBuffDuration"
+   ],
+   "starCount": 1,
+   "constellationCount": 1,
+   "passiveStarCount": 0,
+   "procOnly": true,
+   "browsable": false
+  },
+  {
    "id": "skillTargetNumber",
    "keyword": "Target Cap",
    "namespace": "character",
