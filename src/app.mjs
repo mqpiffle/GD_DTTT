@@ -957,7 +957,8 @@ function cpBadge(p, c, refund, stars) {
     : false;
   const tip = c.powerStar
     ? tipData(c.starNames?.[c.powerStar - 1] || c.name,
-              c.powerEffects?.[c.powerStar - 1], { proc: true })
+              c.powerEffects?.[c.powerStar - 1],
+              { proc: true, note: taken ? '' : 'Not scheduled to pick' })
     : '';
   // No native `title` on the dimmed one. The dimming says it, and a browser tooltip
   // fires on the same hover as the styled one -- so the two stacked, with the native
@@ -1140,15 +1141,15 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
     `${p.name} — ${takenIdx.length} of ${c.starCount} stars`,
     totals.map(l => [l.tmpl, l.v, l.v2 ?? 0, l.chip ?? 0]));
   // The CP badge gets the power's own tooltip, separate from the passives.
-  const powerTip = c.powerStar ? tipData(
-    c.starNames?.[c.powerStar - 1] || c.name, c.powerEffects?.[c.powerStar - 1],
-    { proc: true }) : '';
+  // Same badge as Overview, from the same builder, so the two views cannot disagree
+  // about whether a power is actually being taken.
+  const cpb = cpBadge(p, c, refund, stars);
 
   return `<div class="${cls}"${attrs}>
       <div class="step">
         <span class="num">${complete ? '<i class="ti ti-check" style="color:var(--accent-success)"></i>' : num}</span>
         <span class="body"><span class="nmrow"><span class="nm"${titleTip}>${esc(p.name)}</span>${
-          c.hasPower && !refund ? `<span class="cp"${powerTip}>CP</span>` : ''}<span class="n">${
+          cpb}<span class="n">${
           esc(detail)}</span>${affRow}</span></span>
       </div>${stars.html && !complete ? `<div class="stars">${stars.html}</div>` : ''}
     </div>`;
@@ -1355,14 +1356,15 @@ function wantedWeights() {
  * arrays don't survive that. `␟` (unit separator) is used between fields since it
  * cannot occur in a stat string.
  */
-function tipData(head, packed, { proc = false } = {}) {
+function tipData(head, packed, { proc = false, note = '' } = {}) {
   const weights = wantedWeights();
   const lines = (packed ?? []).map(proc ? unpackProc : unpackLine).map((l) => {
     const w = l.chip ? weights.get(l.chip) : null;
     return `${w ?? 0}␟${renderLine(l)}`;
   });
   if (!lines.length) return '';
-  return ` data-fx="${esc(lines.join('\n'))}"${head ? ` data-fxhead="${esc(head)}"` : ''}`;
+  return ` data-fx="${esc(lines.join('\n'))}"${head ? ` data-fxhead="${esc(head)}"` : ''}${
+    note ? ` data-fxnote="${esc(note)}"` : ''}`;
 }
 /**
  * A tooltip whose lines are already plain text.
@@ -2061,7 +2063,16 @@ function showTip(row) {
   // Each line arrives as "weight␟text". A non-zero weight means this bonus serves a tag
   // you asked for, so it gets a pill in that tag's colour -- the same red/amber/green
   // the stars use, so the two readouts agree without a legend.
+  // The note sits on its own line under the heading, not beside it. Beside it competes
+  // with the power's name for width, and those run long -- "Amatok the Spirit of Winter"
+  // against a pill is a squeeze at best and a wrap at worst.
+  //
+  // Still not a bullet, though: it is a fact about the SUBJECT -- whether this power is
+  // in the build at all -- rather than one of the effects listed beneath, and a bullet
+  // would file it as one of them.
+  const note = row.dataset.fxnote;
   tip.innerHTML = (head ? `<b>${esc(head)}</b>` : '')
+    + (note ? `<span class="tnote">${esc(note)}</span>` : '')
     + lines.map((l) => {
       const cut = l.indexOf('␟');
       const w = cut < 0 ? 0 : Number(l.slice(0, cut)) || 0;

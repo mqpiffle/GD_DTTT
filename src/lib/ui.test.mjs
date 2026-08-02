@@ -2433,28 +2433,36 @@ test('the CP badge is lit only where the build reaches the power star', () => {
     ui.load();
     const p = plan([['Chaos Damage'], ['Shield Damage Blocked']], 0);
     ui.state.done = new Set();
-    ui.state.plain = true;
-    ui.render();
 
-    const rows = [...app.innerHTML.matchAll(
-      /<span class="pnm">([^<]*)(?:<span class="cp( off)?"[^>]*>CP<\/span>)?/g)];
-    let lit = 0, dim = 0, checked = 0;
-    for (const e of p.solution) {
-      const c = ui.db.constellations[e.id];
-      if (!c.hasPower || !c.powerStar) continue;
-      checked++;
-      const takesPower = (e.stars ?? []).includes(c.powerStar);
-      const row = rows.find(r => r[1].trim() === c.name);
-      assert.ok(row, `no Overview row for ${c.name}`);
-      const isDim = row[2] === ' off';
-      assert.equal(isDim, !takesPower,
-        `${c.name}: badge ${isDim ? 'dimmed' : 'lit'} but the build ${takesPower ? 'does' : 'does not'} take its power star`);
-      takesPower ? lit++ : dim++;
+    // Both views, from the same builder, so they cannot disagree about whether a power
+    // is actually being taken.
+    for (const plain of [true, false]) {
+      ui.state.plain = plain;
+      ui.render();
+      const view = plain ? 'Overview' : 'Detail';
+      let lit = 0, dim = 0, checked = 0;
+      for (const e of p.solution) {
+        const c = ui.db.constellations[e.id];
+        if (!c.hasPower || !c.powerStar) continue;
+        checked++;
+        const takesPower = (e.stars ?? []).includes(c.powerStar);
+        // Find the badge that follows this constellation's name, whichever view it is.
+        // `>Name` without a closing bracket: the badge follows the name after a
+        // space, so `>Name<` matched only the rows that have no badge at all.
+        const at = app.innerHTML.indexOf(`>${c.name}`);
+        assert.ok(at >= 0, `${view}: no row for ${c.name}`);
+        const after = app.innerHTML.slice(at, at + 400);
+        const badge = /<span class="cp( off)?"/.exec(after);
+        assert.ok(badge, `${view}: no CP badge on ${c.name}`);
+        const isDim = badge[1] === ' off';
+        assert.equal(isDim, !takesPower,
+          `${view}/${c.name}: badge ${isDim ? 'dimmed' : 'lit'} but the build ${takesPower ? 'does' : 'does not'} take its power star`);
+        takesPower ? lit++ : dim++;
+      }
+      assert.ok(checked > 0, `${view}: fixture has no constellation with a power`);
+      assert.ok(lit > 0, `${view}: no power taken, so a lit badge is untested`);
+      assert.ok(dim > 0, `${view}: no power skipped, so a dimmed badge is untested`);
     }
-    assert.ok(checked > 0, 'this fixture has no constellation with a power');
-    assert.ok(lit > 0, 'no power was taken, so a lit badge is untested');
-    assert.ok(dim > 0, 'no power was skipped, so a dimmed badge is untested');
-
     ui.state.plain = false;
   } finally { s.restore(); }
 });
@@ -2481,6 +2489,35 @@ test('both CP badges carry the power tooltip, and only that tooltip', () => {
         `a ${b[1] ? 'dimmed' : 'lit'} CP badge carries a native title that will cover the styled one`);
     }
     assert.ok(badges.some(b => b[1]), 'no dimmed badge in this fixture; the title check is untested');
+    ui.state.plain = false;
+  } finally { s.restore(); }
+});
+
+test('only the unreached power carries the "not scheduled" note', () => {
+  // The note rides on the tooltip's heading line rather than becoming another bullet:
+  // it describes the power itself, not one of the effects listed beneath it.
+  const s = withStore();
+  try {
+    ui.load();
+    const p = plan([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+    ui.state.done = new Set();
+
+    for (const plain of [true, false]) {
+      ui.state.plain = plain;
+      ui.render();
+      const view = plain ? 'Overview' : 'Detail';
+      for (const e of p.solution) {
+        const c = ui.db.constellations[e.id];
+        if (!c.hasPower || !c.powerStar) continue;
+        const at = app.innerHTML.indexOf(`>${c.name}`);
+        const badge = /<span class="cp( off)?"([^>]*)>/.exec(app.innerHTML.slice(at, at + 400));
+        assert.ok(badge, `${view}: no CP badge on ${c.name}`);
+        const takesPower = (e.stars ?? []).includes(c.powerStar);
+        const hasNote = /data-fxnote="Not scheduled to pick"/.test(badge[2]);
+        assert.equal(hasNote, !takesPower,
+          `${view}/${c.name}: note ${hasNote ? 'present' : 'absent'} but the power ${takesPower ? 'is' : 'is not'} taken`);
+      }
+    }
     ui.state.plain = false;
   } finally { s.restore(); }
 });

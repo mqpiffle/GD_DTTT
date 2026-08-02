@@ -79,6 +79,7 @@
   --accent-current:#90c5df;        --accent-current-bright:#c2e0f0;
   --accent-current-muted:#4b809b;
   --accent-power:#7fffd4;         --accent-power-dim:#4f6a64;
+  --tint-power-dim:rgba(79,106,100,.16);
 
   /* Glows: the rgba() form of each accent, for text-shadow and box-shadow. Kept
      as their own literals rather than derived from the accent hex (no color-mix()
@@ -289,8 +290,18 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .tip.prose span{white-space:normal;overflow:visible;text-overflow:clip;padding-left:0;
   line-height:1.45}
 .tip.prose span::before{content:none}
-.tip b{display:block;margin-bottom:6px;color:var(--accent-power);font-weight:600;font-size:var(--fs-base);
-  letter-spacing:.04em;text-transform:uppercase}
+.tip b{display:block;margin-bottom:6px;color:var(--accent-power);font-weight:600;
+  font-size:var(--fs-base);letter-spacing:.04em;text-transform:uppercase}
+/* "Not scheduled to pick": its own line under the heading, not beside it. Power names
+   run long -- "Amatok the Spirit of Winter" -- and a pill sharing that line is a
+   squeeze at best and a wrap at worst.
+   Not a bullet either, and it sits outside the bulleted list for that reason: it
+   describes the power, not one of the effects listed beneath it.
+   inline-block so the pill hugs its text rather than spanning the tooltip. */
+.tip .tnote{display:inline-block;margin:-2px 0 8px;font-size:var(--fs-xs);font-weight:500;
+  letter-spacing:.04em;text-transform:none;padding:2px 8px;border-radius:999px;
+  background:var(--tint-power-dim);border:1px solid var(--accent-power-dim);
+  color:var(--accent-power-dim)}
 /* One bullet column for every row, so the text starts at the same x whether or not the
    line is tagged. Padding-left plus a negative-indent bullet keeps that alignment even
    when a line wraps. */
