@@ -218,6 +218,74 @@ stars", and it would do what more weight levels cannot.
 
 ---
 
+## Importing a character from a save file
+
+Idea: read a `.gdc` save and use the character to seed the planner. Not started; this
+is the feasibility work so it doesn't get re-derived.
+
+### Verdict: feasible, and less of it is new code than it sounds
+
+**The parser already exists, MIT-licensed, in a repo this project already clones.**
+`iagd/Parser/Character/CharacterReader.cs` reads a whole character:
+
+- `GDCharBio` — `Level`, `DevotionPoints` (unspent), `TotalDevotion` (earned),
+  `SkillPoints`, `TotalStrength/Agility/Intelligence`, `Health`, `Energy`.
+- `GDCharSkill` — each skill's DBR path, `Level`, `DevotionLevel`, `Enabled`, plus
+  `IsDevotion` / `IsMastery` / `IsMasterySkill` / `PlayerClass` classifiers.
+- `GDInventory` — equipment as base/prefix/suffix record paths.
+
+The encryption is a table-based XOR stream (`GDCryptoDataBuffer`): key `0x55555555`,
+a 256-entry table built by rotate-right-one then multiply by `39916801`. That is about
+forty lines of JavaScript with no dependencies. Porting C# out of that repo is a road
+already travelled — `scripts/port-labels.mjs` does it for `EnglishLanguage.cs`.
+
+**The devotion mapping is a string join, not a matching problem.** `devotions.raw.json`
+keeps `star.ref` as `records/skills/devotion/tier1_01a.dbr` — the exact string the save
+stores in a skill's name, and exactly what iagd's `PATTERN_DEVOTION` matches. Worth
+confirming against a real save, since some refs carry a `_skill` suffix, but there is
+no fuzzy matching involved.
+
+**It runs client-side.** `<input type="file">` plus `FileReader`, no upload, no
+backend. Fits the static-site stack and makes the privacy story trivial.
+
+### The reframe that makes it tractable
+
+"Analyse the save and find the ideal path" sounds like a research project. It isn't,
+because **the solver already does the optimising**. What a save can supply is the two
+inputs: your point budget, and a starting set of tags. That decomposes cleanly, in
+descending order of value per unit of work:
+
+1. **Budget and current devotions — no inference at all.** Solve at *your* 23 points
+   rather than a hypothetical 55, with what you have already bought pre-ticked. This
+   is also the cheapest route into *Levelling-aware planning* above: that entry wants
+   "solve at successive budgets", and a save hands you the real one.
+2. **Masteries and skill investment → suggested tags.** Real inference, but the skill
+   damage types live in DBRs the same pipeline already reads.
+3. **Gear, conversions, actual damage numbers.** Where "ideal" overreaches — a 100%
+   fire-to-chaos conversion inverts the answer, and that needs the damage-template
+   composition work that is still outstanding.
+
+### Two things that would bite
+
+**Current stats describe what you HAVE, not what you want.** At level 30 a character's
+damage is mostly gear they will replace within the hour, so weighting tags by current
+output chases the gear rather than the build. Skill points invested in mastery skills
+is the more defensible signal, because that is a deliberate long-term choice.
+
+**It fights a stated value of this project.** The tool is a playground, not a
+checklist. An import that *derives* your tags takes the decision away; an import that
+*proposes* tags into the picker, which you then argue with, does not. Prefer the
+second even where the first is technically available.
+
+### Prerequisite, now known
+
+Mastery inference needs `records/skills/playerclass10` — Berserker. The extract did
+not have it until the `gdx3` gap was found on 1 Aug (see RESUME's *Game version*
+section). Without it, a Berserker character would be **silently** mis-read rather than
+loudly rejected, which is the worst failure mode available.
+
+---
+
 ## Design tokens: pull CSS into `:root` custom properties
 
 **Half done.** Font sizes (`--fs-*`, five steps) and colours (six families:
