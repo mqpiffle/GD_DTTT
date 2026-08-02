@@ -9,112 +9,127 @@ and the standing assumption — written into the header of `controls.mjs` — wa
 deriving them would mean reimplementing the game's RNG, because affix values are rolled
 per item from a seed.
 
-**That assumption was wrong.** An affix DBR does not store a range. It stores a single
-value plus `lootRandomizerJitter`, a percentage:
+**That assumption was wrong.** A record does not store a range. It stores a single value,
+and that value is the CENTRE of the roll:
 
 ```
 offensiveChaosModifier,73.000000,
 lootRandomizerJitter,10.000000,
 ```
 
-So the stored value is the CENTRE of the roll. The RNG is needed to know what one
-specific item rolled; it is not needed to know the expected value. Across all 2,686
-prefixes and suffixes the mean jitter is ~19%, most commonly 15% or 18%, with a tail to
-40%.
+The RNG is needed to know what one specific item rolled. It is not needed to know the
+expected value. Across all 2,686 prefixes and suffixes the mean jitter is ~19%, most
+commonly 15% or 18%, with a tail to 40%.
 
-And because rolls are independent, a sum of many affixes is far tighter than any one of
-them — errors add in quadrature. Five affixes at ±28% each land within about ±6% of the
-total.
+And because rolls are independent, a sum of many is far tighter than any one of them —
+errors add in quadrature. Five affixes at ±28% each land within about ±6% of the total.
+
+## Where a roll range actually comes from
+
+Three different rules, and getting this wrong was the whole of the first pass's error:
+
+| kind | range | how we know |
+|---|---|---|
+| Affixes (`lootaffixes/`) | `lootRandomizerJitter` | declared in the record |
+| Base and quest items | **±20%**, declared nowhere | read off a tooltip |
+| Components (`materia/`) | **fixed** | confirmed by arithmetic |
+
+The first pass treated anything without `lootRandomizerJitter` as fixed. Farker's Slith
+Primal Ring stores `defensiveLife,15` and the game displays
+**"13% Vitality Resistance [12-18]"** — so it rolls, 15 is the centre, and the half-width
+is 20%. The game shows these brackets in the detailed item view, which is the cheapest
+possible source of truth for this.
+
+Components being fixed is confirmed rather than assumed: the ring rolled 13 for vitality
+and the sheet reads 23, so `compb_unholyinscription` contributed exactly its stored 10.
+
+**The 20% is in no field of the record.** It is a game constant we have inferred, not
+found, and that is a known gap.
 
 ## Result: measured against a real character
 
-Farker, level 28. All 39 equipped records resolved against the extract, none missing.
-Fifteen carry resistances. Compared against the numbers off the character sheet:
+Farker, level 28, Veteran, so no difficulty penalty. All 39 equipped records resolved
+against the extract, none missing. Fifteen carry resistances.
 
-| stat | derived | sheet | error | weight derived/true |
-|---|---|---|---|---|
-| Fire | 44 | 44 | 0 | 3 / 3 |
-| Cold | 50 | 55 | −5 | 2 / 2 |
-| Lightning | 38 | 39 | −1 | 3 / 3 |
-| Poison/Acid | 73 | 75 | −2 | **1 / 0** |
-| Pierce | 51 | 56 | −5 | 2 / 2 |
-| Bleeding | 27 | 28 | −1 | 3 / 3 |
-| Vitality | 25 | 23 | +2 | 3 / 3 |
-| Aether | 34 | 32 | +2 | 3 / 3 |
-| Chaos | 8 | 10 | −2 | 3 / 3 |
-| Physical | 0 | 0 | 0 | 3 / 3 |
+| stat | derived | band | sheet | in band | weight derived/true |
+|---|---|---|---|---|---|
+| Fire | 44 | 38–50 | 45 | yes | **3 / 2** |
+| Cold | 50 | 43–57 | 55 | yes | 2 / 2 |
+| Lightning | 38 | 33–43 | 39 | yes | 3 / 3 |
+| Poison/Acid | 73 | 65–81 | 75 | yes | **1 / 0** |
+| Pierce | 51 | 46–56 | 56 | yes | 2 / 2 |
+| Bleeding | 27 | 24–30 | 28 | yes | 3 / 3 |
+| Vitality | 25 | 22–28 | 23 | yes | 3 / 3 |
+| Aether | 34 | 29–39 | 32 | yes | 3 / 3 |
+| Chaos | 8 | 6–10 | 10 | yes | 3 / 3 |
+| Physical | 0 | exact | 0 | yes | 3 / 3 |
 
-**Mean absolute error 2.0 points, maximum 5. Eight of ten fell inside the predicted
-band.**
+**Ten of ten inside the band. Mean absolute error 2.1 points. The advice agrees on 8/10.**
 
-### The number that actually matters
+The vitality residual that the first pass could not explain is now fully explained: the
+ring rolled 13 rather than its stored 15. Nothing is left unaccounted for.
 
-Raw accuracy is the wrong measure. What a control does with a resistance is bucket it —
-`resistWeight()` returns 3 below 45, 2 below 60, 1 below 75, 0 at or above. So the only
-errors that count are the ones that cross a threshold.
+## The real limitation, and it is not accuracy
 
-**The advice differs on one resistance of ten**, and it is the mildest possible
-disagreement: Poison at 73 derived versus 75 true, so the tool would say "worth one point
-of attention" where the truth is "capped, ignore it". Every other bucket is identical,
-including all four at the dire end.
+Both remaining disagreements are **boundary straddles**, not bad estimates:
 
-## The unexplained residual
+- Fire 44 derived against 45 true. `resistWeight()` switches from 3 to 2 at exactly 45.
+  One point of error, opposite sides of a line.
+- Poison 73 against 75. The cap threshold is 75. Two points of error, opposite sides.
 
-Vitality was computed as EXACT — both its sources (`compb_unholyinscription` at 10,
-`q003_ring_slithring` at 15) are fixed, no jitter — and it is still off by 2. That is the
-one result worth being uneasy about, because roll variance cannot explain it.
+This is the finding that should shape the design. **The model's error (~2 points) is the
+same size as the sharpness of the decisions being made with it.** More accuracy would not
+fix this; the buckets are simply narrower than the uncertainty near their edges.
 
-Ruled out by measurement:
+So a control should not convert a derived resistance into a hard weight and present it as
+fact. Near a threshold it should say what it actually knows — "Poison is around 73 to 75,
+call it capped" — and reserve confident advice for the cases that are not close, which
+here is eight of ten and includes every genuinely dire resistance.
 
-- **Field mapping.** All ten checked against `labels.json`; `defensiveLife` is Vitality
-  Resistance, `defensivePoison` is Acid, and so on.
-- **Negative resistances on equipped items.** None.
-- **Percentage modifiers** (`defensive*Modifier`). Only `defensiveBlockAmountModifier`
-  and `defensiveProtectionModifier` appear, neither a resistance.
-- **Elemental collapse.** The quest ring carries `defensiveElementalResistance,15`, which
-  correctly raises fire, cold and lightning together — that part of the model is right.
-
-Still unaccounted for, and any of them could be the cause: resistances granted by skills
-or mastery bars, set bonuses, and the difficulty penalty (Veteran 0, Elite −25,
-Ultimate −50). None of the three is modelled.
-
-A 2-point unexplained term is small, but "small and unexplained" is different from
-"small and understood". It should be chased before this is trusted.
+That is a better product anyway. A player who is told "your aether is 32 and that is the
+problem" is being told something true and useful; a player told "your poison is exactly
+73 so spend a point" is being told something the tool cannot know.
 
 ## How items are currently found — NOT shippable
 
 The equipped items live in the tail of block 3, which the reader skips whole. They are
 currently located by **trying every byte offset in the tail as a string** and keeping
 whatever decodes as a DBR path. That works because a Reader's entire state is `pos` plus
-a 32-bit key, so it can be snapshotted and restored, which makes speculative reads
-possible.
+a 32-bit key, so it can be snapshotted and restored, making speculative reads possible.
 
-This is good enough to answer "is the approach sound" and not good enough to ship,
-because it recovers a SET of records with no idea which item each belongs to. That is
-fine for resistances, which are purely additive, and useless for anything needing
-per-item context.
+Good enough to answer "is the approach sound"; not good enough to ship, because it
+recovers a SET of records with no idea which item each belongs to. Fine for resistances,
+which are purely additive. Useless for anything needing per-item context.
 
-The real item layout is partly mapped. Confirmed by measurement:
+The record layout is partly mapped. Confirmed by measurement:
 
 ```
 baseName, prefixName, suffixName, modifierName, transmuteName, seed, relicName, ...
 ```
 
-which matches iagd. But the record has **four more 4-byte fields than iagd's**, sitting
-after the relic fields, and they are not identified. The tail also begins with one
-leading byte before the first item, which is why an aligned read from offset 0 produces
-pure noise.
+matching iagd. But the record has **four more 4-byte fields than iagd's**, sitting after
+the relic fields, and they are not identified. The tail also begins with one leading byte
+before the first item, which is why an aligned read from offset 0 produces pure noise.
 
 ## What this does and does not license
 
 **Resistances are tractable.** Purely additive flat percentages, no conversions, no
-weapon scaling, no modifier ordering. This probe is evidence they can be derived well
-enough to drive a control.
+weapon scaling, no modifier ordering. This is evidence they can be derived well enough to
+drive a control, provided the control expresses uncertainty near thresholds.
 
-**Damage is still not.** Nothing here changes the conversion problem: an item converting
-physical to fire makes a skill's declared damage type wrong, and no amount of accuracy on
-individual values fixes a wrong type. Do not read this result as licensing "all out
-damage" from a save.
+**Damage is still not.** Nothing here touches the conversion problem: an item converting
+physical to fire makes a skill's declared damage type wrong, and accuracy on individual
+values cannot fix a wrong type. Do not read this as licensing "all out damage".
 
-**OA / DA / armor are untested.** They are additive like resistances but carry flat and
-percentage terms that apply in an order which has to be right. Plausible, unmeasured.
+**OA / DA / armor are untested.** Additive like resistances, but with flat and percentage
+terms applying in an order that has to be right. Plausible, unmeasured.
+
+## Open gaps
+
+- The ±20% default is inferred from one tooltip, not found in the data. Worth confirming
+  against a second item before relying on it.
+- Set bonuses are not modelled. Farker has none, so this probe says nothing about them.
+- Skill and mastery resistance grants are not modelled. Farker appears to have none.
+- The difficulty penalty (Veteran 0, Elite −25, Ultimate −50) is not applied. Farker is
+  on Veteran, so it never showed up here — an Elite character would be out by 25 across
+  the board.

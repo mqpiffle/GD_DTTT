@@ -54,6 +54,14 @@ const RESISTS = [
 /** Raises fire, cold and lightning together. */
 const ELEMENTAL = 'defensiveElementalResistance';
 
+/**
+ * The roll half-width for an item that declares none, as a percentage.
+ *
+ * Read off a real tooltip rather than assumed: a stored 15 displays as [12-18].
+ * Where the game gets this constant is not known -- it is in no field of the record.
+ */
+const DEFAULT_JITTER = 20;
+
 // ---------------------------------------------------------------- read the save
 
 const r = new Reader(readFileSync(savePath));
@@ -109,7 +117,19 @@ let missing = 0;
 for (const rec of records) {
   const dbr = readDbr(rec);
   if (!dbr) { missing++; continue; }
-  const jitter = num(dbr.lootRandomizerJitter) / 100;
+  // Where a stat's ROLL RANGE comes from, corrected after reading a real tooltip.
+  //
+  // Affixes declare `lootRandomizerJitter`. Base and quest items declare nothing, and
+  // were originally treated as fixed -- which was wrong. Farker's Slith Primal Ring
+  // stores defensiveLife 15 and the game shows "13% Vitality Resistance [12-18]": it
+  // rolls, the DBR value is the CENTRE of the range, and the half-width is 20%.
+  //
+  // Components (materia) really are fixed, which the arithmetic confirms rather than
+  // assumes: the ring rolled 13 and the sheet reads 23, so the inscription contributed
+  // exactly its stored 10.
+  const declared = num(dbr.lootRandomizerJitter);
+  const isComponent = rec.includes('/materia/');
+  const jitter = (declared || (isComponent ? 0 : DEFAULT_JITTER)) / 100;
   const parts = [];
 
   for (const [label, field] of RESISTS) {
@@ -139,16 +159,34 @@ for (const c of contributors) {
     + (c.jitter ? `  (±${c.jitter}%)` : '  (fixed)'));
 }
 
-console.log('\n--- derived resistances ---');
-console.log('  stat           central   band          sheet says');
+// Farker's sheet, read off the character panel. Veteran, so no difficulty penalty.
+const SHEET = {
+  defensiveFire: 45, defensiveCold: 55, defensiveLightning: 39, defensivePoison: 75,
+  defensivePierce: 56, defensiveBleeding: 28, defensiveLife: 23, defensiveAether: 32,
+  defensiveChaos: 10, defensivePhysical: 0,
+};
+
+/** What a control actually does with a resistance: bucket it. Only threshold crossings matter. */
+const weight = v => (v >= 75 ? 0 : v < 45 ? 3 : v < 60 ? 2 : 1);
+
+console.log('\n--- derived vs the character sheet ---');
+console.log('  stat           central  band        sheet  in band  advice');
+let inBand = 0, agree = 0, absErr = 0;
 for (const [label, field] of RESISTS) {
   const v = total[field];
   const band = Math.sqrt(jitterSq[field]);
-  const lo = Math.round(v - band);
-  const hi = Math.round(v + band);
-  console.log(`  ${label.padEnd(13)}  ${String(Math.round(v)).padStart(5)}   `
-    + `${band ? `${lo}..${hi}`.padEnd(12) : 'exact'.padEnd(12)}  ?`);
+  const lo = v - band, hi = v + band;
+  const real = SHEET[field];
+  const ok = real >= Math.floor(lo) && real <= Math.ceil(hi);
+  const same = weight(v) === weight(real);
+  if (ok) inBand++;
+  if (same) agree++;
+  absErr += Math.abs(v - real);
+  console.log(`  ${label.padEnd(13)} ${String(Math.round(v)).padStart(6)}  `
+    + `${(band ? `${Math.round(lo)}..${Math.round(hi)}` : 'exact').padEnd(10)} `
+    + `${String(real).padStart(5)}  ${(ok ? 'yes' : 'NO').padEnd(7)}  `
+    + `${weight(v)}/${weight(real)}${same ? '' : '  <-- DIFFERS'}`);
 }
-console.log('\nCompare the last column against the character sheet. Note the sheet also');
-console.log('includes any difficulty penalty (Veteran 0, Elite -25, Ultimate -50) and');
-console.log('anything granted by skills, neither of which is counted above.');
+console.log(`\n${inBand}/10 inside the band, mean absolute error `
+  + `${(absErr / RESISTS.length).toFixed(1)} points`);
+console.log(`advice agrees on ${agree}/10`);
