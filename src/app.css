@@ -587,8 +587,13 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 /* "optimal" in the status line. Quiet on purpose: it is a fact about the build, not an
    achievement, and it appears a second or two after the build itself -- something that
    arrived late and shouted would be worse than not saying it. */
-.status .proven{color:var(--accent-success);font-size:var(--fs-sm);letter-spacing:.04em;
-  text-transform:uppercase;margin-left:5px;cursor:help}
+/* In the totals line now. Uppercase and green so it reads at a glance without being
+   loud: it is a fact about the build, and it arrives a second or two after the build
+   itself, so something that shouted on arrival would be worse than not saying it. */
+.total .proven{color:var(--accent-success);letter-spacing:.04em;text-transform:uppercase;cursor:help}
+/* The solve indicator rides in the same slot, so the line does not reflow when a
+   solve starts and finishes. */
+.total .solvebit{display:inline-flex;align-items:center;gap:5px;color:var(--accent-warn)}
 .covrow.maxed .cmag{color:var(--accent-success)}
 /* Sits between the bar and the count. As the LAST element it reserved 32px to the right
    of the numbers on every row, so the counts never reached the column edge -- and on the
@@ -663,8 +668,9 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    justify-content centres this box's own content within it. text-transform and
    letter-spacing are reset because .lbl (the header) sets both for its own label text,
    and this is a live readout, not a section title. */
-.status{flex:1;font-size:var(--fs-sm);color:var(--ink-9);text-transform:none;letter-spacing:normal;
-  display:flex;align-items:center;justify-content:center;gap:7px;min-height:20px}
+/* .status is gone. Both facts it carried -- the point/constellation summary and the
+   proven marker -- now live in each view's totals line at the foot of the list, which
+   is where the rest of the summary already was. */
 .pulse{width:7px;height:7px;border-radius:50%;background:var(--accent-warn);flex:none;animation:pl .9s ease-in-out infinite}
 @keyframes pl{0%,100%{opacity:.25}50%{opacity:1}}
 /* .resetall is gone -- Reset all is a .plainbtn in the Target tags header now, so it

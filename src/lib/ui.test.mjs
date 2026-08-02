@@ -2173,18 +2173,38 @@ test('an unproven build says nothing about optimality', () => {
   assert.ok(!ui.state.plan.proven, 'plan flagged proven without a proof');
 });
 
-test('a proven plan renders the marker and keeps the same shape', () => {
+test('a proven plan renders the marker in the totals line of BOTH views', () => {
   // Simulates what onProof() installs, so the render path is covered even though the
-  // worker itself cannot run here.
+  // worker itself cannot run here. Both views, because the summary was split across a
+  // header and a totals line until they were folded together, and a marker that only
+  // appeared in one of them would be the same split in a smaller form.
   const p = plan([['Cold Damage'], ['Health']], 1);
   ui.state.plan = { ...p, proven: true };
-  ui.render();
-  assert.match(app.innerHTML, /class="proven"[^>]*>optimal</, 'no optimal marker on a proven plan');
 
-  // And the rest of the panel is unchanged by the flag.
+  for (const plain of [false, true]) {
+    ui.state.plain = plain;
+    ui.render();
+    const total = /<div class="total">([\s\S]*?)<\/div>/.exec(app.innerHTML)?.[1] ?? '';
+    assert.match(total, /class="proven"[^>]*>optimal</,
+      `no optimal marker in the ${plain ? 'Overview' : 'Detail'} totals line`);
+  }
+
+  // Detail's totals line is the one that gained the constellation count, since
+  // Overview already states it as "N of M bought".
+  ui.state.plain = false;
+  ui.render();
   assert.match(app.innerHTML, new RegExp(`${p.solution.length} constellations`),
-    'the constellation count changed when the plan was marked proven');
+    'Detail lost the constellation count');
   ui.state.plan = p;
+});
+
+test('the summary is in one place, not two', () => {
+  // It used to sit in a header AND a totals line, saying overlapping things. The header
+  // version wrapped onto three lines once it carried the proven marker too.
+  plan([['Cold Damage'], ['Health']], 1);
+  ui.render();
+  assert.doesNotMatch(app.innerHTML, /class="status"/,
+    'the header status came back; the summary is split across two places again');
 });
 
 test('a stale proof reply triggers a fresh request rather than silence', () => {

@@ -657,6 +657,30 @@ function coverageHtml() {
   }</div>`;
 }
 
+/**
+ * The tail both views' totals lines share: whether a solve is running, and whether the
+ * build has been proven optimal.
+ *
+ * It lived in the Target tags header, then briefly in the Devotions header, where it had
+ * no room and wrapped onto three lines. Both are the wrong place for the same reason:
+ * it is a summary OF THE PATH, so it belongs with the other summary of the path, at the
+ * foot of the list. One line, one place, instead of the same facts split across two.
+ *
+ * Note what this costs: "solving" now sits at the bottom of a scrollable list rather
+ * than at the top of the page, so it can be out of view while it runs. The Coverage
+ * panel still dims itself (`.cov.stale`) throughout, which is the feedback that stays
+ * visible wherever you are scrolled.
+ */
+function summaryTail() {
+  if (state.solving) return ' · <span class="solvebit"><span class="pulse"></span>solving</span>';
+  // Only ever shown when a background proof came back and confirmed it. Absence means
+  // "not proven", never "worse" -- most builds are never asked about, and silence is
+  // the honest default.
+  return state.plan?.proven
+    ? ' · <span class="proven" title="Proven optimal: no legal 55-point build scores higher for these tags">optimal</span>'
+    : '';
+}
+
 // Built on every render (not cached into state.out) so ticking a step off can
 // restyle it without recomputing the plan.
 function pathHtml() {
@@ -715,12 +739,12 @@ function pathHtml() {
   flush();
 
   return out.join('')
-    + `<div class="total">${schedule.totalPoints} of 55 points · ${
+    + `<div class="total">${solution.length} constellations · ${schedule.totalPoints} of 55 points · ${
         schedule.path.length && solution.filter(e => db.constellations[e.id]?.hasPower
           && e.starsTaken >= db.constellations[e.id].starCount).length
       } celestial power${solution.filter(e => db.constellations[e.id]?.hasPower
           && e.starsTaken >= db.constellations[e.id].starCount).length === 1 ? '' : 's'
-      } · ${esc(aff(schedule.finalAffinity))}</div>`;
+      } · ${esc(aff(schedule.finalAffinity))}${summaryTail()}</div>`;
 }
 
 /**
@@ -833,7 +857,7 @@ function plainHtml(rows, schedule) {
     <div class="total"><div><b>${bought} of ${total} bought</b> · ${
       schedule.totalPoints} of 55 points · ${
       at ? `first tagged pick at #${at}` : 'nothing carries your tags'
-    }</div><span class="orbs">${
+    }${summaryTail()}</div><span class="orbs">${
       affOrbs(Object.entries(schedule.finalAffinity), (a, v) => textTip(
         `${v} ${capAff(a)} affinity total`))
     }</span></div>`;
@@ -1689,15 +1713,6 @@ function render() {
   h += '</div></div><div class="dispane">';
   h += `<p class="lbl" style="display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
-    <span class="status">${state.solving
-      ? '<span class="pulse"></span>solving'
-      : state.plan
-        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55${
-            // Only ever shown when a background proof came back and confirmed it.
-            // Absence means "not proven", never "worse" -- most builds are never
-            // asked about, and silence is the honest default.
-            state.plan.proven ? ' <span class="proven" title="Proven optimal: no legal 55-point build scores higher for these tags">optimal</span>' : ''}`
-        : ''}</span>
     <span style="display:flex;gap:6px">
     <button class="plainbtn orderbtn${state.order ? ' on' : ''}" data-clearorder="1"${
       state.order ? '' : ' disabled'}
