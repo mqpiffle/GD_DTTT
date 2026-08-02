@@ -1,9 +1,11 @@
 // Tests for the UI script itself.
 //
-// ui-mockup.html is a single file with its logic in an inline <script type="module">,
-// so there is nothing to import. This extracts that block, rewrites its relative
-// imports to absolute file URLs, and loads it from a data: URL -- no temp file, so
-// the test needs no write access and leaves nothing behind if it fails partway.
+// It imports `src/app.mjs` directly. Until 1 Aug the page's logic lived in an inline
+// <script> and this file had to read the HTML, regex the block out, rewrite every
+// relative import to an absolute file URL, append an export list and load the result
+// from a data: URL. All of that is gone; the only thing that survives from it is the
+// requirement to stub the browser globals BEFORE the import, since app.mjs runs on
+// load and reaches for document, localStorage, fetch and window as it goes.
 //
 // It asserts what the markup SAYS, not how it looks -- there is no layout engine
 // here. That still covers the failure that matters: the views disagreeing with each
@@ -15,20 +17,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const srcDir = path.join(import.meta.dirname, '..');
-const html = fs.readFileSync(path.join(srcDir, 'ui-mockup.html'), 'utf8');
-const block = /<script type="module">([\s\S]*?)<\/script>/.exec(html);
-assert.ok(block, 'could not find the inline module in ui-mockup.html');
 
-// A data: URL has no directory, so './lib/select.mjs' would not resolve. Point the
-// relative specifiers at the same files the browser would load. Exports are appended
-// because the page itself has no reason to export anything.
-const srcUrl = new URL(`file://${srcDir.replace(/\\/g, '/')}/`).href;
-const source = block[1].replace(/(['"])\.\/(?=[\w.])/g, `$1${srcUrl}`)
-  + '\nexport { state, chips, build, render, toggleStar, toggleSteps, plannedStars,'
-  + ' db, completedSet, treeGutter, starIdxs, history, frontier, pathStarKeys,'
-  + ' save, load, applyOrder, currentOrder, moveInOrder, reorderNow,'
-  + ' landingsFor, immovableSet };\n';
-
+// The stylesheet, for the handful of assertions that are about CSS rather than markup.
+// It moved out of ui-mockup.html's inline <style> into app.css on 1 Aug; these tests
+// used to read the HTML file and got it for free.
+//
+// They exist despite the "don't test presentation" convention because each pins a rule
+// whose failure is INVISIBLE rather than obvious: a bullet that renders as nothing, two
+// marker columns that resolve to different widths, a strike-through inside a 10px pill.
+const css = fs.readFileSync(path.join(srcDir, 'app.css'), 'utf8');
 // Listeners are captured, not discarded, so tests can go through the real click
 // handler. Testing the exported functions alone leaves the wiring untested -- and
 // the wiring is exactly where a cascade gets reverted to a plain toggle.
@@ -151,8 +148,15 @@ globalThis.fetch = async () => ({
     fs.readFileSync(path.join(srcDir, '../ui-index.json'), 'utf8')),
 });
 
-const ui = await import(
-  'data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64'));
+// Imported like any other module, now that the page's logic lives in a file. Until
+// 1 Aug this had to read ui-mockup.html, regex the inline <script> out of it, rewrite
+// every relative import to an absolute file URL because a data: URL has no directory,
+// append an export list, and load the result from base64. All of that existed solely
+// because the code was inside an HTML tag.
+//
+// The import must come AFTER the globals above are stubbed: app.mjs runs on import,
+// and it reaches for document, localStorage, fetch and window as it goes.
+const ui = await import('../app.mjs');
 
 const chipIdx = (label, ns = 'character') =>
   ui.chips.findIndex(c => c.label === label && c.ns === ns);
@@ -426,9 +430,9 @@ test('the tooltip marks a tagged bonus with that tag\'s coloured star', () => {
   // missing ti-star-filled glyph slipped through earlier.
   // Match the CONTENT, not the whole declaration block -- the rule also carries sizing
   // and baseline tweaks, and pinning the exact block makes any restyle a test failure.
-  assert.match(html, /\.tip span\.hit::before\{[^}]*content:'\\2605'/,
+  assert.match(css, /\.tip span\.hit::before\{[^}]*content:'\\2605'/,
     'tagged rows should be bulleted with a star');
-  assert.match(html, /\.tip span::before\{[^}]*content:'·'/,
+  assert.match(css, /\.tip span::before\{[^}]*content:'·'/,
     'untagged rows should keep a plain bullet');
   // Alignment is the point of the marker column, and the first version of this test
   // only checked that A width existed. The actual bug was that the two widths RESOLVED
@@ -436,23 +440,23 @@ test('the tooltip marks a tagged bonus with that tag\'s coloured star', () => {
   // a 1.5em box at font-size 1.5em is 2.25em while the same box at 1em is 1.5em. So
   // assert the column is sized in absolute units and that the star rule never
   // redeclares the geometry.
-  const marker = /\.tip span::before\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  const marker = /\.tip span::before\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.match(marker, /width:\d+px/, 'the marker column must be sized in px, not em');
   assert.match(marker, /text-align:center/, 'markers must be centred in that column');
   assert.match(marker, /position:absolute/, 'markers sit out of flow so glyph size cannot move the text');
 
-  const starRule = /\.tip span\.hit::before\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  const starRule = /\.tip span\.hit::before\{([^}]*)\}/.exec(css)?.[1] ?? '';
   for (const prop of ['width', 'left', 'position', 'text-align']) {
     assert.doesNotMatch(starRule, new RegExp(`${prop}:`),
       `the star rule redeclares ${prop}; the two markers will drift apart`);
   }
   // The parent's text inset must match the column, or the text starts inside it.
-  const rowRule = /\.tip span\{([^}]*)\}/.exec(html)?.[1] ?? '';
+  const rowRule = /\.tip span\{([^}]*)\}/.exec(css)?.[1] ?? '';
   const col = /width:(\d+)px/.exec(marker)?.[1];
   assert.match(rowRule, new RegExp(`padding-left:${col}px`),
     `row padding should match the ${col}px marker column`);
   for (const w of [1, 2, 3]) {
-    assert.match(html, new RegExp(`\\.tip span\\.hit\\.w${w}::before\\{color:`),
+    assert.match(css, new RegExp(`\\.tip span\\.hit\\.w${w}::before\\{color:`),
       `weight ${w} has no bullet colour`);
   }
 });
@@ -531,7 +535,7 @@ test('a bought star is marked by a check, not a strike-through', () => {
   assert.match(row, /class="ti ti-check sck"/, 'no check on a bought star');
   // Scoped to star rules: a strike-through elsewhere is fine and blocked power chips
   // legitimately use one. What must not come back is a strike on a bought star's pills.
-  const starRules = html.split('\n').filter(l => /^\.s(tar|ck)/.test(l.trim())).join('\n');
+  const starRules = css.split('\n').filter(l => /^\.s(tar|ck)/.test(l.trim())).join('\n');
   assert.doesNotMatch(starRules, /line-through/,
     'strike-through is back on the star rows');
 });
