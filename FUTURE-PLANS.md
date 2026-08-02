@@ -227,10 +227,43 @@ stars", and it would do what more weight levels cannot.
   files). Still a tuning knob, but no longer an arbitrary one: it was rescaled by the
   measured 1.56x change in average power weight so that switching to tier scoring
   altered the RATIO between tiers without altering how much powers matter overall.
-- **Within-tier power ranking is flat.** Every tier-2 power scores the same. Ranking
-  them against each other needs effect magnitudes per rank, which is the same blocker
-  as "Showing actual stat values" above. Until then, chance and cooldown are
-  deliberately ignored -- measured against tier they track it weakly or backwards.
+- **Within-tier power ranking stays flat, and that is now a decision rather than a
+  blocker.** Every tier-2 power scores the same. This was recorded as waiting on effect
+  magnitudes; those arrived on 1 Aug, so it was measured, and the answer is **don't**.
+
+  The metric tried: score each of a power's effect lines against the largest value ANY
+  power shows for that same template, then sum. Unit-free by construction -- it never
+  adds a percentage to a flat value, it compares like with like. Spread within tier is
+  enormous, which at first looks like exactly the signal wanted: 5.8x in tier 1, 14.8x
+  in tier 2, **109.8x** in tier 3.
+
+  It is measuring the wrong thing. The score tracks **how many stat lines a power's DBR
+  happens to expose**, not how good the power is, and three counter-examples make that
+  undeniable:
+
+  - **Time Dilation** scores 0.27 of a possible 10.25 — last but one in tier 3. Its
+    entire fxp payload is `{v} Seconds Skill Recharge`, which is *its own cooldown*.
+    Reducing all your skill cooldowns, the thing it is famous for, appears nowhere in
+    its record: the six fields it carries are camera shake, refresh time, its cooldown,
+    the XP curve, and two level caps.
+  - **Elemental Seeker** scores **0.09**, dead last of 21. It is a summon, its
+    `grants` is `kind=pet` with **zero** stat fields, and `fxp` excludes pet grants —
+    so the index knows literally nothing about what it summons.
+  - **Living Shadow**, also a summon, scores 0.70 for the same reason.
+
+  Meanwhile **Hungering Void** tops tier 3 at 10.25 with 11 lines, which is honest — it
+  is a stat-dense buff with 15 fields — but it is winning on line count.
+
+  So ranking on this would systematically demote summon powers and utility powers, and
+  the solver would then avoid them. **A confidently wrong ranking is worse than a flat
+  one**: flat says "we don't know", and the tier weights already carry the part we do
+  know. Chance and cooldown stay ignored for the reason recorded before — measured
+  against tier they track it weakly or backwards.
+
+  **What would have to change first**, if this is ever revisited: extract the summoned
+  creature records so a summon's value is representable at all, and find where a
+  cooldown-reduction power like Time Dilation actually expresses itself, because it is
+  not in the star's stats. Until both exist, there is nothing to rank.
 - **The tier weights are a judgement.** 1 : 1.66 : 2.30 is the geometric mean of flat
   and cost-proportional; the reasoning is in `RESUME-HERE.md`. If real builds suggest
   deep powers are still under- or over-valued, this is the table to move.
