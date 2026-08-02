@@ -2236,3 +2236,188 @@ test('a stale proof reply triggers a fresh request rather than silence', () => {
     ui.__setProofWorker(undefined);
   }
 });
+
+// --- many characters ---------------------------------------------------------
+// A character owns its tags, weights, mode, drag order, progress and lock. Everything
+// else -- which library tab, which categories are open, cards or column, "stop telling
+// me about the lock" -- belongs to the person and is shared by all of them.
+
+/** localStorage backed by a Map, so a test can see and seed what was written. */
+function withStore(seed = {}) {
+  const store = new Map(Object.entries(seed));
+  const real = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: k => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: k => store.delete(k),
+  };
+  return {
+    store,
+    read: () => JSON.parse(store.get('gd-devotion-planner:v2') ?? 'null'),
+    restore: () => { globalThis.localStorage = real; },
+  };
+}
+
+test('a v1 save migrates into one character, and v1 is left alone', () => {
+  // The thing being migrated is the only copy of someone's progress, so the old key
+  // stays put as a free undo if this is ever wrong.
+  const v1 = JSON.stringify({
+    v: 1,
+    tags: [ui.chips[chipIdx('Cold Damage')].id, null, null, null, null],
+    weights: [3, 2, 2, 2, 2],
+    mode: 2, order: null, tab: 'pet', open: ['character|Offense'],
+    done: ['constellation1:1'], plain: true, locked: true, lockWarnSeen: true,
+  });
+  const s = withStore({ 'gd-devotion-planner:v1': v1 });
+  try {
+    ui.load();
+    const chars = ui.charList();
+    assert.equal(chars.length, 1, 'migration should produce exactly one character');
+    assert.equal(ui.state.mode, 2, 'scoring mode lost in migration');
+    assert.deepEqual([...ui.state.done], ['constellation1:1'], 'progress lost in migration');
+    assert.equal(ui.state.locked, true, 'lock state lost in migration');
+    // Preferences went to the shared side, not into the character.
+    assert.equal(ui.state.tab, 'pet', 'library tab lost in migration');
+    assert.equal(ui.state.plain, true, 'view preference lost in migration');
+    assert.equal(ui.state.lockWarnSeen, true, 'lock dismissal lost in migration');
+
+    ui.save();
+    assert.equal(s.store.get('gd-devotion-planner:v1'), v1, 'the v1 key was modified or deleted');
+    const d = s.read();
+    assert.equal(d.v, 2);
+    assert.ok(d.prefs.lockWarnSeen, 'preferences should live outside any character');
+    assert.equal(d.chars[d.active].lockWarnSeen, undefined,
+      'a preference leaked into the character');
+  } finally { s.restore(); }
+});
+
+test('each character keeps its own tags, progress and lock', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const first = ui.charList()[0].id;
+    plan([['Cold Damage']], 1);
+    ui.state.done = new Set(ui.pathStarKeys().slice(0, 3));
+    ui.state.locked = true;
+    const coldDone = [...ui.state.done].sort();
+
+    const second = ui.addChar({});
+    assert.notEqual(second, first, 'a new character reused the old id');
+    assert.equal(ui.state.done.size, 0, 'a new character inherited progress');
+    assert.equal(ui.state.locked, false, 'a new character arrived locked');
+    assert.equal(picked(), 0, 'a new character inherited tags');
+
+    plan([['Fire Damage']], 0);
+    assert.ok(ui.switchChar(first), 'could not switch back');
+    assert.deepEqual([...ui.state.done].sort(), coldDone, 'progress did not come back');
+    assert.equal(ui.state.locked, true, 'lock state did not come back');
+    assert.equal(ui.state.mode, 1, 'scoring mode did not come back');
+    assert.equal(ui.chips[ui.state.sel[0]].label, 'Cold Damage', 'tags did not come back');
+  } finally { s.restore(); }
+
+  function picked() { return ui.state.sel.filter(x => x != null).length; }
+});
+
+test('duplicating copies everything, including ticks and the lock', () => {
+  // If you have bought those stars in game they are just as true of the copy.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.state.done = new Set(ui.pathStarKeys().slice(0, 4));
+    ui.state.locked = true;
+    const before = [...ui.state.done].sort();
+    const src = ui.activeChar();
+
+    ui.addChar({ from: ui.charList().find(c => c.name === src.name).id });
+    assert.deepEqual([...ui.state.done].sort(), before, 'a duplicate lost its progress');
+    assert.equal(ui.state.locked, true, 'a duplicate arrived unlocked');
+    assert.match(ui.activeChar().name, / copy$/, 'a duplicate did not get a distinct name');
+  } finally { s.restore(); }
+});
+
+test('the name follows the tags until you set one', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage'], ['Health']], 1);
+    ui.save();
+    assert.equal(ui.activeChar().name, 'Cold Damage + Health', 'auto-name did not follow the tags');
+
+    ui.renameChar(ui.charList()[0].id, 'Fire Sorc');
+    plan([['Fire Damage']], 1);
+    ui.save();
+    assert.equal(ui.activeChar().name, 'Fire Sorc', 'a chosen name was overwritten by auto-naming');
+
+    // Clearing the name hands it back to auto-naming rather than leaving it blank.
+    ui.renameChar(ui.charList()[0].id, '   ');
+    ui.save();
+    assert.equal(ui.activeChar().name, 'Fire Damage', 'an emptied name did not return to auto');
+  } finally { s.restore(); }
+});
+
+test('deleting the last character leaves an empty one, never zero', () => {
+  // With no characters the app has nowhere to put your tags.
+  const s = withStore();
+  try {
+    ui.load();
+    const only = ui.charList()[0].id;
+    ui.deleteChar(only);
+    assert.equal(ui.charList().length, 1, 'deleting the only character left none');
+    assert.notEqual(ui.charList()[0].id, only, 'the deleted character is still there');
+    assert.equal(ui.state.sel.filter(x => x != null).length, 0, 'the replacement is not empty');
+  } finally { s.restore(); }
+});
+
+test('deleting the active character activates another and loads it', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    const keep = ui.charList()[0].id;
+    const doomed = ui.addChar({});
+    plan([['Fire Damage']], 0);
+
+    ui.deleteChar(doomed);
+    assert.equal(ui.charList().length, 1, 'the deleted character survived');
+    assert.equal(ui.activeChar().name, 'Cold Damage', 'did not activate the remaining character');
+    assert.equal(ui.chips[ui.state.sel[0]].label, 'Cold Damage', 'live state was not reloaded');
+    assert.ok(keep, 'kept id');
+  } finally { s.restore(); }
+});
+
+test('resetting a character leaves the others alone', () => {
+  // A regression net rather than a fix: reset() used to removeItem() the stored key,
+  // and that was already harmless because the render() it ends with saves the whole
+  // document straight back. This pins the invariant so it stays harmless if either
+  // half of that changes.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    ui.addChar({});
+    plan([['Fire Damage']], 1);
+    assert.equal(ui.charList().length, 2, 'setup failed');
+
+    click({ reset: '1' });
+    assert.equal(ui.charList().length, 2, 'resetting a character deleted the others');
+    assert.ok(s.read(), 'resetting wiped the whole store');
+    assert.equal(ui.state.sel.filter(x => x != null).length, 0, 'reset did not clear the tags');
+  } finally { s.restore(); }
+});
+
+test('switching characters clears the undo trail', () => {
+  // It is a stack of tick snapshots belonging to the character you just left.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 1);
+    const keys = ui.pathStarKeys();
+    click({ star: keys[0] });
+    click({ star: keys[1] });
+    assert.ok(ui.history.length > 0, 'no undo history to clear');
+
+    ui.addChar({});
+    assert.equal(ui.history.length, 0, 'undo history followed you to another character');
+  } finally { s.restore(); }
+});

@@ -200,62 +200,244 @@ const picked = () => state.sel.filter(x => x != null);
 // saved path would go stale the moment the game data changes or the solver is
 // touched; re-solving on load costs ~300ms and can't disagree with the current
 // build. Ticks are keyed constellation:star, which stays valid regardless.
-const STORE = 'gd-devotion-planner:v1';
+// --- storage: many characters, one document ----------------------------------
+// A CHARACTER is what you track: a set of target tags, how much each matters, the
+// scoring mode, any order you dragged the path into, what you have bought so far, and
+// whether the build is locked. Its devotion path is derived from those, never stored.
+//
+// The split that shapes this: those six things belong to a character, while which
+// library tab is open, which categories are expanded, whether you read the path as
+// cards or a column, and whether you have dismissed the lock warning belong to YOU and
+// are shared by every character. Switching to your Fire Sorc should not collapse the
+// categories you had open.
+//
+// One document rather than a key per character. A character is a few hundred bytes, so
+// twenty of them is ~20 KB against a ~5 MB budget, and rewriting the lot on every save
+// costs nothing measurable -- where a key-per-character scheme would need an index and
+// could drift out of step with it.
+const STORE_V1 = 'gd-devotion-planner:v1';
+const STORE = 'gd-devotion-planner:v2';
 
-function save() {
-  try {
-    localStorage.setItem(STORE, JSON.stringify({
-      v: 1,
-      tags: state.sel.map(i => (i == null ? null : chips[i]?.id ?? null)),
-      weights: [...state.weights],
-      mode: state.mode,
-      // The dragged order, as ids. Stored rather than the re-scheduled path, for the
-      // same reason nothing else computed is stored: the path is re-derived on load,
-      // so it can never disagree with the current data or solver.
-      order: state.order,
-      tab: state.tab,
-      open: [...state.open],
-      done: [...state.done],
-      plain: state.plain,
-      // The lock is an input like any other -- reloading mid-run should not quietly
-      // hand back the controls it was put up to freeze. lockWarnSeen is a preference
-      // and outlives any one build; state.dialog is transient and never stored.
-      locked: state.locked,
-      lockWarnSeen: state.lockWarnSeen,
-    }));
-  } catch { /* private mode or quota; running without persistence is fine */ }
+/** Fields owned by a character. Everything else in `state` is a preference or derived. */
+const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked'];
+
+let doc = null;      // { v, active, order: [id], chars: { id: {...} }, prefs: {...} }
+let charSeq = 0;
+
+const newId = () => `c${++charSeq}${Date.now().toString(36).slice(-4)}`;
+
+/**
+ * A name derived from the tags, so a second character costs no typing.
+ *
+ * Kept in step with the tags until you edit it, at which point `named` is set and it
+ * stops moving. Without that flag a character created before you picked anything would
+ * be called "New character" forever, and one you deliberately named would be renamed
+ * out from under you the moment you adjusted a tag.
+ */
+function autoName() {
+  const labels = picked().map(i => chips[i].label);
+  if (!labels.length) return 'New character';
+  return labels.length <= 2 ? labels.join(' + ') : `${labels[0]} +${labels.length - 1}`;
 }
 
-function load() {
-  let saved;
-  try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { return false; }
-  if (!saved || saved.v !== 1) return false;
+/** The active character's fields, read out of live state. */
+function captureChar() {
+  return {
+    tags: state.sel.map(i => (i == null ? null : chips[i]?.id ?? null)),
+    weights: [...state.weights],
+    mode: state.mode,
+    // The dragged order, as ids. Stored rather than the re-scheduled path, for the same
+    // reason nothing else computed is stored: the path is re-derived on load, so it can
+    // never disagree with the current data or solver.
+    order: state.order,
+    done: [...state.done],
+    locked: state.locked,
+  };
+}
 
-  // Chip ids can disappear if the keyword list changes between versions, so map
-  // back by id and drop anything that no longer exists rather than crashing.
-  state.sel = (saved.tags ?? Array(MAX).fill(null))
-    .map(id => (id == null ? null : chips.findIndex(c => c.id === id)))
+/** Push a character's fields into live state. Tolerant: this reads persisted data. */
+function applyChar(c = {}) {
+  // Chip ids can disappear if the keyword list changes between versions, so map back by
+  // id and drop anything that no longer exists rather than crashing.
+  state.sel = (c.tags ?? Array(MAX).fill(null))
+    .map(id => (id == null ? null : chips.findIndex(x => x.id === id)))
     .map(i => (i == null || i < 0 ? null : i));
   while (state.sel.length < MAX) state.sel.push(null);
   state.sel.length = MAX;
 
   state.weights = Array.from({ length: MAX },
-    (_, i) => clampWeight(saved.weights?.[i] ?? DEFAULT_WEIGHT));
-  if (Number.isInteger(saved.mode) && saved.mode >= 0 && saved.mode < MODES.length) {
-    state.mode = saved.mode;
-  }
-  if (saved.tab === 'character' || saved.tab === 'pet') state.tab = saved.tab;
-  if (Array.isArray(saved.open)) state.open = new Set(saved.open);
-  if (Array.isArray(saved.done)) state.done = new Set(saved.done);
-  state.plain = saved.plain === true;
+    (_, i) => clampWeight(c.weights?.[i] ?? DEFAULT_WEIGHT));
+  state.mode = (Number.isInteger(c.mode) && c.mode >= 0 && c.mode < MODES.length) ? c.mode : 0;
   // Ids, not indices -- a constellation's position in the path is exactly the thing
   // this is trying to change, so an index would be meaningless by the time it is read.
-  state.order = Array.isArray(saved.order) && saved.order.length ? saved.order.slice() : null;
-  state.locked = saved.locked === true;
-  state.lockWarnSeen = saved.lockWarnSeen === true;
+  state.order = Array.isArray(c.order) && c.order.length ? c.order.slice() : null;
+  state.orderPrev = null;
+  state.orderNote = null;
+  state.done = new Set(Array.isArray(c.done) ? c.done : []);
+  state.locked = c.locked === true;
+  // Belongs to the character being left behind, not the one arriving.
+  clearHistory();
+}
+
+const blankChar = () => ({
+  name: 'New character', named: false,
+  tags: Array(MAX).fill(null), weights: Array(MAX).fill(DEFAULT_WEIGHT),
+  mode: 0, order: null, done: [], locked: false,
+});
+
+/** A fresh document with one empty character. */
+function emptyDoc() {
+  const id = newId();
+  return {
+    v: 2, active: id, order: [id], chars: { [id]: blankChar() },
+    prefs: { tab: 'character', open: ['character|Offense'], plain: false, lockWarnSeen: false },
+  };
+}
+
+/**
+ * Read the stored document, migrating a v1 payload if that is all there is.
+ *
+ * The v1 key is deliberately NOT deleted. It costs a few hundred bytes and it is a free
+ * undo if this migration turns out to be wrong -- which is worth more than tidiness,
+ * because the thing being migrated is the only copy of someone's progress.
+ */
+function readDoc() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { raw = null; }
+  if (raw && raw.v === 2 && raw.chars && raw.active) return raw;
+
+  let old;
+  try { old = JSON.parse(localStorage.getItem(STORE_V1) || 'null'); } catch { old = null; }
+  if (old && old.v === 1) {
+    const id = newId();
+    return {
+      v: 2, active: id, order: [id],
+      chars: {
+        [id]: {
+          name: 'My build', named: false,
+          tags: old.tags ?? Array(MAX).fill(null),
+          weights: old.weights ?? Array(MAX).fill(DEFAULT_WEIGHT),
+          mode: old.mode ?? 0,
+          order: old.order ?? null,
+          done: old.done ?? [],
+          locked: old.locked === true,
+        },
+      },
+      prefs: {
+        tab: old.tab === 'pet' ? 'pet' : 'character',
+        open: Array.isArray(old.open) ? old.open : ['character|Offense'],
+        plain: old.plain === true,
+        lockWarnSeen: old.lockWarnSeen === true,
+      },
+    };
+  }
+  return emptyDoc();
+}
+
+function save() {
+  if (!doc) return;
+  try {
+    doc.chars[doc.active] = { ...doc.chars[doc.active], ...captureChar() };
+    doc.prefs = {
+      tab: state.tab,
+      open: [...state.open],
+      plain: state.plain,
+      // A preference, not a character's business: "stop telling me about the lock"
+      // should not need saying once per character.
+      lockWarnSeen: state.lockWarnSeen,
+    };
+    const c = doc.chars[doc.active];
+    if (!c.named) c.name = autoName();
+    localStorage.setItem(STORE, JSON.stringify(doc));
+  } catch { /* private mode or quota; running without persistence is fine */ }
+}
+
+function load() {
+  doc = readDoc();
+  const p = doc.prefs ?? {};
+  if (p.tab === 'character' || p.tab === 'pet') state.tab = p.tab;
+  if (Array.isArray(p.open)) state.open = new Set(p.open);
+  state.plain = p.plain === true;
+  state.lockWarnSeen = p.lockWarnSeen === true;
+  applyChar(doc.chars[doc.active]);
   return picked().length > 0;
 }
 
+// --- character actions -------------------------------------------------------
+
+const charList = () => (doc?.order ?? []).map(id => ({ id, ...doc.chars[id] })).filter(c => c.name != null);
+const activeChar = () => (doc ? doc.chars[doc.active] : null);
+
+/** Write the live character back before leaving it. */
+function stash() {
+  if (!doc) return;
+  doc.chars[doc.active] = { ...doc.chars[doc.active], ...captureChar() };
+  if (!doc.chars[doc.active].named) doc.chars[doc.active].name = autoName();
+}
+
+function switchChar(id) {
+  if (!doc || !doc.chars[id] || id === doc.active) return false;
+  stash();
+  doc.active = id;
+  applyChar(doc.chars[id]);
+  return true;
+}
+
+function addChar({ from = null, name = null } = {}) {
+  if (!doc) return null;
+  stash();
+  const id = newId();
+  // Duplicate copies EVERYTHING, ticks and lock included: if you have bought those
+  // stars in game they are just as true of the copy. New starts empty and unlocked.
+  const base = from ? { ...doc.chars[from] } : blankChar();
+  doc.chars[id] = { ...base, name: name ?? (from ? `${base.name} copy` : 'New character'),
+                    named: from ? true : false };
+  doc.order.push(id);
+  doc.active = id;
+  applyChar(doc.chars[id]);
+  return id;
+}
+
+function renameChar(id, name) {
+  if (!doc?.chars[id]) return false;
+  const trimmed = String(name ?? '').trim();
+  doc.chars[id].name = trimmed || autoName();
+  // An empty name hands the character back to auto-naming rather than leaving it blank.
+  doc.chars[id].named = Boolean(trimmed);
+  return true;
+}
+
+function deleteChar(id) {
+  if (!doc?.chars[id]) return false;
+  delete doc.chars[id];
+  doc.order = doc.order.filter(x => x !== id);
+  if (!doc.order.length) {
+    // Never leave zero characters: the app has nowhere to put your tags if you do.
+    const fresh = newId();
+    doc.chars[fresh] = blankChar();
+    doc.order = [fresh];
+  }
+  if (doc.active === id) {
+    doc.active = doc.order[0];
+    applyChar(doc.chars[doc.active]);
+  }
+  return true;
+}
+
+/**
+ * Empty the ACTIVE character. Not the store.
+ *
+ * It used to `removeItem` the stored key, which was equivalent back when there was one
+ * build. Worth being accurate about what that would have done here, because the obvious
+ * reading is wrong: it would NOT have destroyed your other characters, because reset()
+ * ends in render(), render() ends in save(), and save() writes the whole document back
+ * from memory a moment later. Checked by mutation -- restoring the removeItem changes
+ * no observable behaviour.
+ *
+ * Changed anyway. Deleting the store to express "empty this character" is a wide
+ * operation standing in for a narrow one, and it only stays harmless while a save
+ * reliably follows. Say what is meant instead.
+ */
 function reset() {
   state.sel = Array(MAX).fill(null);
   state.weights = Array(MAX).fill(DEFAULT_WEIGHT);
@@ -264,11 +446,18 @@ function reset() {
   state.builtMode = null;
   state.done = new Set();
   state.order = null;
+  state.orderPrev = null;
+  state.orderNote = null;
+  state.locked = false;
   state.mode = Math.min(state.mode, MODES.length - 1);
   // Undo restores progress only, so undoing a reset would bring back the ticks
   // without the tags -- a state you never had. Reset has its own deliberate button.
   clearHistory();
-  try { localStorage.removeItem(STORE); } catch { /* nothing to clear */ }
+  // An emptied character goes back to auto-naming: whatever you called it described
+  // tags that are gone.
+  const c = activeChar();
+  if (c) { c.named = false; c.name = 'New character'; }
+  save();
   render();
 }
 
@@ -2218,10 +2407,11 @@ if (load()) scheduleBuild(); else render();
 // Nothing else imports this module, so the exports cost nothing at runtime.
 export {
   state, chips, db, history,
-  build, render, save, load,
+  build, render, save,
   toggleStar, toggleSteps, plannedStars, completedSet,
   treeGutter, starIdxs,
   frontier, pathStarKeys,
   applyOrder, currentOrder, moveInOrder, reorderNow, landingsFor, immovableSet,
   askForProof, onProof, __setProofWorker,
+  load, charList, activeChar, switchChar, addChar, renameChar, deleteChar, autoName,
 };

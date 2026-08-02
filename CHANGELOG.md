@@ -4,6 +4,17 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.1 — 2 Aug 2026
+
+Storage now holds many characters instead of one build. No UI yet; the switcher is next.
+
+A character owns its tags, weights, scoring mode, drag order, progress and lock. Which
+library tab is open, which categories are expanded, cards or column, and "stop telling
+me about the lock" belong to you and are shared by every character.
+
+An existing v1 save migrates into a single character, and the v1 key is left in place
+as a free undo.
+
 ## 0.2.0 — 1 Aug 2026
 
 The first numbered state. Everything before this was unnumbered development.
