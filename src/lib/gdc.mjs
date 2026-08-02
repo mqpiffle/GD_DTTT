@@ -423,4 +423,10 @@ export function readCharacter(bytes) {
   return { ...summary, devotions, skills };
 }
 
-export const __test = { Reader, MAGIC, XOR_KEY, PRIME, skipBlock, walkToSkills, readSkills };
+export const __test = {
+  Reader, MAGIC, XOR_KEY, PRIME, skipBlock, walkToSkills, readSkills,
+  // Exposed for the equipment probe: reaching the inventory needs a Reader that has
+  // already walked the header, and the key state cannot be reconstructed from a byte
+  // offset alone.
+  readSummary, openBlock, closeBlock, skipNested,
+};
