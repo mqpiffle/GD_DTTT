@@ -13,48 +13,49 @@ saved in the browser, so you can close the tab and come back to the same build.
 ## Starting a build
 
 The tag list only shows stats a **character** can actually scale. Some stats in the
-devotion tree belong to the celestial powers rather than to you — "Skill Duration" is how
+devotion tree belong to the celestial powers rather than to you. "Skill Duration" is how
 long a proc lasts, "Weapon Damage" is a proc hitting with your weapon, "Summon Limit" is
 how many of that one summon the proc gives you. None of those get better because you
 wanted them more, so they aren't offered as targets. If you want the thing itself, pick
 the power (see below).
 
-Watch the names, though: **Burn Duration** *is* yours — Owl gives +50% duration to every
+Watch the names, though. **Burn Duration** *is* yours: Owl gives +50% duration to every
 damage-over-time effect you inflict. That's a different thing from Skill Duration despite
 the similar wording. The cold one is called **Frostburn**, as in game.
 
-**Pick your tags.** Up to five, from the list on the left. They're grouped — Offense,
-Defense, Utility, Resistances and so on — and split into **Character** and **Pet**,
-because pet bonuses are a separate set of stats that happen to share names with yours.
+**Pick your tags.** Up to five, from the list on the left. They're grouped by role
+(Offense, Defense, Utility, Resistances and so on) and split into **Character** and
+**Pet**, because pet bonuses are a separate set of stats that happen to share names with
+yours.
 "Total Damage" under Character is your damage; under Pet it's your pets'.
 
 There's no build button. The path re-solves as soon as you change anything, and a small
 line under the tags tells you when it's working.
 
 **Or name a celestial power outright.** Under Character there's a **Celestial Powers**
-category with all 62 of them, listed by the name you actually use — Targo's Hammer, Twin
+category with all 62 of them, listed by the name you actually use: Targo's Hammer, Twin
 Fangs, Fetid Pool. Pick one and the build is guaranteed to reach it.
 
 These behave differently from stat tags. A stat tag is something to maximise; a power is
 a target you either get or don't. Two things follow:
 
 - **You usually don't need the whole constellation.** 40 of the 62 powers sit short of
-  the end — Fetid Pool is 3 of Affliction's 7 stars. The planner takes the cheapest way
+  the end. Fetid Pool is 3 of Affliction's 7 stars. The planner takes the cheapest way
   in and spends what's left on your other tags. Hover a power to see its cost.
 - **Enough powers eventually stop fitting.** Nothing conflicts until you've chosen four;
   past that, powers that can't share the points get struck through and greyed out in the
   list rather than letting you pick one and quietly dropping it. If several still can't
   fit, the one you picked first wins.
 - **Powers have no priority stars**, because priority doesn't apply. Weight settles a
-  competition between stats over the same stars; a power isn't in that competition —
-  you get it, or it's reported as not fitting. The pill shows a target marker instead.
+  competition between stats over the same stars, and a power isn't in that competition.
+  You get it, or it's reported as not fitting. The pill shows a target marker instead.
 
 A power works in every scoring mode, including **Passives**. Those two settings
-don't fight: "Passives" means *don't chase procs you didn't ask for*, and naming one
-is asking. Ask for Targo's Hammer on a passives build and you get exactly that — the
+don't fight. "Passives" means *don't chase procs you didn't ask for*, and naming one
+is asking. Ask for Targo's Hammer on a passives build and you get exactly that: the
 hammer, and otherwise raw stats.
 
-**Set what matters most.** Each chosen tag has three stars — **click the star you mean**.
+**Set what matters most.** Each chosen tag has three stars. **Click the star you mean**:
 Click the first for low, the third for high; there's no cycling through.
 
 The colour tells you the level at a glance: **red** low, **amber** medium, **green** high.
@@ -62,10 +63,10 @@ The colour tells you the level at a glance: **red** low, **amber** medium, **gre
 This is *relative* weight, so ★★★ / ★★★ / ★★★ gives the same build as ★☆☆ / ★☆☆ / ★☆☆.
 What counts is one tag being heavier than another. Two stars is the default.
 
-Treat it as emphasis rather than a ranking. Three levels is genuinely all the resolution
-there is — the planner buys whole constellations of four to seven stars at a time, so it
-can't finely trade one tag against another the way a slider would suggest. Nudging a tag
-up often helps; expecting a strict pecking order will disappoint.
+Treat it as emphasis rather than a ranking. Three levels is all the resolution there is,
+because the planner buys whole constellations of four to seven stars at a time and can't
+finely trade one tag against another the way a slider would suggest. Nudging a tag up
+often helps; expecting a strict pecking order will disappoint.
 
 Fewer tags means a more focused build. Five tags spread across a 55-point budget give
 each one roughly five stars of support; three give each about seven. Neither is wrong,
@@ -79,38 +80,37 @@ but the tool can't invent points, and the Coverage panel will show you the trade
 
 Per tag: its name, what the build grants for it, a bar, and a number like `7/12 [19]`.
 
-**The figure next to the name is what you actually get** — `+39%`, or `104-148`, or
-both where a tag has each. The bar counts *stars*, and a star carrying +2% counts the
-same as one carrying +40%, so this is the number that tells you whether a long bar is
-worth anything. Tags that mix percentages with flat values show both rather than adding
-them together, because those don't add up to anything meaningful.
+**The figure next to the name is what you actually get**: `+39%`, or `104-148`, or both
+where a tag has each. The bar counts *stars*, and a star carrying +2% counts the same as
+one carrying +40%, so this is the number that tells you whether a long bar is worth
+anything. Tags that mix percentages with flat values show both rather than adding them
+together, because those don't add up to anything meaningful.
 
-The tag's weight isn't repeated here — you set it a few inches up the panel, and hovering
+The tag's weight isn't repeated here. You set it a few inches up the panel, and hovering
 a row tells you what it is. Colour in Coverage means one thing only: what you got.
 
-The second number is the **ceiling** — the most stars of that keyword you could
-physically obtain if it were your only goal and you spent all 55 points on it. It is
-not 55, and it usually isn't large.
+The second number is the **ceiling**, the most stars of that keyword you could physically
+obtain if it were your only goal and you spent all 55 points on it. It is not 55, and it
+usually isn't large.
 
-This matters more than it sounds. **66 of the 90 keywords — nearly three in four —
-can never be maxed within 55 points.** Physical Damage, for example, is on 37 stars —
-but they're spread over seventeen constellations costing 95 points between them, so
-twenty-three is genuinely everything you can reach. When a bar stops well short, that's
-usually the game, not the planner giving up.
+This matters more than it sounds. **66 of the 90 keywords, nearly three in four, can
+never be maxed within 55 points.** Physical Damage sits on 37 stars, but they're spread
+over seventeen constellations costing 95 points between them, so twenty-three really is
+everything you can reach. When a bar stops well short, that's usually the game rather
+than the planner giving up.
 
 The **bracketed number**, where it appears, is how many stars the whole tree has carrying
-that tag — shown only when it's more than 55 points can reach. It's context, not a target:
+that tag, shown only when it's more than 55 points can reach. It's context, not a target:
 `24/27 [37]` means the tree has 37, a build like yours can reach 27, and you have 24.
 Green at 27 is still full marks.
 
-- **Green, "max"** — you have everything available. Nothing more exists to get.
-- **Amber** — this tag got noticeably less than its weight asked for. Sometimes that
-  means raising its weight will help. Sometimes it means the keyword is rare and no
-  weighting will change it.
+- **Green, "max"**: you have everything available. Nothing more exists to get.
+- **Amber**: this tag got noticeably less than its weight asked for. Sometimes raising
+  its weight will help. Sometimes the keyword is rare and no weighting will change it.
 
-A **celestial power** row looks different, because a power is binary — there's no
-"70% of a proc". It shows the power's name, which constellation it came from and how many
-of that constellation's stars were needed, then a green tick if you got it:
+A **celestial power** row looks different, because a power is binary. There's no "70% of
+a proc". It shows the power's name, which constellation it came from and how many of that
+constellation's stars were needed, then a green tick if you got it:
 
 ```
 Targo's Hammer  CP     Anvil 5/5           got  ✓
@@ -120,19 +120,19 @@ Armor                  ▓▓▓▓▓▓▓▓░  24/27 [37]
 
 ### When a tag gets nothing
 
-Occasionally a tag comes back **0/10**, marked with a red warning triangle. Hover the
-row for the explanation — it was crowded out. That is a real answer, not a
+Occasionally a tag comes back **0/10**, marked with a red warning triangle. Hover the row
+and it will tell you the tag was crowded out. That is a real answer rather than a
 malfunction, and it's one of the more useful things the tool tells you.
 
-The number on the right is the point: `0/10` means that tag was reachable — ten stars of
-it, had you asked for nothing else — and your other tags spent the points first. It never
+The number on the right is the point. `0/10` means that tag was reachable, ten stars of
+it had you asked for nothing else, and your other tags spent the points first. It never
 means the devotion tree lacks the stat.
 
 That matters because it's easy to chase something that quietly wrecks the rest of a
 build. Ask for Cold Damage, Pierce Damage, Frostburn Damage, Frostburn Duration and
 Casting Speed together and the cold cluster eats the budget: three tags come back strong,
-Pierce limps in at 2/22, and Casting Speed gets nothing at all. Nothing has gone wrong —
-those five things simply don't live near each other in the tree.
+Pierce limps in at 2/22, and Casting Speed gets nothing at all. Nothing has gone wrong.
+Those five things just don't live near each other in the tree.
 
 What to do about it, in rough order of usefulness:
 
@@ -145,7 +145,7 @@ What to do about it, in rough order of usefulness:
 
 ### Power scoring
 
-Celestial powers are the big active procs — Targo's Hammer, Twin Fangs. The three
+Celestial powers are the big active procs, like Targo's Hammer and Twin Fangs. The three
 settings change how much the planner cares about reaching them:
 
 | Setting | Use it when |
@@ -188,11 +188,11 @@ TSUNAMI
 Power stars are headed with the power's name, since that name *is* the power. Ordinary
 stars just list their bonuses.
 
-- **●** — this step gives you something you asked for, and **TAGS** says how many stars'
-  worth. **○** means it gives you nothing you asked for.
+- **●** means this step gives you something you asked for, and **TAGS** says how many
+  stars' worth. **○** means it gives you nothing you asked for.
 - **PTS** is what the step costs. **RUN** is your running total out of 55.
 - **CP** marks a constellation with a celestial power.
-- Rows with **↩** are Crossroads refunds — see below.
+- Rows with **↩** are Crossroads refunds. See below.
 
 A run of **○** down the top is worth noticing. It means you're paying for affinity
 before the build gives you anything you came for. That's often unavoidable, but if it
@@ -207,12 +207,12 @@ Buy things top to bottom. The **highlighted card** is the step you're on, and th
 
 Tick stars as you buy them. A bought star dims and gets a green check; a finished
 constellation collapses. In Overview, the box on each row does the same for a whole
-constellation at once — empty, an amber dash for part-bought, a green check when it's
-all yours.
+constellation at once: empty, an amber dash for part-bought, a green check when it's all
+yours.
 
 **Each card shows what completing it grants**, as coloured circles on the right of its
-title — `+3` in the Chaos colour means three Chaos affinity when the constellation is
-finished. Hover one for the name. A dashed circle means this step grants no affinity, or
+title. `+3` in the Chaos colour means three Chaos affinity when the constellation is
+finished, and hovering one gives you the name. A dashed circle means this step grants no affinity, or
 none yet because you're only taking part of it.
 
 **Between the last card you finished and the one you're on** sits a small strip: a white
@@ -220,9 +220,9 @@ square with the points you've spent, then all five affinities with what you curr
 hold. That's the row to check against the game. Affinities you have none of stay in place
 and dim, so the one you're watching doesn't move as you complete things.
 
-**Ctrl+Z** undoes a tick, sixty steps back. There's no button for it — clicking a star
-again un-ticks it, which is the obvious way — but the shortcut is there for the times a
-single click did more than you meant.
+**Ctrl+Z** undoes a tick, sixty steps back. There's no button for it, since clicking a
+star again un-ticks it, but the shortcut is there for the times a single click did more
+than you meant.
 
 ### Two things the planner does for you
 
@@ -231,13 +231,13 @@ single click did more than you meant.
 You can't buy a star without buying its parent first, so clicking a star deep in a
 constellation also ticks the ones leading to it. Un-tick a star and anything hanging
 off it goes too. Note this follows the actual tree, not the row above: constellations
-branch, so clicking star 7 of Amatok gives you 1, 2, 6 and 7 — stars 3, 4 and 5 hang
-off a different branch and stay unbought. The tree lines on the left of each star show
-which hangs off which.
+branch, so clicking star 7 of Amatok gives you 1, 2, 6 and 7. Stars 3, 4 and 5 hang off
+a different branch and stay unbought. The tree lines on the left of each star show which
+hangs off which.
 
 The same applies between constellations. You can't buy into a constellation until you
-hold the affinity it requires, so ticking one completes whatever it depends on — and
-only what it depends on. Rushing a constellation that needs primordial and eldritch
+hold the affinity it requires, so ticking one completes whatever it depends on, and only
+what it depends on. Rushing a constellation that needs primordial and eldritch
 will complete the constellations that supply those, and leave alone the ones that
 grant something else.
 
@@ -245,7 +245,7 @@ grant something else.
 
 A Crossroads is a one-point filler used to cross an affinity threshold. Once the
 constellations behind it stand on their own, the point comes back. The path shows both
-the purchase and the refund, and the running total accounts for it — that's why the
+the purchase and the refund, and the running total accounts for it. That's why the
 number sometimes goes *down*.
 
 ---
@@ -253,9 +253,9 @@ number sometimes goes *down*.
 ## Putting the path in your own order
 
 The order the planner picks is a good one, not the only one. If you want a particular
-constellation sooner — a celestial power you're building around, or something whose
-passives carry you through the next twenty levels — switch to **Overview** and drag its
-row where you want it.
+constellation sooner, whether that's a celestial power you're building around or
+something whose passives carry you through the next twenty levels, switch to **Overview**
+and drag its row where you want it.
 
 **The bar shows where the row will actually land, not where your cursor is.** That's
 worth knowing before it surprises you, because it means the bar sometimes sits still
@@ -266,23 +266,23 @@ while you keep moving:
   affinity it needs has to be paid for either way. Rather than pretend those are
   different, the bar shows you the one place it can go.
 - **It stops short of where you aimed.** Drag a deep constellation to the top and it
-  will land partway instead — as early as the game allows, once the things granting its
-  affinity have come forward with it. That's not the tool overruling you; it's the
+  lands partway instead: as early as the game allows, once the things granting its
+  affinity have come forward with it. That isn't the tool overruling you. It's the
   earliest that request can actually be played.
 - **It turns red.** Some positions can't be built inside 55 points at all: pulling a
   constellation forward can force a Crossroads that nothing later pays back. Release
   over red and nothing happens. You're told before you let go rather than after.
 - **Some rows can't be dragged at all.** If every position would either change nothing
-  or overrun the budget, the row simply doesn't pick up.
+  or overrun the budget, the row won't pick up.
 
 A Crossroads row can't be dragged either. Those are placed and refunded by the planner
 as the order changes, so they aren't yours to position.
 
 The **Order** button in the Devotions heading lights up once you've moved something.
 Click it to throw your arrangement away and go back to the planner's own order. Your
-arrangement is kept when you reload, and when you tick things off — but it's dropped if
-you change your tags, weights or scoring mode, because it was an ordering of one
-particular set of constellations and those choices produce a different set.
+arrangement survives a reload and survives ticking things off. It is dropped if you
+change your tags, weights or scoring mode, because it was an ordering of one particular
+set of constellations and those choices produce a different set.
 
 Dragging never changes *which* constellations you get, or what they cost. Only when.
 
@@ -294,19 +294,19 @@ Once you're happy and just want to follow the path in game, click the **padlock*
 Devotions heading. It's optional, and off unless you ask for it.
 
 Locked, the build is read-only: tags, weights, scoring, dragging and clearing your
-progress are all frozen. What stays live is the thing you're actually there to do —
-ticking off stars — and only at the two ends of your progress: **the next star to buy**,
+progress are all frozen. What stays live is the thing you're actually there to do,
+ticking off stars, and only at the two ends of your progress: **the next star to buy**,
 and **the last one you bought**. Everything else is inert, and the first time you click
-one it says so. Tell it to stop mentioning that and it will; the rule doesn't change,
+one it says so. Tell it to stop mentioning that and it will. The rule doesn't change,
 you just stop being told.
 
-That narrow rule is the whole point. Un-ticking is the destructive click — un-tick
-something low in the path and everything depending on it goes too — so the lock removes
-the chance of doing it by accident rather than offering to undo it afterwards.
+That narrow rule is the whole point. Un-ticking is the destructive click, because
+un-ticking something low in the path takes everything depending on it too, so the lock
+removes the chance of doing that by accident rather than offering to undo it afterwards.
 
 Unlocking asks first. Locking doesn't: putting the guard up should be frictionless,
 taking it down is the thing you might do without meaning to. **Nothing is lost by
-unlocking** — your ticks survive it, and there's no penalty for going back and forth.
+unlocking.** Your ticks survive it, and there's no penalty for going back and forth.
 
 You can still read everything while locked. Hovering a star shows what it gives, the tag
 library still browses, and Overview and Detail still swap.
@@ -315,8 +315,8 @@ library still browses, and Overview and Detail still swap.
 
 ## Going off-plan
 
-You don't have to follow the order. Tick what you're actually buying — the planner
-won't argue, and since the game lets you respec, none of it is one-way.
+You don't have to follow the order. Tick what you're actually buying. The planner won't
+argue, and since the game lets you respec, none of it is one-way.
 
 Worth knowing: the numbers down the right describe *the listed order*. Buy something
 near the bottom first and its row still shows the running total it would have had if
@@ -333,11 +333,11 @@ list re-plans around it.
 - **The build is a strong answer, not a proven-optimal one.** It searches rather than
   proving, so a slightly better arrangement may exist. It is always a *legal* build
   inside 55 points.
-- **Reset all** — top-right of the Target tags heading. Clears your tags, the path and
-  your progress. Undo won't bring it back.
-- **Your progress is keyed to individual stars**, so it survives changing the scoring
-  mode or re-solving. Change your tags enough and progress on constellations that leave
-  the build simply stops being shown.
+- **Progress is keyed to individual stars**, so it survives a change of scoring mode or
+  a re-solve. Change your tags enough and progress on constellations that leave the
+  build stops being shown.
+- **Reset all** sits top-right of the Target tags heading. It clears your tags, the path
+  and your progress, and undo won't bring it back.
 
 ---
 
