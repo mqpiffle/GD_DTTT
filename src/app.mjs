@@ -43,7 +43,12 @@ const MAX_RANK_MODE = 2;
 const ORDER_PRESSURE = 1e6;
 const app = document.getElementById('app');
 
-const raw = await fetch('../ui-index.json').then(r => r.json());
+// `no-cache` means "revalidate", not "don't cache": the browser still stores the file
+// and still sends If-None-Match, so an unchanged index costs a 304 with no body. What
+// it stops is the browser serving a stale copy from memory without asking, which is
+// what made "re-run build-ui-index.mjs and hard-refresh" a standing instruction --
+// you would rebuild the index and the page would keep showing the previous one.
+const raw = await fetch('../ui-index.json', { cache: 'no-cache' }).then(r => r.json());
 const chips = raw.chips;
 const db = buildDb(raw);
 

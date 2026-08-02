@@ -13,7 +13,8 @@
   From WSL, the repo lives on the Windows drive:
       cd /mnt/d/gd-extract/devotion-planner && python3 -m http.server 8080
   and localhost is forwarded, so the URL above works in the Windows browser unchanged.
-  Hard-refresh (Ctrl+Shift+R) after a rebuild -- ui-index.json is cached.
+  A plain refresh picks up a rebuilt ui-index.json: app.mjs fetches it with
+  cache:'no-cache', which revalidates rather than serving a stale copy.
 
   The right panel is a real ordered path: lib/select.mjs picks a legal set of
   constellations, lib/schedule.mjs orders them and inserts/refunds Crossroads.
