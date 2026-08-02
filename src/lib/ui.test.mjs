@@ -2172,3 +2172,33 @@ test('a proven plan renders the marker and keeps the same shape', () => {
     'the constellation count changed when the plan was marked proven');
   ui.state.plan = p;
 });
+
+test('a stale proof reply triggers a fresh request rather than silence', () => {
+  // The worker answers one request at a time, so clicking through the scoring modes
+  // queues solves and every reply lands stale. Discarding them is right; leaving it
+  // there meant the mode you settled on was never proven and nothing said why.
+  //
+  // No Worker here, so drive onProof() through the message path the worker would use.
+  plan([['Cold Damage'], ['Health']], 1);
+  const sent = [];
+  const fakeWorker = {
+    postMessage: m => sent.push(m),
+    addEventListener() {},
+  };
+  ui.__setProofWorker(fakeWorker);
+  try {
+    ui.askForProof();
+    assert.equal(sent.length, 1, 'no proof requested for the current build');
+    const first = sent[0];
+
+    // Answer the OLD question after the inputs have moved on.
+    ui.state.mode = 2;
+    ui.onProof({ data: { id: first.id, optimal: true, solution: [] } });
+
+    assert.equal(sent.length, 2, 'a stale reply did not trigger a fresh request');
+    assert.equal(sent[1].mode, 2, 'the re-ask used the old inputs');
+    assert.notEqual(sent[1].id, first.id, 're-ask reused the stale request id');
+  } finally {
+    ui.__setProofWorker(undefined);
+  }
+});

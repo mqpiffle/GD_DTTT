@@ -406,13 +406,35 @@ function askForProof() {
 
 let pendingProof = null;
 
+/**
+ * Install a stand-in worker, or `undefined` to restore normal detection.
+ *
+ * Test hook. The proof path cannot be exercised any other way under node, which has no
+ * Worker at all -- and the staleness handling is exactly the kind of thing that looks
+ * obviously right and silently drops every answer.
+ */
+function __setProofWorker(w) {
+  proofWorker = w;
+  pendingProof = null;
+}
+
 function onProof(e) {
   const { id, optimal, solution, reason, glpk } = e.data ?? {};
   // Three ways a reply is worthless: it answers a question we have moved on from, it
   // answers the current question but the inputs changed and changed back to something
   // that re-solved meanwhile, or it could not prove anything.
   if (!pendingProof || id !== pendingProof.id) return;
-  if (proofKey() !== pendingProof.key) { proofLog('answer discarded: the tags moved on'); return; }
+  // Late answer to a question we have moved on from. Discarding it is right, but
+  // stopping there was wrong: the worker handles one request at a time, so clicking
+  // through the three scoring modes queued three solves and every reply arrived stale.
+  // The build you settled on then never got proven, and nothing said why. Ask again for
+  // what is actually on screen.
+  if (proofKey() !== pendingProof.key) {
+    proofLog('answer was for older inputs; asking again for the current ones');
+    pendingProof = null;
+    askForProof();
+    return;
+  }
   pendingProof = null;
   if (!optimal || !solution?.length || !state.plan) {
     proofLog('not proven for these tags:', reason ?? 'no reason given',
@@ -2173,4 +2195,5 @@ export {
   treeGutter, starIdxs,
   frontier, pathStarKeys,
   applyOrder, currentOrder, moveInOrder, reorderNow, landingsFor, immovableSet,
+  askForProof, onProof, __setProofWorker,
 };
