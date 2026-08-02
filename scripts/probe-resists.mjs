@@ -32,8 +32,10 @@ const { Reader, readSummary, openBlock, skipNested } = __test;
 
 const savePath = process.argv[2];
 const dataRoot = process.argv[3];
+const difficulty = (process.argv[4] ?? 'veteran').toLowerCase();
 if (!savePath || !dataRoot) {
-  console.error('usage: node scripts/probe-resists.mjs <player.gdc> <folder-containing-records>');
+  console.error('usage: node scripts/probe-resists.mjs <player.gdc> <records-parent> [difficulty]');
+  console.error('       difficulty: veteran | elite | ultimate   (default veteran)');
   process.exit(1);
 }
 
@@ -61,6 +63,27 @@ const ELEMENTAL = 'defensiveElementalResistance';
  * Where the game gets this constant is not known -- it is in no field of the record.
  */
 const DEFAULT_JITTER = 20;
+
+/**
+ * The flat penalty each difficulty applies to every resistance.
+ *
+ * CHOSEN, not read from the save, and this is not a shortcut.
+ *
+ * Once a character unlocks a difficulty it can move between them freely, so there is no
+ * such thing as "the" difficulty a character is on -- it is wherever they happen to be
+ * standing. A save could at best report the last one loaded, which is not a fact worth
+ * building on.
+ *
+ * The useful question is "am I geared for where I am GOING". Someone farming Veteran who
+ * wants to know whether Elite will kill them is asking about a difficulty they may not
+ * have entered, and no amount of parsing reaches it.
+ *
+ * It also removes the worst failure this probe could have had. Reading difficulty wrongly
+ * would put every resistance out by 25 or 50 -- an order of magnitude past the ~2 point
+ * modelling error -- and would do it silently, reporting a character as safe when it is
+ * not.
+ */
+const DIFFICULTY = { veteran: 0, elite: -25, ultimate: -50 };
 
 // ---------------------------------------------------------------- read the save
 
@@ -169,11 +192,17 @@ const SHEET = {
 /** What a control actually does with a resistance: bucket it. Only threshold crossings matter. */
 const weight = v => (v >= 75 ? 0 : v < 45 ? 3 : v < 60 ? 2 : 1);
 
-console.log('\n--- derived vs the character sheet ---');
+const penalty = DIFFICULTY[difficulty];
+if (penalty === undefined) {
+  console.error(`unknown difficulty "${difficulty}" -- expected veteran, elite or ultimate`);
+  process.exit(1);
+}
+
+console.log(`\n--- derived, planning for ${difficulty} (${penalty || 'no'} penalty) ---`);
 console.log('  stat           central  band        sheet  in band  advice');
 let inBand = 0, agree = 0, absErr = 0;
 for (const [label, field] of RESISTS) {
-  const v = total[field];
+  const v = total[field] + penalty;
   const band = Math.sqrt(jitterSq[field]);
   const lo = v - band, hi = v + band;
   const real = SHEET[field];
@@ -187,6 +216,15 @@ for (const [label, field] of RESISTS) {
     + `${String(real).padStart(5)}  ${(ok ? 'yes' : 'NO').padEnd(7)}  `
     + `${weight(v)}/${weight(real)}${same ? '' : '  <-- DIFFERS'}`);
 }
-console.log(`\n${inBand}/10 inside the band, mean absolute error `
-  + `${(absErr / RESISTS.length).toFixed(1)} points`);
-console.log(`advice agrees on ${agree}/10`);
+// The sheet numbers were read on Veteran, so they are ground truth for Veteran only.
+// Comparing them against a penalised column would report a 50-point "error" that is just
+// the penalty doing its job, which is exactly the kind of number that gets quoted later
+// without its caveat.
+if (penalty === 0) {
+  console.log(`\n${inBand}/10 inside the band, mean absolute error `
+    + `${(absErr / RESISTS.length).toFixed(1)} points`);
+  console.log(`advice agrees on ${agree}/10`);
+} else {
+  console.log('\nNo comparison: the sheet was read on Veteran, so it is ground truth for');
+  console.log('Veteran only. The column above is a projection, not a measurement.');
+}

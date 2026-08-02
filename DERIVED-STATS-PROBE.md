@@ -124,12 +124,49 @@ values cannot fix a wrong type. Do not read this as licensing "all out damage".
 **OA / DA / armor are untested.** Additive like resistances, but with flat and percentage
 terms applying in an order that has to be right. Plausible, unmeasured.
 
+## Difficulty is an INPUT, not a derived fact
+
+Veteran 0, Elite −25, Ultimate −50, applied flat to every resistance. The tool asks which
+difficulty you are planning for rather than reading it from the save, and this is a
+design decision rather than a shortcut.
+
+**A character can move freely between difficulties once it has unlocked them.** So there
+is no such thing as "the" difficulty a character is on — it is wherever they happen to be
+standing. A save could at best report the last one loaded, which is not a fact worth
+building on.
+
+More usefully, the question people actually have is *"am I geared for where I'm going"*.
+Someone farming Veteran who wants to know whether Elite will kill them is asking about a
+difficulty they may not have entered, and no amount of parsing reaches it.
+
+It also removes the worst failure this probe could have had. Reading difficulty wrongly
+would put every resistance out by 25 or 50 — an order of magnitude past the ~2 point
+modelling error — and would do it silently, reporting a character as safe when it is not.
+
+Farker projected to Ultimate, for illustration: fire −6, chaos −42, physical −50, nothing
+above 23. That is the honest picture of a level 28 character looking at the top
+difficulty, and no amount of devotion planning fixes it — which is itself worth the tool
+being able to say.
+
 ## Open gaps
 
 - The ±20% default is inferred from one tooltip, not found in the data. Worth confirming
   against a second item before relying on it.
+- **The inactive alternate weapon set is currently counted.** The offset scan takes every
+  record in the equipment tail, including the weapon swap that is not in hand. Farker's
+  alt weapons carry no resistances, so this did not show up — luck, not correctness. It
+  needs the item layout pinned down to fix properly.
 - Set bonuses are not modelled. Farker has none, so this probe says nothing about them.
 - Skill and mastery resistance grants are not modelled. Farker appears to have none.
-- The difficulty penalty (Veteran 0, Elite −25, Ultimate −50) is not applied. Farker is
-  on Veteran, so it never showed up here — an Elite character would be out by 25 across
-  the board.
+
+## Partial progress on the item layout
+
+Measured from the gaps between known base-name offsets: an item is `baseName` followed by
+**17 fields and one trailing byte**, where fields 1-4 are strings (prefix, suffix,
+modifier, transmute), 5 is the seed, 6 is `relicName` and 7 is `relicBonus`. That matches
+iagd for the first seven and gives **four more than iagd has** in the remainder.
+
+Confirmed on the torso (no affixes, 111 bytes) and the quest ring (no affixes, 126
+bytes), both landing exactly. **The relic does not fit this pattern** — its crafting
+affix appears two slots after the base name rather than at slot 6 — so there is
+variability not yet understood. Do not treat the layout as solved.
