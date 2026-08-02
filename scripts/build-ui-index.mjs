@@ -182,10 +182,30 @@ for (const c of data) {
     ])),
     // What the celestial power does: its own stats plus whatever skill it grants.
     // Empty on every star but the power star.
-    fxp: c.stars.map(s => packLines(s.proc ? [
-      ...effectLines(s.stats, LABELS),
-      ...(s.grants && s.grants.kind !== 'pet' ? effectLines(s.grants.stats, LABELS) : []),
-    ] : [])),
+    // Proc lines carry TWO sets of numbers: at rank 1, and at the power's own cap.
+    //
+    // A proc's stats are per-level arrays and the display took `[0]` regardless of the
+    // scoring mode, so "CP Max" showed rank-1 numbers -- and that is not an edge case:
+    // 236 of the 413 proc lines differ between the two. Measured before choosing how to
+    // ship it: appending the max-rank pair only where it differs costs 1.3 KB raw and
+    // 0.5 KB gzipped on a 227 KB / 24.5 KB index, so shipping the full per-rank arrays
+    // was never worth considering.
+    fxp: c.stars.map((s) => {
+      const at = rank => (s.proc ? [
+        ...effectLines(s.stats, LABELS, { rank }),
+        ...(s.grants && s.grants.kind !== 'pet' ? effectLines(s.grants.stats, LABELS, { rank }) : []),
+      ] : []);
+      const lo = packLines(at('first'));
+      const hi = packLines(at('last'));
+      // Same input in the same order, so the two pack to matching lines -- but a guard
+      // costs nothing and a silently mismatched pair would show one line's rank-1 value
+      // beside another's maximum.
+      return lo.map((l, i) => {
+        const h = hi[i];
+        if (!h || h[0] !== l[0]) return l;
+        return (h[1] === l[1] && h[2] === l[2]) ? l : [...l, h[1], h[2]];
+      });
+    }),
   });
 }
 

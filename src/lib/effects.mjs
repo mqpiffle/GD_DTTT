@@ -27,9 +27,18 @@ import { damageKeyword, isTechnical } from './fields.mjs';
 
 const SUFFIX = /(DurationModifier|DurationMin|DurationMax|Modifier|Min|Max)$/;
 
-/** Per-level arrays take their first entry: the value at the rank you buy it. */
-const num = (v) => {
-  const x = Array.isArray(v) ? v[0] : v;
+/**
+ * Read a stat at a rank.
+ *
+ * Per-level arrays are RAGGED -- lengths of 10, 15, 16, 19, 20 and 25 all occur on the
+ * 63 proc stars, because a power's cap is its own (10/15/20/25) and `skillMaxLevel`
+ * lies about it. So 'last' means the last entry of THIS array, never a fixed index:
+ * indexing past the end is how `NaN` gets into the objective.
+ *
+ * Plain numbers ignore `rank` entirely -- a passive doesn't have ranks.
+ */
+const num = (v, rank = 'first') => {
+  const x = Array.isArray(v) ? (rank === 'last' ? v[v.length - 1] : v[0]) : v;
   if (typeof x !== 'number' || !Number.isFinite(x)) return null;
   return Number.isInteger(x) ? x : Math.round(x * 10) / 10;
 };
@@ -42,13 +51,13 @@ const tidy = n => (Number.isInteger(n) ? n : Math.round(n * 10) / 10);
  *   v, v2  the numbers, kept separate so they can be summed across stars
  *   fields the DBR fields the line came from, so a caller can map it to a keyword chip
  */
-export function effectLines(stats, labels = {}) {
+export function effectLines(stats, labels = {}, { rank = 'first' } = {}) {
   const out = [];
   const groups = new Map();
 
   for (const [field, rawValue] of Object.entries(stats ?? {})) {
     if (isTechnical(field)) continue;
-    const v = num(rawValue);
+    const v = num(rawValue, rank);
     if (v == null || v === 0) continue;
 
     const label = labels[field];

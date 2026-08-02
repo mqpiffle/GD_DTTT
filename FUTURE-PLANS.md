@@ -96,10 +96,19 @@ nor the template logic.
 
 Still open:
 
-- **Per-RANK values.** Arrays take their first entry, so a proc's numbers are shown at
-  rank 1 regardless of the scoring mode. Max rank should show max-rank numbers.
+- ~~**Per-RANK values.**~~ **DONE 1 Aug.** `effectLines()` takes `{ rank }`, and `fxp`
+  ships a second pair of numbers on any proc line whose value differs at the power's
+  own cap. `CP Max` now shows cap numbers; `Passives` and `Balanced` show rank 1,
+  because the tool doesn't model spending devotion points into a power.
+
+  **It was 236 of 413 proc lines**, not a handful — most proc numbers were wrong in
+  that mode. Measured before choosing how to ship it: appending the pair only where it
+  differs costs **1.3 KB raw / 0.5 KB gzipped** against a 227 KB / 24.5 KB index, which
+  settled the "arrays vs precomputed" question immediately. Ranks are read as "last
+  entry of *this* array" — they are ragged (10/15/16/19/20/25 all occur), and a fixed
+  index is how `NaN` gets into the objective.
 - **Coverage bars still count stars, not magnitude** — the values now exist to fix that,
-  which was the other half of this item.
+  which was the other half of this item. This is the one left.
 
 ---
 
@@ -317,7 +326,10 @@ calling it done.
 
 ## Repo hygiene, before anything goes public
 
-- `labels.json` derives from iagd's `StatTranslator/EnglishLanguage.cs`, which is MIT.
-  MIT requires carrying its copyright notice — add it.
+- ~~`labels.json` derives from iagd's `StatTranslator/EnglishLanguage.cs`, which is MIT.
+  MIT requires carrying its copyright notice — add it.~~ **DONE, and it was already
+  done when this line was written.** `THIRD-PARTY.md` reproduces iagd's notice in
+  full; checked against `iagd/LICENSE` on 1 Aug and it matches verbatim. The entry
+  survived because nobody re-read the file it was asking for.
 - `devotions.raw.json` and `ui-index.json` are extracted from Crate's game files.
   Consider gitignoring them and having people generate from their own install.

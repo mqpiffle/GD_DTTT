@@ -1957,3 +1957,82 @@ test('a fixed row is still a drop target', () => {
   ui.state.plain = false;
   ui.state.immovable = new Set();
 });
+
+// --- proc numbers follow the scoring mode ------------------------------------
+
+test('a proc tooltip shows cap numbers in CP Max and rank-1 numbers otherwise', () => {
+  // The bug: proc stats are per-level arrays and the display took [0] whatever the
+  // mode, so "CP Max" scored powers at their cap while showing rank-1 numbers beside
+  // it. 236 of 413 proc lines differ, so this was most of them.
+  //
+  // Driven through render() rather than by calling the unpacker, so the wiring from
+  // mode to tooltip is what's under test.
+  const idx = JSON.parse(fs.readFileSync(path.join(srcDir, '../ui-index.json'), 'utf8'));
+  const withBoth = idx.constellations.find(c => (c.fxp ?? [])
+    .some(star => (star ?? []).some(line => line.length >= 6)));
+  assert.ok(withBoth, 'no constellation ships a differing max-rank proc line');
+  const line = withBoth.fxp.flat().find(l => l.length >= 6);
+  const [tmpl, v, , , vMax] = line;
+  assert.notEqual(v, vMax, 'picked a line whose two ranks are identical');
+
+  // Render the whole tree in each mode and read the tooltips out of the markup.
+  const seen = {};
+  for (const mode of [1, 2]) {
+    plan([['Cold Damage'], ['Health']], mode);
+    ui.state.done = new Set();
+    ui.state.plain = false;
+    ui.render();
+    seen[mode] = app.innerHTML;
+  }
+  const numFor = (html, n) => html.includes(tmpl.replace('{v}', String(n)));
+
+  // At least one of the two must appear in each -- the fixture has to actually contain
+  // a power, or this asserts nothing.
+  const anyProc = /data-fxhead=/.test(seen[1]);
+  assert.ok(anyProc, 'this fixture rendered no proc tooltips at all');
+
+  // Whatever line we picked, mode 2 must never render the rank-1 number where the
+  // max-rank one exists, and vice versa.
+  for (const [mode, html] of Object.entries(seen)) {
+    const wantRank1 = mode === '1';
+    if (numFor(html, wantRank1 ? vMax : v) && !numFor(html, wantRank1 ? v : vMax)) {
+      assert.fail(`mode ${mode} rendered the ${wantRank1 ? 'max-rank' : 'rank-1'} number`);
+    }
+  }
+});
+
+test('every proc line ships a max-rank pair only when it differs', () => {
+  // The packing contract. A line carrying a redundant pair costs bytes for nothing; a
+  // line missing one where the ranks differ silently shows rank 1 in CP Max, which is
+  // the bug this all exists to fix.
+  const idx = JSON.parse(fs.readFileSync(path.join(srcDir, '../ui-index.json'), 'utf8'));
+  let paired = 0, plain = 0;
+  for (const c of idx.constellations) {
+    for (const star of c.fxp ?? []) {
+      for (const l of star ?? []) {
+        assert.ok(l.length === 4 || l.length === 6, `proc line has ${l.length} entries`);
+        if (l.length === 6) {
+          paired++;
+          assert.ok(l[4] !== l[1] || l[5] !== l[2],
+            `${l[0]} carries a max-rank pair identical to its rank-1 values`);
+        } else plain++;
+      }
+    }
+  }
+  assert.ok(paired > 0, 'no proc line ships max-rank values at all');
+  assert.ok(plain > 0, 'every proc line ships a pair, so the "only when it differs" rule is not working');
+});
+
+test('passive lines never carry a rank pair', () => {
+  // A passive has no ranks. If one ever grows a pair, something has routed proc stats
+  // into the constellation total -- the mistake that put Tsunami's Skill Recharge into
+  // its passives once already.
+  const idx = JSON.parse(fs.readFileSync(path.join(srcDir, '../ui-index.json'), 'utf8'));
+  for (const c of idx.constellations) {
+    for (const star of c.fx ?? []) {
+      for (const l of star ?? []) {
+        assert.equal(l.length, 4, `passive line "${l[0]}" on ${c.n} carries rank values`);
+      }
+    }
+  }
+});

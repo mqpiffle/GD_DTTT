@@ -690,8 +690,12 @@ const MODES = [
   ['CP Max', 'Celestial powers valued at their own maximum rank — favours going deep on'
     + ' a few powers over spreading across many'],
 ];
-// A fourth plan that isn't a scoring choice: the same set of constellations, re-ordered
-// around what you've actually bought. Only offered once you've gone off-plan.
+// The mode that scores powers at their cap, and therefore the one whose proc tooltips
+// must show cap numbers. Named rather than written as `2` at the point of use, because
+// the indices are load-bearing elsewhere (saved states, LEVEL_MODE) and a bare 2 in a
+// display path reads like a magic number rather than a reference to this table.
+const MAX_RANK_MODE = 2;
+
 // How hard a dragged position pulls, against the ordinary keyword/power priority.
 // Same 1e6 the bought-first boost used: a manual order is an instruction, not a hint,
 // so it has to dominate rather than merely compete. The scheduler still refuses to
@@ -1378,7 +1382,8 @@ function cardHtml({ p, c, refund, num, step, stars, complete }, current, takenSt
     totals.map(l => [l.tmpl, l.v, l.v2 ?? 0, l.chip ?? 0]));
   // The CP badge gets the power's own tooltip, separate from the passives.
   const powerTip = c.powerStar ? tipData(
-    c.starNames?.[c.powerStar - 1] || c.name, c.powerEffects?.[c.powerStar - 1]) : '';
+    c.starNames?.[c.powerStar - 1] || c.name, c.powerEffects?.[c.powerStar - 1],
+    { proc: true }) : '';
 
   return `<div class="${cls}"${attrs}>
       <div class="step">
@@ -1523,7 +1528,7 @@ function starList(c, taken, chosenStars, nextKey, prevKey) {
     // A power star's own numbers ARE the proc, so show those; every other star shows
     // its passives.
     const tipAttrs = isPower
-      ? tipData(starName || c.name, c.powerEffects?.[i])
+      ? tipData(starName || c.name, c.powerEffects?.[i], { proc: true })
       : tipData('', c.starEffects?.[i]);
     // While locked, every star except the two ends of your progress is inert. It has
     // to LOOK inert: once the dialog has been hushed, an unmarked dead click is
@@ -1548,7 +1553,31 @@ const chipLabel = id => (chips.find(c => c.id === id)?.label ?? id);
 
 // --- effect tooltips ---------------------------------------------------------
 // Index lines are packed as [template, value, value2, chipId]; unpack before use.
+//
+// A PROC line may carry two more entries -- [.., vMax, v2Max] -- the same statement at
+// the power's own level cap. Only present where the numbers actually differ, which is
+// 236 of 413 proc lines. Passive lines never have them: a passive has no ranks.
 const unpackLine = ([tmpl, v, v2, chip]) => ({ tmpl, v, v2: v2 || null, chip: chip || null });
+
+/**
+ * A proc line at the rank the current scoring mode implies.
+ *
+ * `CP Max` (mode 2) says the build is being scored as though every power were at its
+ * cap, so showing rank-1 numbers next to that made the tooltip contradict the mode
+ * selected two inches away. `Passives` and `Balanced` both show rank 1 -- the tool does
+ * not model putting devotion points into a power, so rank 1 is what you get by
+ * acquiring it.
+ *
+ * Reads `state.plan.mode`, not `state.mode`, for the reason Coverage does: clicking a
+ * tab re-renders before the new plan exists, and a panel must describe the state it is
+ * rendering rather than the one you just asked for.
+ */
+function unpackProc(line) {
+  const l = unpackLine(line);
+  const atMax = (state.plan?.mode ?? state.mode) === MAX_RANK_MODE;
+  if (!atMax || line.length < 6) return l;
+  return { ...l, v: line[4], v2: line[5] || null };
+}
 
 /** chip id -> the weight the user gave it, for colouring a bonus they asked for. */
 function wantedWeights() {
@@ -1567,9 +1596,9 @@ function wantedWeights() {
  * arrays don't survive that. `␟` (unit separator) is used between fields since it
  * cannot occur in a stat string.
  */
-function tipData(head, packed) {
+function tipData(head, packed, { proc = false } = {}) {
   const weights = wantedWeights();
-  const lines = (packed ?? []).map(unpackLine).map((l) => {
+  const lines = (packed ?? []).map(proc ? unpackProc : unpackLine).map((l) => {
     const w = l.chip ? weights.get(l.chip) : null;
     return `${w ?? 0}␟${renderLine(l)}`;
   });
