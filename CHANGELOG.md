@@ -4,6 +4,11 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.7 — 2 Aug 2026
+
+Documentation only. Records why a block containing nested blocks cannot be skipped byte
+by byte, which is the rule that blocks the route to a character's devotions.
+
 ## 0.2.6 — 2 Aug 2026
 
 The save reader is now verified against the game rather than only against itself. Name,

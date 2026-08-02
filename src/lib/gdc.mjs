@@ -161,6 +161,22 @@ class Reader {
  *
  * The bytes must still be READ one at a time: the key advances per byte, so seeking past
  * them would desynchronise everything after.
+ *
+ * ONLY SAFE FOR A FLAT BLOCK. This is the rule that cost the most to find, so it is
+ * worth stating plainly: a block-length field and an end marker are read WITHOUT
+ * advancing the key. Skipping a block byte by byte therefore advances the key over
+ * bytes the game excluded from the key stream -- eight of them for every nested block
+ * inside.
+ *
+ * Blocks 1 (character info) and 2 (bio) are flat, so this works. Block 3 (inventory)
+ * holds three nested sacks, and skipping it flat over-advanced the key by 24 bytes,
+ * which desynchronised the entire rest of the file. Confirmed by parsing the sacks as
+ * blocks instead: block 3 then lands on its end marker exactly.
+ *
+ * So a container has to be walked, not skipped. What it does NOT need is any
+ * understanding of its contents -- each nested block is itself skipped by length. The
+ * inventory needs only version, allGood, numSacks, focused, selected, then three nested
+ * blocks, then a flat run of equipment.
  */
 function skipBlock(r, len) {
   const end = r.pos + len;
