@@ -937,6 +937,31 @@ function pathHtml() {
 }
 
 /**
+ * The CP badge for an Overview row.
+ *
+ * A constellation having a celestial power is not the same as this build TAKING it: 40
+ * of the 62 powers sit short of the end, so a partial take can stop before the power
+ * star. The badge used to say only "there is a power here", which reads as a promise
+ * the build has not made.
+ *
+ * Lit when the power star is in the take, dimmed when it is not. Both carry the tooltip,
+ * because what the power does is exactly what you want to know when deciding whether to
+ * spend the extra points reaching it.
+ */
+function cpBadge(p, c, refund, stars) {
+  if (!c.hasPower || refund) return '';
+  const taken = c.powerStar
+    ? (stars.keys ?? []).includes(`${p.id}:${c.powerStar}`)
+    : false;
+  const tip = c.powerStar
+    ? tipData(c.starNames?.[c.powerStar - 1] || c.name,
+              c.powerEffects?.[c.powerStar - 1], { proc: true })
+    : '';
+  const title = taken ? '' : ' title="This constellation has a celestial power, but this build stops short of it"';
+  return ` <span class="cp${taken ? '' : ' off'}"${tip}${title}>CP</span>`;
+}
+
+/**
  * Overview: the whole path as one scannable column.
  *
  * Detail is for following along in game, one step at a time. This is for seeing the
@@ -1023,7 +1048,7 @@ function plainHtml(rows, schedule) {
       <span class="pn">${refund ? '↩' : num}</span>
       ${tick}
       <span class="pd">${hits ? '●' : '○'}</span>
-      <span class="pnm">${esc(p.name)}${c.hasPower && !refund ? ' <span class="cp">CP</span>' : ''}${
+      <span class="pnm">${esc(p.name)}${cpBadge(p, c, refund, stars)}${
         partial ? `<span class="ppart">${p.points}/${c.starCount}</span>` : ''}</span>
       <span class="ph">${hits || ''}</span>
       <span class="pp">${refund ? p.points : '+' + p.points}</span>

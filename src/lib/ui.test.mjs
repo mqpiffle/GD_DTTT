@@ -2421,3 +2421,61 @@ test('switching characters clears the undo trail', () => {
     assert.equal(ui.history.length, 0, 'undo history followed you to another character');
   } finally { s.restore(); }
 });
+
+test('the CP badge is lit only where the build reaches the power star', () => {
+  // Having a power and TAKING it are different: 40 of the 62 sit short of the end, so
+  // a partial take can stop before the power star. The badge used to say only "there is
+  // a power here", which reads as a promise the build has not made.
+  //
+  // Derived independently from the plan rather than trusting the markup's own class.
+  const s = withStore();
+  try {
+    ui.load();
+    const p = plan([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+    ui.state.done = new Set();
+    ui.state.plain = true;
+    ui.render();
+
+    const rows = [...app.innerHTML.matchAll(
+      /<span class="pnm">([^<]*)(?:<span class="cp( off)?"[^>]*>CP<\/span>)?/g)];
+    let lit = 0, dim = 0, checked = 0;
+    for (const e of p.solution) {
+      const c = ui.db.constellations[e.id];
+      if (!c.hasPower || !c.powerStar) continue;
+      checked++;
+      const takesPower = (e.stars ?? []).includes(c.powerStar);
+      const row = rows.find(r => r[1].trim() === c.name);
+      assert.ok(row, `no Overview row for ${c.name}`);
+      const isDim = row[2] === ' off';
+      assert.equal(isDim, !takesPower,
+        `${c.name}: badge ${isDim ? 'dimmed' : 'lit'} but the build ${takesPower ? 'does' : 'does not'} take its power star`);
+      takesPower ? lit++ : dim++;
+    }
+    assert.ok(checked > 0, 'this fixture has no constellation with a power');
+    assert.ok(lit > 0, 'no power was taken, so a lit badge is untested');
+    assert.ok(dim > 0, 'no power was skipped, so a dimmed badge is untested');
+
+    ui.state.plain = false;
+  } finally { s.restore(); }
+});
+
+test('both CP badges carry the power tooltip', () => {
+  // Dimmed does not mean silent. What the power does is exactly the thing that decides
+  // whether to spend the extra points reaching it.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Chaos Damage'], ['Shield Damage Blocked']], 0);
+    ui.state.done = new Set();
+    ui.state.plain = true;
+    ui.render();
+
+    const badges = [...app.innerHTML.matchAll(/<span class="cp( off)?"([^>]*)>CP<\/span>/g)];
+    assert.ok(badges.length > 1, 'not enough CP badges to test');
+    for (const b of badges) {
+      assert.match(b[2], /data-fx="/,
+        `a ${b[1] ? 'dimmed' : 'lit'} CP badge has no tooltip`);
+    }
+    ui.state.plain = false;
+  } finally { s.restore(); }
+});

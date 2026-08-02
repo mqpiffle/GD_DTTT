@@ -15,6 +15,12 @@ me about the lock" belong to you and are shared by every character.
 An existing v1 save migrates into a single character, and the v1 key is left in place
 as a free undo.
 
+Overview's CP badge now distinguishes a power the build reaches from one it stops short
+of. 40 of the 62 powers sit below the end of their constellation, so a partial take can
+leave the power unbought; the badge dims in that case rather than implying you get it.
+Both states keep the tooltip, since what the power does is what decides whether the
+extra points are worth it.
+
 ## 0.2.0 — 1 Aug 2026
 
 The first numbered state. Everything before this was unnumbered development.
