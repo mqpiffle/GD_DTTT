@@ -4,6 +4,13 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.5 — 2 Aug 2026
+
+The save reader now reads a real Fangs of Asterkarn save, which the previous version
+did not. Three version numbers had moved since the parser it was ported from, and the
+character-info block is now skipped by its declared length rather than parsed, so a
+future change to it cannot break anything.
+
 ## 0.2.4 — 2 Aug 2026
 
 The first half of reading a Grim Dawn save: the cipher, and everything up to the bio.

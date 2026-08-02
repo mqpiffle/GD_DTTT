@@ -148,12 +148,44 @@ class Reader {
 }
 
 /**
+ * Skip a block whose contents we do not need to understand.
+ *
+ * This is the single most useful thing the format gives us. A block header carries its
+ * own byte length, measured from just after the length field to the end marker --
+ * verified against a real save on blocks 1 and 2, where the count lands exactly.
+ *
+ * So a block whose layout has changed between game versions costs nothing as long as we
+ * do not want anything inside it. Character info is version 5 in a Fangs of Asterkarn
+ * save against the 3 or 4 iagd knows about, and it is skipped here rather than parsed,
+ * which means that change cannot break anything.
+ *
+ * The bytes must still be READ one at a time: the key advances per byte, so seeking past
+ * them would desynchronise everything after.
+ */
+function skipBlock(r, len) {
+  const end = r.pos + len;
+  if (end > r.data.length) throw new Error('block length runs past the end of the file');
+  while (r.pos < end) r.byte();
+}
+
+/**
  * Read the parts of a save that come before the inventory.
  *
  * That boundary is not arbitrary: everything here is cheap and sits in the first few
  * hundred bytes, while anything later means parsing the whole inventory and stash to
  * reach it. What this yields is enough to plan against -- who the character is, and how
  * many devotion points they actually have.
+ *
+ * VERSIONS. Checked against a real Fangs of Asterkarn save, which is where the numbers
+ * below come from; iagd's parser predates it and expects the older ones:
+ *
+ *   file version   2   (iagd: 1)  -- and version 2 adds a byte after `hardcore`
+ *   save version   8   (iagd: 6 or 7)
+ *   info block     5   (iagd: 3 or 4)  -- skipped by length, so its layout is moot
+ *   bio block      8   unchanged, and the reason this works at all
+ *
+ * The older values are still accepted. Nothing here needs them, but rejecting a save
+ * this code could read would be a gratuitous way to fail.
  *
  * @returns { name, sex, classId, level, hardcore, bio: {...} }
  */
@@ -163,7 +195,9 @@ export function readCharacterSummary(bytes) {
 
   if (r.int() !== MAGIC) throw new Error('not a Grim Dawn character file');
   const fileVersion = r.int();
-  if (fileVersion !== 1) throw new Error(`unsupported file version ${fileVersion}`);
+  if (fileVersion !== 1 && fileVersion !== 2) {
+    throw new Error(`unsupported file version ${fileVersion}`);
+  }
 
   // --- header ---
   const name = r.wstring();
@@ -171,60 +205,57 @@ export function readCharacterSummary(bytes) {
   const classId = r.string();
   const level = r.int();
   const hardcore = r.bool();
+  // One byte that version 1 did not have. Found by walking forward a byte at a time
+  // from `hardcore` looking for the zero marker: at +1 it appears, and the save version
+  // behind it reads as 8. Its meaning is unknown and unneeded.
+  if (fileVersion >= 2) r.byte();
 
   // A zero read WITHOUT advancing the key, then the save version.
   if (r.int({ advance: false }) !== 0) throw new Error('unexpected data after the header');
   const version = r.int();
-  if (version !== 6 && version !== 7) throw new Error(`unsupported save version ${version}`);
+  if (version < 6 || version > 8) throw new Error(`unsupported save version ${version}`);
 
   r.skipUid();
 
-  // --- character info (block 1) ---
-  r.blockStart(1);
-  const infoVersion = r.int();
-  if (infoVersion !== 3 && infoVersion !== 4) {
-    throw new Error(`unsupported character-info version ${infoVersion}`);
-  }
-  r.bool();            // isInMainQuest
-  r.bool();            // hasBeenInGame
-  r.byte();            // difficulty
-  r.byte();            // greatest campaign difficulty
-  const money = r.uint();
-  if (infoVersion === 4) {
-    r.byte();          // greatest crucible difficulty
-    r.int();           // tributes
-  }
-  r.byte();            // compass state
-  r.int();             // loot mode
-  r.byte();            // skill window help
-  r.byte();            // alternate config
-  r.byte();            // alternate config enabled
-  r.string();          // texture
+  // --- character info (block 1): skipped whole ---
+  // Nothing in it is wanted, and its layout has already changed once.
+  const infoBlock = r.int();
+  if (infoBlock !== 1) throw new Error(`expected the character-info block, found ${infoBlock}`);
+  skipBlock(r, r.int({ advance: false }));
   r.blockEnd();
 
   // --- bio (block 2) ---
-  r.blockStart(2);
+  const bioBlock = r.int();
+  if (bioBlock !== 2) throw new Error(`expected the bio block, found ${bioBlock}`);
+  const bioLen = r.int({ advance: false });
+  const bioStart = r.pos;
   const bioVersion = r.int();
   if (bioVersion !== 8) throw new Error(`unsupported bio version ${bioVersion}`);
   const bio = {
     level: r.int(),
     experience: r.int(),
-    modifierPoints: r.int(),
+    // "Modifier points" in the file, attribute points in the game.
+    attributePoints: r.int(),
     skillPoints: r.int(),
     // The two that matter for planning: what is UNSPENT, and what has been earned in
     // total. Earned is the budget to plan against; unspent is how much of that plan you
     // could act on right now.
     devotionPoints: r.int(),
     totalDevotion: r.int(),
-    strength: r.float(),
-    agility: r.float(),
-    intelligence: r.float(),
+    physique: r.float(),
+    cunning: r.float(),
+    spirit: r.float(),
     health: r.float(),
     energy: r.float(),
   };
+  // The block declares its own size, so a field added or removed in a future version
+  // shows up here as a mismatch rather than as plausible nonsense further downstream.
+  if (r.pos - bioStart !== bioLen) {
+    throw new Error(`bio block is ${bioLen} bytes but ${r.pos - bioStart} were read`);
+  }
   r.blockEnd();
 
-  return { name, sex, classId, level, hardcore, money, bio, at: r.pos };
+  return { name, sex, classId, level, hardcore, fileVersion, version, bio, at: r.pos };
 }
 
-export const __test = { Reader, MAGIC, XOR_KEY, PRIME };
+export const __test = { Reader, MAGIC, XOR_KEY, PRIME, skipBlock };

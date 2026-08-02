@@ -84,6 +84,34 @@ class Writer {
     return this;
   }
 
+  /**
+   * Open a block, reserving its length field.
+   *
+   * The length cannot be known until the payload is written, and it is encrypted with
+   * the key as it stands right here -- so the key is captured and the four bytes are
+   * patched in `endBlock`. Building the payload with a separate writer does not work:
+   * writing the block id advances the key, so a payload encrypted beforehand decrypts
+   * to noise. That mistake produced a fixture that failed where the real save passed.
+   */
+  beginBlock(id) {
+    this.int(id);
+    const keyAtLen = this.key;          // written with advance:false, so the key holds
+    const lenPos = this.out.length;
+    this.int(0, { advance: false });    // placeholder
+    return { lenPos, keyAtLen, start: this.out.length };
+  }
+
+  endBlock(h) {
+    const len = this.out.length - h.start;
+    const raw = ((len >>> 0) ^ h.keyAtLen) >>> 0;
+    this.out[h.lenPos] = raw & 0xff;
+    this.out[h.lenPos + 1] = (raw >>> 8) & 0xff;
+    this.out[h.lenPos + 2] = (raw >>> 16) & 0xff;
+    this.out[h.lenPos + 3] = (raw >>> 24) & 0xff;
+    this.int(0, { advance: false });    // end marker
+    return this;
+  }
+
   bytes() { return Uint8Array.from(this.out); }
 }
 
@@ -91,30 +119,30 @@ class Writer {
 function buildSave(over = {}) {
   const o = {
     name: 'Tangie', sex: 1, classId: 'tagCharacterClass01', level: 42, hardcore: false,
-    saveVersion: 7, infoVersion: 4, money: 12345,
+    fileVersion: 2, saveVersion: 8, infoVersion: 5, money: 12345,
     devotionPoints: 7, totalDevotion: 23,
     ...over,
   };
   const w = new Writer();
-  w.int(MAGIC).int(1);
+  w.int(MAGIC).int(o.fileVersion);
   w.wstring(o.name).byte(o.sex).string(o.classId).int(o.level).bool(o.hardcore);
+  if (o.fileVersion >= 2) w.byte(7);               // the byte version 2 added
   w.int(0, { advance: false }).int(o.saveVersion);
   for (let i = 0; i < 16; i++) w.byte(i);          // uid
 
-  w.int(1).int(0, { advance: false });             // block 1 start: version, length
-  w.int(o.infoVersion);
-  w.bool(true).bool(true).byte(2).byte(3);
-  w.uint(o.money);
-  if (o.infoVersion === 4) { w.byte(1); w.int(99); }
-  w.byte(1).int(2).byte(1).byte(0).byte(0).string('tex.tex');
-  w.int(0, { advance: false });                    // block end
+  // Block 1 is skipped by its declared length, so its contents are arbitrary. That is
+  // the point of the test: the reader must not care what is in here.
+  const info = w.beginBlock(1);
+  w.int(o.infoVersion).bool(true).bool(true).byte(2).byte(3).uint(o.money)
+   .byte(1).int(2).byte(1).byte(0).byte(0).string('tex.tex');
+  w.endBlock(info);
 
-  w.int(2).int(0, { advance: false });             // block 2 start
+  const bio = w.beginBlock(2);
   w.int(8);                                        // bio version
   w.int(o.level).int(1000000).int(4).int(12);
   w.int(o.devotionPoints).int(o.totalDevotion);
   w.float(700.5).float(400.25).float(300).float(9999.5).float(1234.5);
-  w.int(0, { advance: false });                    // block end
+  w.endBlock(bio);
   return w.bytes();
 }
 
@@ -124,7 +152,8 @@ test('reads a character header and bio', () => {
   assert.equal(c.classId, 'tagCharacterClass01');
   assert.equal(c.level, 42);
   assert.equal(c.hardcore, false);
-  assert.equal(c.money, 12345);
+  // No `money`: it lives inside the character-info block, which is skipped whole.
+  assert.equal(c.money, undefined, 'money should not be read; that block is skipped');
   assert.equal(c.bio.level, 42);
   assert.equal(c.bio.devotionPoints, 7);
   assert.equal(c.bio.totalDevotion, 23);
@@ -152,17 +181,26 @@ test('a name of any length keeps the stream in sync', () => {
   }
 });
 
-test('both character-info versions parse', () => {
-  // Version 4 carries two extra fields. Reading them when they are absent, or skipping
-  // them when they are present, shifts everything after by five bytes.
-  for (const infoVersion of [3, 4]) {
+test('the character-info block is skipped whole, whatever version it claims', () => {
+  // Its layout has already changed once -- a Fangs of Asterkarn save says version 5,
+  // where iagd knows 3 and 4 -- so the reader skips it by its declared length and never
+  // looks inside. Any version must therefore reach the bio unharmed.
+  for (const infoVersion of [3, 4, 5, 99]) {
     const c = readCharacterSummary(buildSave({ infoVersion, totalDevotion: 55 }));
     assert.equal(c.bio.totalDevotion, 55, `info version ${infoVersion} desynchronised the bio`);
   }
 });
 
-test('both save versions parse', () => {
-  for (const saveVersion of [6, 7]) {
+test('both file versions parse, including the byte version 2 added', () => {
+  for (const fileVersion of [1, 2]) {
+    const c = readCharacterSummary(buildSave({ fileVersion, level: 31 }));
+    assert.equal(c.level, 31, `file version ${fileVersion} desynchronised the header`);
+    assert.equal(c.bio.totalDevotion, 23, `file version ${fileVersion} desynchronised the bio`);
+  }
+});
+
+test('every known save version parses', () => {
+  for (const saveVersion of [6, 7, 8]) {
     const c = readCharacterSummary(buildSave({ saveVersion, level: 12 }));
     assert.equal(c.level, 12);
   }
@@ -184,6 +222,38 @@ test('a truncated file fails rather than returning half a character', () => {
 
 test('an unsupported version is named in the error', () => {
   assert.throws(() => readCharacterSummary(buildSave({ saveVersion: 9 })), /unsupported save version 9/);
-  assert.throws(() => readCharacterSummary(buildSave({ infoVersion: 2 })),
-    /unsupported character-info version 2/);
+  assert.throws(() => readCharacterSummary(buildSave({ fileVersion: 3 })), /unsupported file version 3/);
+});
+
+// --- against a real save ------------------------------------------------------
+// Everything above proves the reader is self-consistent. This is the only test that
+// can show the format is right, and it runs only where a save happens to be sitting.
+// Skipped rather than failed when absent: the file is someone's character and has no
+// business in the repository.
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+const REAL = path.join(import.meta.dirname, '../../../player.gdc');
+
+test('a real save reads with plausible values', { skip: !fs.existsSync(REAL) && 'no player.gdc alongside the repo' }, () => {
+  const c = readCharacterSummary(fs.readFileSync(REAL));
+
+  assert.ok(c.name.length > 0 && c.name.length < 40, `implausible name ${JSON.stringify(c.name)}`);
+  assert.match(c.classId, /^tag/, `class id does not look like a tag: ${c.classId}`);
+  assert.ok(c.level >= 1 && c.level <= 100, `level ${c.level} is outside 1-100`);
+  assert.equal(c.level, c.bio.level, 'the header and the bio disagree about the level');
+
+  // The devotion cap is 55 and points are earned from shrines, so anything outside
+  // this is a desynchronised read rather than an unusual character.
+  assert.ok(c.bio.totalDevotion >= 0 && c.bio.totalDevotion <= 55,
+    `${c.bio.totalDevotion} devotion points earned is outside 0-55`);
+  assert.ok(c.bio.devotionPoints >= 0 && c.bio.devotionPoints <= c.bio.totalDevotion,
+    `${c.bio.devotionPoints} unspent of ${c.bio.totalDevotion} earned is impossible`);
+
+  // Attributes start at 50 and only go up; health and energy are always positive.
+  for (const [k, v] of Object.entries({ physique: c.bio.physique, cunning: c.bio.cunning, spirit: c.bio.spirit })) {
+    assert.ok(v >= 50 && v < 10000, `${k} of ${v} is outside a plausible range`);
+  }
+  assert.ok(c.bio.health > 0 && c.bio.energy > 0, 'health and energy should be positive');
 });

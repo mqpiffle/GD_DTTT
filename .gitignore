@@ -20,6 +20,12 @@ gap-analysis.json
 *.lp
 devotion.sol
 
+# --- character saves ----------------------------------------------------------
+# A .gdc is someone's actual character, inventory and stash. gdc.test.mjs reads one
+# from the parent folder when it happens to be there and skips when it isn't; either
+# way it never belongs in the repository.
+*.gdc
+
 # --- the usual ----------------------------------------------------------------
 node_modules/
 .DS_Store
