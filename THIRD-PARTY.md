@@ -35,6 +35,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+`src/lib/gdc.mjs` is a second port from the same repository: the save-file cipher from
+`Parser/Stash/GDCryptoDataBuffer.cs` and the character block layout from
+`Parser/Character/*.cs`. Same licence, same notice, reproduced above.
+
 `labels.json` is regenerated, never hand-edited. Corrections and additions belong in
 `labels.extra.json`, which is merged over the port and is original work.
 

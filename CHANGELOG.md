@@ -4,6 +4,13 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.4 — 2 Aug 2026
+
+The first half of reading a Grim Dawn save: the cipher, and everything up to the bio.
+That yields the character's name, class, level and — the reason for doing it — how many
+devotion points they have earned and how many are still unspent. Not wired to anything
+yet, and not yet checked against a real save file.
+
 ## 0.2.3 — 2 Aug 2026
 
 **A global bar, and many characters.** The bar sits above both panes, because a
