@@ -17,7 +17,7 @@
 // the caller knows whether its inputs have moved on.
 
 import { buildDb } from './lib/select.mjs';
-import { solve } from './lib/solve.mjs';
+import { solve, solverAvailable } from './lib/solve.mjs';
 
 let dbPromise;
 
@@ -41,7 +41,16 @@ self.addEventListener('message', async (e) => {
     // the caller already has a local-search answer -- posting a second one would just
     // make the path jump for no gain.
     if (!r.optimal || !r.solution?.length) {
-      self.postMessage({ id, optimal: false, reason: r.reason ?? 'not proven' });
+      // Say WHICH it is. "No glpk" and "glpk is here but this set will not schedule"
+      // look identical from outside and want completely different responses -- the
+      // first is a setup problem, the second is the known Crossroads limitation.
+      const { glpkEntry } = await import('./lib/solve.mjs');
+      self.postMessage({
+        id,
+        optimal: false,
+        reason: r.reason ?? 'not proven',
+        glpk: (await solverAvailable()) ? `loaded via ${glpkEntry}` : `NOT LOADED -- ${glpkEntry}`,
+      });
       return;
     }
     // The solution travels; the schedule does not. The caller re-schedules, because it

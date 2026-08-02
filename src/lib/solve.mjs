@@ -18,29 +18,50 @@ import { buildModel, solutionFromVars } from './milp.mjs';
 import { solveBest } from './solver.mjs';
 import { priorityFor, trySchedule } from './select.mjs';
 
-// glpk.js ships two builds. The default entry drives the solver from a Web Worker,
-// which is right in a browser and throws `Worker is not defined` under Node, where
-// there is no such global. The package's `./node` subpath is the same solver without
-// the worker.
+// Finding glpk.js is fiddlier than it looks, for two separate reasons.
 //
-// Worth knowing because the failure was invisible: loadGlpk() catches everything and
-// returns null, so an unusable glpk fell back to local search and reported "no glpk.js
-// installed" while it was sitting right there in node_modules.
+// 1. BARE SPECIFIERS ARE NODE-ONLY. `import('glpk.js')` resolves through node_modules
+//    under Node and throws in a browser, which has no idea what the name means without
+//    an import map or a bundler. This is why the first browser attempt never proved
+//    anything: the import failed, solve() fell back, and the fallback is silent by
+//    design. The relative paths below are what a browser can actually resolve, served
+//    straight out of node_modules by any static server.
+//
+// 2. THE PACKAGE SHIPS TWO BUILDS. The default entry runs the solver in a Web Worker
+//    of its own, spun up from a Blob URL. The `./node` subpath is the same solver
+//    without that, loading its wasm relative to import.meta.url. Under Node the first
+//    throws `Worker is not defined`; inside our own worker the second is preferable
+//    anyway, since we are already off the main thread and nesting buys nothing.
+//
+// Everything is tried in turn and the first one that yields a working instance wins, so
+// this stays correct if a future version reshuffles its entry points.
+const GLPK_NODE = ['glpk.js/node', 'glpk.js'];
+const GLPK_URL = [
+  '../../node_modules/glpk.js/dist/glpk.js',
+  '../../node_modules/glpk.js/dist/index.js',
+];
 const GLPK_ENTRIES = typeof Worker === 'undefined'
-  ? ['glpk.js/node', 'glpk.js']
-  : ['glpk.js', 'glpk.js/node'];
+  ? [...GLPK_NODE, ...GLPK_URL]
+  : [...GLPK_URL, ...GLPK_NODE];
 
 let glpkPromise;
+/** Which entry point actually worked, or why none did. Read by the worker's logging. */
+export let glpkEntry = 'not attempted';
 async function loadGlpk() {
   if (glpkPromise === undefined) {
     glpkPromise = (async () => {
+      const tried = [];
       for (const entry of GLPK_ENTRIES) {
         try {
           const m = await import(/* @vite-ignore */ entry);
           const g = typeof m.default === 'function' ? await m.default() : m.default ?? m;
-          if (g && g.GLP_MAX !== undefined) return g;
-        } catch { /* try the next entry */ }
+          if (g && g.GLP_MAX !== undefined) { glpkEntry = entry; return g; }
+          tried.push(`${entry}: loaded but has no GLP_MAX`);
+        } catch (err) {
+          tried.push(`${entry}: ${err?.message ?? err}`);
+        }
       }
+      glpkEntry = `none (${tried.join(' | ')})`;
       return null;
     })();
   }

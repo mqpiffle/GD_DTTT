@@ -407,7 +407,7 @@ function askForProof() {
 let pendingProof = null;
 
 function onProof(e) {
-  const { id, optimal, solution, reason } = e.data ?? {};
+  const { id, optimal, solution, reason, glpk } = e.data ?? {};
   // Three ways a reply is worthless: it answers a question we have moved on from, it
   // answers the current question but the inputs changed and changed back to something
   // that re-solved meanwhile, or it could not prove anything.
@@ -416,7 +416,8 @@ function onProof(e) {
   pendingProof = null;
   if (!optimal || !solution?.length || !state.plan) {
     proofLog('not proven for these tags:', reason ?? 'no reason given',
-      '-- the build shown is local search, which is correct but may not be the best one');
+      '| glpk:', glpk ?? 'unknown',
+      '\n  The build shown is local search: correct and legal, but possibly not the best.');
     return;
   }
 
