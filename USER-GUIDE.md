@@ -77,7 +77,13 @@ but the tool can't invent points, and the Coverage panel will show you the trade
 
 ### Coverage
 
-Per tag: its name, a bar, and a number like `7/12 [19]`.
+Per tag: its name, what the build grants for it, a bar, and a number like `7/12 [19]`.
+
+**The figure next to the name is what you actually get** — `+39%`, or `104-148`, or
+both where a tag has each. The bar counts *stars*, and a star carrying +2% counts the
+same as one carrying +40%, so this is the number that tells you whether a long bar is
+worth anything. Tags that mix percentages with flat values show both rather than adding
+them together, because those don't add up to anything meaningful.
 
 The tag's weight isn't repeated here — you set it a few inches up the panel, and hovering
 a row tells you what it is. Colour in Coverage means one thing only: what you got.
@@ -214,7 +220,9 @@ square with the points you've spent, then all five affinities with what you curr
 hold. That's the row to check against the game. Affinities you have none of stay in place
 and dim, so the one you're watching doesn't move as you complete things.
 
-**Undo** is next to the view toggle, or Ctrl+Z. Sixty steps of history.
+**Ctrl+Z** undoes a tick, sixty steps back. There's no button for it — clicking a star
+again un-ticks it, which is the obvious way — but the shortcut is there for the times a
+single click did more than you meant.
 
 ### Two things the planner does for you
 
@@ -242,34 +250,79 @@ number sometimes goes *down*.
 
 ---
 
+## Putting the path in your own order
+
+The order the planner picks is a good one, not the only one. If you want a particular
+constellation sooner — a celestial power you're building around, or something whose
+passives carry you through the next twenty levels — switch to **Overview** and drag its
+row where you want it.
+
+**The bar shows where the row will actually land, not where your cursor is.** That's
+worth knowing before it surprises you, because it means the bar sometimes sits still
+while you keep moving:
+
+- **It stops moving across positions that mean the same thing.** Dropping something at
+  the very top and dropping it one row down are usually the same request, because the
+  affinity it needs has to be paid for either way. Rather than pretend those are
+  different, the bar shows you the one place it can go.
+- **It stops short of where you aimed.** Drag a deep constellation to the top and it
+  will land partway instead — as early as the game allows, once the things granting its
+  affinity have come forward with it. That's not the tool overruling you; it's the
+  earliest that request can actually be played.
+- **It turns red.** Some positions can't be built inside 55 points at all: pulling a
+  constellation forward can force a Crossroads that nothing later pays back. Release
+  over red and nothing happens. You're told before you let go rather than after.
+- **Some rows can't be dragged at all.** If every position would either change nothing
+  or overrun the budget, the row simply doesn't pick up.
+
+A Crossroads row can't be dragged either. Those are placed and refunded by the planner
+as the order changes, so they aren't yours to position.
+
+The **Order** button in the Devotions heading lights up once you've moved something.
+Click it to throw your arrangement away and go back to the planner's own order. Your
+arrangement is kept when you reload, and when you tick things off — but it's dropped if
+you change your tags, weights or scoring mode, because it was an ordering of one
+particular set of constellations and those choices produce a different set.
+
+Dragging never changes *which* constellations you get, or what they cost. Only when.
+
+---
+
+## Locking a build
+
+Once you're happy and just want to follow the path in game, click the **padlock** in the
+Devotions heading. It's optional, and off unless you ask for it.
+
+Locked, the build is read-only: tags, weights, scoring, dragging and clearing your
+progress are all frozen. What stays live is the thing you're actually there to do —
+ticking off stars — and only at the two ends of your progress: **the next star to buy**,
+and **the last one you bought**. Everything else is inert, and the first time you click
+one it says so. Tell it to stop mentioning that and it will; the rule doesn't change,
+you just stop being told.
+
+That narrow rule is the whole point. Un-ticking is the destructive click — un-tick
+something low in the path and everything depending on it goes too — so the lock removes
+the chance of doing it by accident rather than offering to undo it afterwards.
+
+Unlocking asks first. Locking doesn't: putting the guard up should be frictionless,
+taking it down is the thing you might do without meaning to. **Nothing is lost by
+unlocking** — your ticks survive it, and there's no penalty for going back and forth.
+
+You can still read everything while locked. Hovering a star shows what it gives, the tag
+library still browses, and Overview and Detail still swap.
+
+---
+
 ## Going off-plan
 
-Sometimes you want a specific celestial power early and you don't care about the
-suggested order. That's fine, and it's supported — tick what you're actually buying.
+You don't have to follow the order. Tick what you're actually buying — the planner
+won't argue, and since the game lets you respec, none of it is one-way.
 
-When your ticks sit ahead of the listed order, the devotions list is covered by a
-red-outlined box asking what you meant. It interrupts on purpose: until it's answered,
-the step numbers and running totals below are describing a different playthrough from
-yours. Tick a late constellation and its row may claim 48 points when the path to it
-really costs 20.
-
-Two answers, and only you know which:
-
-- **Re-order & restart** — "I want to rush this." Your picks move to the front and the
-  ticks clear, so you can follow the new order from step one. A **Custom** tab appears
-  next to the scoring modes holding that order; the other tabs stay as they were, so you
-  can compare.
-- **Keep my ticks** — "I've already bought these." Nothing changes and the box goes
-  away. It won't nag: it only asks again if you tick something *else* out of order, or
-  change the scoring mode, since either is a different question.
-
-Picked wrong? **Undo** restores the ticks and keeps the new order — which is usually
-what you wanted anyway.
-
-The Custom order is dropped if you change your tags — it's a re-ordering of one
-particular set of constellations, and different tags mean a different set.
-
-Since the game lets you respec, none of this is one-way. Un-tick, re-tag, re-order.
+Worth knowing: the numbers down the right describe *the listed order*. Buy something
+near the bottom first and its row still shows the running total it would have had if
+you'd walked there, which can read as 48 points when the path you actually took cost 20.
+If you want the numbers to match your run, drag that constellation to the front and the
+list re-plans around it.
 
 ---
 
@@ -298,6 +351,10 @@ Since the game lets you respec, none of this is one-way. Un-tick, re-tag, re-ord
 | **CP** | constellation with a celestial power |
 | **↩** | a Crossroads point coming back |
 | `7/12` in Coverage | stars you got / the most obtainable |
+| `+39%` in Coverage | what those stars are actually worth |
 | **max** | nothing more of that keyword exists |
 | amber bar | served well below its weight |
-| Ctrl+Z | undo, 60 steps |
+| padlock | build read-only; tick the next star only |
+| drag a row in Overview | put a constellation where you want it |
+| red drop bar | that position needs more than 55 points |
+| Ctrl+Z | undo a tick, 60 steps |
