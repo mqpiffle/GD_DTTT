@@ -349,6 +349,51 @@ function build() {
 // How well each requested tag is actually served by the built path. At five tags a
 // build can quietly serve three of them well and ignore two, and nothing else on
 // screen would say which -- the path lists constellations, not what you asked for.
+/**
+ * How MUCH of a tag this build actually grants, summed over the stars it takes.
+ *
+ * Star counts alone say a constellation giving +2% Cold Damage is worth the same as one
+ * giving +40%, which is the complaint this answers. It is deliberately NOT folded into
+ * the bar: a bar is a proportion and a proportion needs one unit, and **33 of the 81
+ * tags carry both `+{v}%` and flat `{v}` lines** -- Offensive Ability, Defensive
+ * Ability, Physique, Vitality Damage, Bleeding, Poison and the rest. Adding those
+ * together produces a number that means nothing, and picking a "dominant" unit throws
+ * away part of a third of the picker. So the bar keeps counting stars, where the
+ * ceiling is well-defined and precomputed, and the magnitude is stated beside it in
+ * whatever units the tag actually uses.
+ *
+ * Ranges keep both ends: summing the low ends of "26-37 Cold Damage" across four stars
+ * understates the build by a third.
+ *
+ * @returns { pct, lo, hi } -- any of them null when the tag has no lines of that shape.
+ */
+function magnitudeOf(chipId) {
+  if (!state.plan) return { pct: null, lo: null, hi: null };
+  let pct = null, lo = null, hi = null;
+  for (const e of state.plan.solution) {
+    const c = db.constellations[e.id];
+    if (!c?.starEffects) continue;
+    for (const i of starIdxs(c, e.starsTaken, e.stars)) {
+      for (const line of c.starEffects[i] ?? []) {
+        const [tmpl, v, v2, chip] = line;
+        if (chip !== chipId || !v) continue;
+        if (/\{v\}%/.test(tmpl)) pct = (pct ?? 0) + v;
+        else { lo = (lo ?? 0) + v; hi = (hi ?? 0) + (v2 || v); }
+      }
+    }
+  }
+  const tidy1 = n => (n == null ? null : (Number.isInteger(n) ? n : Math.round(n * 10) / 10));
+  return { pct: tidy1(pct), lo: tidy1(lo), hi: tidy1(hi) };
+}
+
+/** Magnitude as the short string the row shows: "+39% · 104-148", or '' for nothing. */
+function magnitudeText(m) {
+  const parts = [];
+  if (m.pct) parts.push(`+${m.pct}%`);
+  if (m.lo) parts.push(m.hi && m.hi !== m.lo ? `${m.lo}-${m.hi}` : `+${m.lo}`);
+  return parts.join(' \u00b7 ');
+}
+
 function coverageHtml() {
   if (!state.plan) return '';
   const picks = wantedList();
@@ -383,6 +428,7 @@ function coverageHtml() {
       total: chip?.stars ?? 0,
       stars: state.plan.solution.reduce(
         (n, e) => n + (db.constellations[e.id]?.hits?.[id] ?? 0), 0),
+      mag: magnitudeOf(id),
     };
   });
 
@@ -459,6 +505,12 @@ function coverageHtml() {
         ? ` The tree has ${c.total} in total; the rest sit behind constellations a`
           + ' 55-point build cannot also afford.'
         : '';
+      const magText = magnitudeText(c.mag);
+      // Stated in the tooltip too, spelled out. The row has room for "+39%"; it does
+      // not have room to say what that is a sum of.
+      const magNote = magText
+        ? ` This build grants ${magText} of it across those stars.`
+        : '';
       const wnote = `Weight ${c.weight} of ${MAX_WEIGHT}. `;
       const note = wnote + (maxed
         ? `everything the tree offers within 55 points.${capped}`
@@ -467,9 +519,15 @@ function coverageHtml() {
             + ' -- but your other tags used the points. Drop or de-emphasise one to make'
             + ' room, or accept that this combination pulls in different directions.'
           : `${c.stars} of a possible ${ceiling} · you asked for ${
-              Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`);
+              Math.round(100 * c.weight / totalWeight)}% of the emphasis.${capped}`)
+        + magNote;
       return `<div class="covrow${cls}" title="${esc(note)}">
       <span class="cn w${c.weight}">${esc(c.label)}${
+        // What the build actually GRANTS, next to how many stars carry it. A star count
+        // cannot distinguish +2% from +40%; this is the number that can. It sits in the
+        // name column because that is the only flexible one -- everything to the right
+        // of it is fixed width, and the bars stop lining up the moment that changes.
+        magText ? ` <span class="cmag">${esc(magText)}</span>` : ''}${
         c.pet ? ' <span style="color:var(--ink-13)">pet</span>' : ''}${
         // A zero is worth flagging outright, not just implied by a dim row and a
         // red count -- the icon says "look closer" and the row's own tooltip (built

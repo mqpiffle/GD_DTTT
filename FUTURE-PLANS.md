@@ -107,8 +107,21 @@ Still open:
   settled the "arrays vs precomputed" question immediately. Ranks are read as "last
   entry of *this* array" — they are ragged (10/15/16/19/20/25 all occur), and a fixed
   index is how `NaN` gets into the objective.
-- **Coverage bars still count stars, not magnitude** — the values now exist to fix that,
-  which was the other half of this item. This is the one left.
+- ~~**Coverage bars still count stars, not magnitude**~~ **DONE 1 Aug, but not the way
+  this line assumed.** The bar still counts stars, on purpose. A bar is a proportion and
+  a proportion needs one unit — and **33 of the 81 tags carry both `+{v}%` and flat
+  `{v}` lines** (Offensive Ability, Defensive Ability, Physique, Vitality Damage,
+  Bleeding, Poison…), so there is no single magnitude to be a proportion of for 41% of
+  the picker. Picking a "dominant" unit would silently discard part of a third of it.
+
+  What the row gained instead is the magnitude stated beside the tag name in whatever
+  units it actually uses — `+39%`, `104-148`, or both — which is what answers the real
+  complaint that a star giving +2% counted the same as one giving +40%. Ranges keep both
+  ends; summing low ends understates a build by about a third.
+
+  Star ceilings kept. A magnitude ceiling would need a second solve per tag optimising
+  for magnitude rather than star count, and would only be meaningful for the 48
+  single-unit tags anyway.
 
 ---
 

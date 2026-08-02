@@ -2040,3 +2040,91 @@ test('passive lines never carry a rank pair', () => {
     }
   }
 });
+
+// --- coverage magnitude ------------------------------------------------------
+// The bar counts stars; the magnitude says what those stars are worth. Kept separate
+// because a bar is a proportion and 33 of 81 tags mix percent with flat lines, so
+// there is no single unit to be a proportion OF.
+
+test('coverage magnitude equals the sum over the stars actually taken', () => {
+  // Derived independently here -- from the plan and the index -- rather than by
+  // calling magnitudeOf(), so the two have to agree about which stars are in the build.
+  plan([['Cold Damage'], ['Health']], 1);
+  ui.state.done = new Set();
+  ui.render();
+
+  const id = ui.chips[ui.state.sel[0]].id;
+  let pct = 0, lo = 0;
+  for (const e of ui.state.plan.solution) {
+    const c = ui.db.constellations[e.id];
+    if (!c?.starEffects) continue;
+    for (const i of ui.starIdxs(c, e.starsTaken, e.stars)) {
+      for (const [tmpl, v, , chip] of c.starEffects[i] ?? []) {
+        if (chip !== id || !v) continue;
+        if (/\{v\}%/.test(tmpl)) pct += v; else lo += v;
+      }
+    }
+  }
+  assert.ok(pct > 0 || lo > 0, 'this fixture grants nothing for its first tag');
+
+  const row = /<div class="covrow[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(app.innerHTML);
+  assert.ok(row, 'no coverage rows rendered');
+  const shown = /<span class="cmag">([^<]*)<\/span>/.exec(app.innerHTML)?.[1];
+  assert.ok(shown, 'no magnitude rendered on any row');
+  if (pct) {
+    assert.ok(shown.includes(`+${Math.round(pct * 10) / 10}%`),
+      `row shows "${shown}" but the plan grants +${pct}%`);
+  }
+});
+
+test('magnitude is absent when a tag got nothing, and present when it got something', () => {
+  // A starved tag must not render "+0%" -- zero is already said by the 0/n count and
+  // the warning icon, and a magnitude of zero reads like a measurement rather than an
+  // absence.
+  plan([['Cold Damage']], 1);
+  ui.state.done = new Set();
+  ui.render();
+  const rows = [...app.innerHTML.matchAll(/<div class="covrow([^"]*)"[^>]*>([\s\S]*?)<\/div>/g)];
+  for (const [, cls, body] of rows) {
+    if (cls.includes('pow')) continue;
+    const zero = cls.includes('zero');
+    const hasMag = /class="cmag"/.test(body);
+    if (zero) assert.ok(!hasMag, 'a starved tag rendered a magnitude');
+  }
+});
+
+test('a range keeps both ends rather than summing its low values', () => {
+  // "26-37 Cold Damage" over four stars is not "104 Cold Damage" -- summing low ends
+  // understates the build by a third, which is exactly the quiet wrongness a magnitude
+  // readout exists to remove.
+  //
+  // Sweep for a fixture whose build actually contains ranged lines for its own tag,
+  // rather than asserting one exists. The first version of this test matched a string
+  // it had just constructed itself and would have passed against any implementation.
+  let found = null;
+  for (const label of ['Cold Damage', 'Fire Damage', 'Lightning Damage', 'Acid Damage',
+                       'Vitality Damage', 'Physical Damage']) {
+    plan([[label]], 1);
+    ui.state.done = new Set();
+    const id = ui.chips[ui.state.sel[0]].id;
+    let lo = 0, hi = 0;
+    for (const e of ui.state.plan.solution) {
+      const c = ui.db.constellations[e.id];
+      if (!c?.starEffects) continue;
+      for (const i2 of ui.starIdxs(c, e.starsTaken, e.stars)) {
+        for (const [tmpl, v, v2, chip] of c.starEffects[i2] ?? []) {
+          if (chip !== id || !v || /\{v\}%/.test(tmpl)) continue;
+          lo += v; hi += (v2 || v);
+        }
+      }
+    }
+    if (hi > lo) { found = { label, lo, hi }; break; }
+  }
+  assert.ok(found, 'no damage fixture produced a ranged magnitude; nothing to test');
+
+  ui.render();
+  const shown = /<span class="cmag">([^<]*)<\/span>/.exec(app.innerHTML)?.[1] ?? '';
+  const tidy = n => (Number.isInteger(n) ? n : Math.round(n * 10) / 10);
+  assert.ok(shown.includes(`${tidy(found.lo)}-${tidy(found.hi)}`),
+    `${found.label}: expected the range ${tidy(found.lo)}-${tidy(found.hi)}, row shows "${shown}"`);
+});

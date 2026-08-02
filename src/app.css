@@ -552,6 +552,12 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    quietest thing in the row: it is context, not a target -- nothing you can do gets you
    there. Bracketed and dimmed so `4/23` still reads as the pair that matters. */
 .covrow .ct{color:var(--ink-8);font-size:var(--fs-base);margin-left:4px}
+/* What the build actually grants for this tag, beside its name. Quieter than the name
+   and quieter than the count: it is the answer to "is this bar worth anything", not a
+   headline. nowrap because .cn already clips with an ellipsis, and a magnitude that
+   wrapped would change the row height and break the bar column's alignment. */
+.covrow .cmag{color:var(--ink-9);font-size:var(--fs-base);white-space:nowrap}
+.covrow.maxed .cmag{color:var(--accent-success)}
 /* Sits between the bar and the count. As the LAST element it reserved 32px to the right
    of the numbers on every row, so the counts never reached the column edge -- and on the
    rows where it was empty, that was 32px of nothing holding them off. */
