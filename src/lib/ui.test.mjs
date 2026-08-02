@@ -2459,9 +2459,11 @@ test('the CP badge is lit only where the build reaches the power star', () => {
   } finally { s.restore(); }
 });
 
-test('both CP badges carry the power tooltip', () => {
-  // Dimmed does not mean silent. What the power does is exactly the thing that decides
-  // whether to spend the extra points reaching it.
+test('both CP badges carry the power tooltip, and only that tooltip', () => {
+  // Dimmed does not mean silent: what the power does is exactly the thing that decides
+  // whether to spend the extra points reaching it. But it must not ALSO carry a native
+  // `title` -- that fires on the same hover as the styled tooltip, so the browser box
+  // landed on top of the effect list you had just opened.
   const s = withStore();
   try {
     ui.load();
@@ -2475,7 +2477,10 @@ test('both CP badges carry the power tooltip', () => {
     for (const b of badges) {
       assert.match(b[2], /data-fx="/,
         `a ${b[1] ? 'dimmed' : 'lit'} CP badge has no tooltip`);
+      assert.doesNotMatch(b[2], /\stitle="/,
+        `a ${b[1] ? 'dimmed' : 'lit'} CP badge carries a native title that will cover the styled one`);
     }
+    assert.ok(badges.some(b => b[1]), 'no dimmed badge in this fixture; the title check is untested');
     ui.state.plain = false;
   } finally { s.restore(); }
 });

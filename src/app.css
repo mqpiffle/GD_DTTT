@@ -78,7 +78,7 @@
   --accent-success-muted:#2f4a35;  --accent-success-border:#3f6047;
   --accent-current:#90c5df;        --accent-current-bright:#c2e0f0;
   --accent-current-muted:#4b809b;
-  --accent-power:#7fffd4;         --accent-power-dim:#3f7f6a;
+  --accent-power:#7fffd4;         --accent-power-dim:#4f6a64;
 
   /* Glows: the rgba() form of each accent, for text-shadow and box-shadow. Kept
      as their own literals rather than derived from the accent hex (no color-mix()
@@ -359,7 +359,10 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    Dimmed rather than hidden, because "there is a power here you are not getting" is
    worth knowing when you are deciding where the next points go. It keeps its tooltip
    for the same reason: what the power does is the thing that decides it.
-   Border and text only; the tint goes, so the lit badge stays clearly the louder one. */
+   Border and text only; the tint goes, so the lit badge stays clearly the louder one.
+   Desaturated well past the lit aquamarine rather than merely darkened -- at similar
+   saturation the two read as two shades of the same live thing, where the point is that
+   one of them is not something you are getting. */
 .cp.off{background:none;border-color:var(--accent-power-dim);color:var(--accent-power-dim)}
 /* Affinity as an ORB rather than a pill. A card's affinities are a fixed, tiny set of
    numbers, so the word was doing no work the colour didn't already do -- and dropping it

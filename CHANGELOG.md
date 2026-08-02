@@ -4,6 +4,12 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.2 — 2 Aug 2026
+
+The dimmed CP badge loses its native tooltip and is desaturated further. The browser
+tooltip fired on the same hover as the styled one and covered the power's effect list,
+which is the thing you opened it for. The dimming already says what it said.
+
 ## 0.2.1 — 2 Aug 2026
 
 Storage now holds many characters instead of one build. No UI yet; the switcher is next.

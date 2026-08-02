@@ -944,9 +944,11 @@ function pathHtml() {
  * star. The badge used to say only "there is a power here", which reads as a promise
  * the build has not made.
  *
- * Lit when the power star is in the take, dimmed when it is not. Both carry the tooltip,
- * because what the power does is exactly what you want to know when deciding whether to
- * spend the extra points reaching it.
+ * Lit when the power star is in the take, dimmed when it is not. Both carry the power's
+ * effect tooltip, because what the power does is exactly what you want to know when
+ * deciding whether to spend the extra points reaching it. Neither carries a native
+ * `title` explaining the dimming: it would fire on the same hover and cover the thing
+ * you actually opened.
  */
 function cpBadge(p, c, refund, stars) {
   if (!c.hasPower || refund) return '';
@@ -957,8 +959,10 @@ function cpBadge(p, c, refund, stars) {
     ? tipData(c.starNames?.[c.powerStar - 1] || c.name,
               c.powerEffects?.[c.powerStar - 1], { proc: true })
     : '';
-  const title = taken ? '' : ' title="This constellation has a celestial power, but this build stops short of it"';
-  return ` <span class="cp${taken ? '' : ' off'}"${tip}${title}>CP</span>`;
+  // No native `title` on the dimmed one. The dimming says it, and a browser tooltip
+  // fires on the same hover as the styled one -- so the two stacked, with the native
+  // box landing on top of the power's own effect list.
+  return ` <span class="cp${taken ? '' : ' off'}"${tip}>CP</span>`;
 }
 
 /**
