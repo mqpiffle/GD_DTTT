@@ -4,6 +4,10 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.2.4 — 2 Aug 2026
+
+The "Not scheduled to pick" pill no longer draws a bullet through its own text.
+
 ## 0.2.3 — 2 Aug 2026
 
 Detail's CP badge dims like Overview's, from the same builder, so the two views cannot
