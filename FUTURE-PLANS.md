@@ -273,6 +273,50 @@ stars", and it would do what more weight levels cannot.
 
 ---
 
+## Coverage becomes an info and stats panel
+
+Coverage answers one question well: how much of each tag you got, against the most you
+could have got. Everything else the build knows about itself has ended up scattered, or
+has nowhere to live at all.
+
+**What prompted it.** The build summary spent a day being moved around because it had no
+home. It was in the Target tags header, which was about your inputs rather than your
+result; then briefly in the Devotions header, where it wrapped onto three lines; now
+folded into each view's totals line at the foot of the list. That last is defensible and
+the split is gone, but it also pushed "solving" to the bottom of a scrollable list where
+it can be out of view while a solve runs. The Coverage panel dims itself throughout,
+which is the only feedback that stays put — a hint that the panel is already doing this
+job informally.
+
+**What a stats panel could carry**, roughly in order of how obviously it belongs:
+
+- The build summary itself: constellations, points, celestial powers, first tagged pick,
+  final affinity, and whether it is proven optimal. Currently duplicated across the two
+  views' totals lines with slightly different wording each.
+- **Solve state**, in a fixed place. The reason this is worth doing at all.
+- **What the build gives you, totalled** — the magnitudes now shown per tag, but for
+  stats you never asked for. A build has plenty of incidental Health and resistances,
+  and nothing shows them.
+- **Affinity held versus required**, which currently only appears as orbs in a ledger
+  between cards, and in the totals line as text.
+- **Points spent per tag**, which is the honest answer to "is this tag worth keeping"
+  and is not derivable from the star count alone.
+- **What it cost you**: how many points went on affinity plumbing rather than on
+  anything you asked for. Overview's run of `○` marks says this obliquely.
+
+**What to be careful of.** Coverage earns its space because it answers one question and
+answers it in one glance, and several of its rules exist to keep it that way: colour
+means exactly one thing, everything right of the tag name is fixed width, and the weight
+was deliberately removed once because it was already stated elsewhere. A panel that
+accretes six readouts loses that. If this happens it wants sections with their own
+headings rather than more rows of the same shape, and probably a decision about which
+parts are always visible against which are behind a disclosure.
+
+**Not urgent.** The information is all reachable today; it is just spread across a
+totals line, a ledger, orbs, and tooltips. This is consolidation, not capability.
+
+---
+
 ## Importing a character from a save file
 
 Idea: read a `.gdc` save and use the character to seed the planner. Not started; this
