@@ -161,15 +161,33 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .lbl{font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-9);margin:0 0 7px}
 /* Height follows the star control: 26px glyphs in 34px buttons need room, and
    `overflow:hidden` on a pill this shape would clip the glow rather than let it spill. */
-.slot{display:flex;align-items:center;gap:4px;width:100%;height:44px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:var(--surface-9);color:var(--ink-1);font:inherit;text-align:left}
+.slot{display:flex;align-items:center;gap:6px;width:100%;height:44px;padding:0 6px 0 12px;border-radius:999px;margin-bottom:8px;background:var(--surface-9);color:var(--ink-1);font:inherit;text-align:left}
+/* The name takes the space, the weight sits hard right. `margin-left:auto` on the
+   control rather than flex:1 on the name, because the name already flexes and pushing
+   from the right keeps the remove button glued to the name it removes. */
+.slot .dots.pick,.slot .tgt{margin-left:auto}
 /* --fs-base: at the old 13px body default the tag name looked undersized next to a
    26px star and a 25px remove button. Sized to the controls, not to the body text.
    Now just the standard token like everything else in the 2 Aug pass, but it's the
    rule that started the argument for one. */
-.slot > span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+.slot > .sname,.slot.empty > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;font-size:var(--fs-base);line-height:1.2}
-.empty{border:1px solid var(--line-4);color:var(--ink-14);cursor:default}
-.full{border:1px solid var(--ink-1);cursor:pointer}
+/* Not flex:1. The name shrinks to its content so its remove button sits beside it
+   rather than a column away; the gap to the stars is made by the control's auto
+   margin instead. flex-shrink keeps a very long tag name from pushing the stars off. */
+.slot > .sname{flex:0 1 auto}
+.slot.empty > span:first-child{flex:1}
+/* Rows in a list, not a stack of outlined pills. A hairline between them separates
+   them where a border per row drew four sides to do the job of one, and with the
+   remove button now inboard the outline was the only thing still making each row look
+   like a self-contained control rather than an entry.
+   The `.empty` add-slot keeps its outline: it IS a control, and a dashed-looking
+   placeholder needs an edge to read as a slot waiting to be filled. */
+.empty{border:1px solid var(--line-4);color:var(--ink-14);cursor:default;border-radius:999px}
+.full{border:0;border-radius:0;margin-bottom:0;background:none;cursor:pointer}
+.full + .full{border-top:1px solid var(--line-9)}
+/* Space between the last tag and the add-slot, now that rows no longer carry margins. */
+.full + .empty{margin-top:8px}
 .rb{width:25px;height:25px;flex:none;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;background:var(--line-6);color:var(--ink-1);cursor:pointer;padding:0}
 .chip .rb{pointer-events:none}
 .empty .rb{background:var(--surface-10);color:var(--line-2)}

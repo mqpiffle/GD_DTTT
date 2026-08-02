@@ -176,6 +176,24 @@ function plan(labels, mode) {
   return ui.state.plan;
 }
 
+/**
+ * The star control's inner HTML for a given weight class.
+ *
+ * Anchored on the END of the row rather than on whatever element happens to follow.
+ * These regexes used to key off the remove button sitting immediately after the stars,
+ * which broke the moment the row was reordered to put the remove button beside the name
+ * -- a layout change failing a test about glyphs. The stars are spans themselves, so a
+ * non-greedy match to the first `</span>` stops inside the control; matching to the
+ * row's closing `</div>` and taking everything up to the last `</span>` is what works
+ * regardless of sibling order.
+ */
+function starControl(weightClass) {
+  const row = new RegExp(`<span class="dots pick ${weightClass}">([\\s\\S]*?)</div>`).exec(app.innerHTML);
+  if (!row) return null;
+  const end = row[1].lastIndexOf('</span>');
+  return end < 0 ? null : row[1].slice(0, end);
+}
+
 const countRows = h => (h.match(/<div class="prow/g) ?? []).length;
 const countCards = h => (h.match(/<div class="card[ "]/g) ?? []).length;
 
@@ -1078,10 +1096,9 @@ test('clicking a star sets that weight directly', () => {
   ui.render();
   // The bug that started this: at weight 3 every star is filled, and if the filled
   // glyph renders as nothing the tag shows no stars at all.
-  const pill = /<span class="dots pick w3">([\s\S]*?)<\/span>\s*<button class="rb"/
-    .exec(app.innerHTML);
+  const pill = starControl('w3');
   assert.ok(pill, 'no star control at weight 3');
-  assert.equal((pill[1].match(/★/g) ?? []).length, 3,
+  assert.equal((pill.match(/★/g) ?? []).length, 3,
     'a three-star tag must show three visible stars');
 
   // Out of range and empty slots must not corrupt state.
@@ -1101,24 +1118,21 @@ test('every star in the picker is its own click target', () => {
   ui.state.weights[0] = 2;
   ui.state.mode = 1; ui.build(); ui.render();
 
-  // Anchored on the remove button that follows: the stars are spans too, so a
-  // non-greedy match would stop at the first nested closing tag.
-  const pill = /<span class="dots pick w2">([\s\S]*?)<\/span>\s*<button class="rb"/
-    .exec(app.innerHTML);
+  const pill = starControl('w2');
   assert.ok(pill, 'no interactive star control rendered');
-  const targets = (pill[1].match(/data-setw="0:\d"/g) ?? []);
+  const targets = (pill.match(/data-setw="0:\d"/g) ?? []);
   assert.equal(targets.length, 3, `expected 3 star targets, got ${targets.length}`);
   assert.deepEqual(targets, ['data-setw="0:1"', 'data-setw="0:2"', 'data-setw="0:3"']);
   // Assert the GLYPH, not a class name. The first version of this checked for
   // `ti-star-filled`, which is absent from the Tabler webfont build the page loads --
   // so the markup was "right" and every filled star rendered as nothing. A test that
   // only reads class names cannot see that; counting the actual characters can.
-  assert.equal((pill[1].match(/★/g) ?? []).length, 2, 'two filled stars at weight 2');
-  assert.equal((pill[1].match(/☆/g) ?? []).length, 1, 'one empty star at weight 2');
-  assert.doesNotMatch(pill[1], /ti-star/,
+  assert.equal((pill.match(/★/g) ?? []).length, 2, 'two filled stars at weight 2');
+  assert.equal((pill.match(/☆/g) ?? []).length, 1, 'one empty star at weight 2');
+  assert.doesNotMatch(pill, /ti-star/,
     'back on the icon font, whose filled star does not exist in this build');
   // The colour rules target `span.on`; putting `on` anywhere else silently kills them.
-  assert.equal((pill[1].match(/<span class="on">/g) ?? []).length, 2,
+  assert.equal((pill.match(/<span class="on">/g) ?? []).length, 2,
     'the on class must sit on the span the CSS targets');
 });
 

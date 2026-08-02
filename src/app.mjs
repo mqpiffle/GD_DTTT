@@ -1559,19 +1559,20 @@ function render() {
   // in the space between the count and Reset all, rather than its own row below the
   // slots -- one fewer row saves vertical space the same way the inline scoring row
   // did.
+  // The build status moved to the Devotions heading. It describes the RESULT -- how
+  // many constellations, how many points, whether it is proven -- and nothing about
+  // your tags, so it was the odd one out in a header otherwise about what you asked
+  // for. It now sits beside the path it summarises.
+  //
+  // Reset all is a .plainbtn.iconbtn, the same treatment as the Devotions header's
+  // Reset. It used to be a round `.rb` minus, byte-identical to the remove button on
+  // every tag pill -- same glyph, same size, same shape, for two actions as different
+  // as "drop this tag" and "wipe the tags, the path and all your progress".
   let h = `<div class="col"><div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
-    <span>Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
-    <span class="status">${state.solving
-      ? '<span class="pulse"></span>solving'
-      : state.plan
-        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55${
-            // Only ever shown when a background proof came back and confirmed it.
-            // Absence means "not proven", never "worse" -- most builds are never
-            // asked about, and silence is the honest default.
-            state.plan.proven ? ' <span class="proven" title="Proven optimal: no legal 55-point build scores higher for these tags">optimal</span>' : ''}`
-        : chosenCount ? '' : 'pick a tag to begin'}</span>
-    <button class="rb" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
-      title="${state.locked ? 'Locked' : 'Reset all'}" aria-label="Reset all"><i class="ti ti-minus"></i></button></p>`;
+    <span style="flex:1">Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
+    <button class="plainbtn iconbtn" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
+      title="${state.locked ? 'Locked' : 'Reset everything: tags, path and progress'}"
+      aria-label="Reset all"><i class="ti ti-refresh"></i></button></p>`;
   for (let i = 0; i < MAX; i++) {
     const s = state.sel[i];
     if (s == null) continue;
@@ -1599,12 +1600,15 @@ function render() {
              ><span class="${on ? 'on' : ''}">${on ? '\u2605' : '\u2606'}</span></button>`;
          }).join('')
        }</span>`;
+    // Name and its remove button travel together on the left; the weight sits on the
+    // right. Removing a tag is an action ON that name, so the two belong side by side --
+    // stranded at the far edge the button read as if it belonged to the stars.
     h += `<div class="slot full${isPower ? ' pow' : ''}">
-       <span>${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:var(--fs-base);opacity:.6">pet</span>' : ''}${
+       <span class="sname">${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:var(--fs-base);opacity:.6">pet</span>' : ''}${
          isPower ? ' <span class="cpc">CP</span>' : ''}</span>
-       ${control}
        <button class="rb" data-rm="${i}"${state.locked ? ' disabled' : ''}
-         aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button></div>`;
+         aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button>
+       ${control}</div>`;
   }
   if (chosenCount < MAX) {
     h += `<div class="slot empty"><span>${chosenCount ? 'Add another' : 'Pick a tag below'}</span>
@@ -1685,6 +1689,15 @@ function render() {
   h += '</div></div><div class="dispane">';
   h += `<p class="lbl" style="display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
+    <span class="status">${state.solving
+      ? '<span class="pulse"></span>solving'
+      : state.plan
+        ? `${state.plan.solution.length} constellations · ${state.plan.schedule.totalPoints}/55${
+            // Only ever shown when a background proof came back and confirmed it.
+            // Absence means "not proven", never "worse" -- most builds are never
+            // asked about, and silence is the honest default.
+            state.plan.proven ? ' <span class="proven" title="Proven optimal: no legal 55-point build scores higher for these tags">optimal</span>' : ''}`
+        : ''}</span>
     <span style="display:flex;gap:6px">
     <button class="plainbtn orderbtn${state.order ? ' on' : ''}" data-clearorder="1"${
       state.order ? '' : ' disabled'}
