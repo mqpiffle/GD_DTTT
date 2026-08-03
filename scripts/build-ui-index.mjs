@@ -20,6 +20,24 @@ const LABELS = {
   ...JSON.parse(fs.readFileSync(path.join(dir, '../labels.extra.json'), 'utf8')),
 };
 
+/**
+ * Every devotion star's record path begins with this, so it is stored once rather than
+ * 559 times. Verified against the extract: all 559 refs share it and the stems are then
+ * unique, which is what lets a save's devotion list be matched by a flat lookup.
+ */
+const REF_PREFIX = 'records/skills/devotion/';
+
+function stripRefPrefix(ref) {
+  if (!ref) return null;
+  if (!ref.startsWith(REF_PREFIX)) {
+    // Loud rather than silent: a ref outside the prefix would break save import for that
+    // star only, which is exactly the kind of fault that hides.
+    console.warn(`WARNING: devotion ref outside ${REF_PREFIX}: ${ref}`);
+    return ref;
+  }
+  return ref.slice(REF_PREFIX.length);
+}
+
 // chip id -> chip, for browsable chips only
 const chips = [];
 for (const ns of ['character', 'pet']) {
@@ -158,6 +176,16 @@ for (const c of data) {
     // purchase order and needs no topological sort. Most stars just repeat the
     // constellation name; the power star is the one that differs.
     sn: c.stars.map(s => s.name ?? null),
+    // The DBR record each star came from, with the shared prefix stripped -- this is
+    // what a SAVE FILE names, so it is how an imported character's bought devotions are
+    // matched onto the planner's stars.
+    //
+    // It has to live here rather than be looked up in devotions.raw.json, because the
+    // raw extract is gitignored (it is Crate's data) and the deployed app only ever has
+    // this index. Measured: all 559 refs share `records/skills/devotion/`, and the
+    // remaining stems are unique, so a flat stem -> star map is enough. ~8 KB raw, and
+    // it compresses to near nothing since the stems are so alike.
+    sr: c.stars.map(s => stripRefPrefix(s.ref)),
     // 1-based parent star index per star (null for the root). Single-parent tree.
     sp: c.stars.map(s => s.prereq ?? null),
     // What each star gives, as [template, value, value2, chipId] -- see effects.mjs for

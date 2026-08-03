@@ -2805,3 +2805,79 @@ test('a control\'s inputs are only shown while it is on', () => {
     assert.match(app.innerHTML, /data-ctlin="chaos"/, 'no inputs shown for the active control');
   } finally { s.restore(); }
 });
+
+// --- importing a character from a save ---------------------------------------------
+//
+// The lib tests cover the ref mapping. These cover the wiring, which is where the
+// quiet failures are: an import that creates no character, overwrites the one you were
+// on, or ticks stars onto the wrong character entirely.
+
+const SAVE = path.join(import.meta.dirname, '../../../player.gdc');
+const haveSave = fs.existsSync(SAVE);
+
+test('importing a save lands BESIDE the current character, never over it',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const before = ui.charList().length;
+    const originalId = ui.activeChar().id ?? ui.charList()[0].id;
+    // Something worth losing on the character we are leaving.
+    ui.state.done = new Set(['constellation01:1']);
+    ui.save();
+
+    const r = ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    assert.ok(!r.error, `import failed: ${r.error}`);
+    assert.equal(ui.charList().length, before + 1, 'import should ADD a character');
+    assert.notEqual(ui.activeChar().id, originalId, 'import should switch to the new one');
+
+    // The imported ticks are the save's, not the previous character's.
+    assert.equal(ui.state.done.size, r.stars, 'ticked stars do not match what was imported');
+    assert.ok(r.stars > 0, 'a real save should yield some devotion stars');
+
+    // And the character we came from still has its own progress.
+    ui.switchChar(originalId);
+    assert.deepEqual([...ui.state.done], ['constellation01:1'],
+      'importing trampled the previous character');
+  } finally { s.restore(); }
+});
+
+test('an imported character carries the game\'s own name, not an auto-name',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  const s = withStore();
+  try {
+    ui.load();
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    const cur = ui.activeChar();
+    // `named` must be set, or the next tag change hands the name back to auto-naming
+    // and the character silently stops being called what the game calls it.
+    assert.ok(cur.named, 'imported name must be sticky');
+    assert.ok(cur.name && cur.name !== 'New character', `unexpected name ${cur.name}`);
+    assert.doesNotMatch(cur.name, /^\s*$/, 'imported name is blank');
+  } finally { s.restore(); }
+});
+
+test('the stars ticked agree with the points the bio says are spent',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // The two numbers come from completely separate code hundreds of bytes apart in the
+  // file, so agreement is real evidence the join is right rather than plausible.
+  const s = withStore();
+  try {
+    ui.load();
+    const r = ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    assert.equal(r.unmatched.length, 0, `unmatched records: ${r.unmatched.slice(0, 3)}`);
+    assert.equal(r.stars, r.spent,
+      `${r.stars} stars ticked but the bio says ${r.spent} points spent`);
+  } finally { s.restore(); }
+});
+
+test('a file that is not a save is refused with a message, not an exception', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const before = ui.charList().length;
+    const r = ui.importSave(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+    assert.ok(r.error, 'garbage should be reported as an error');
+    assert.equal(ui.charList().length, before, 'a failed import must not leave a character');
+  } finally { s.restore(); }
+});

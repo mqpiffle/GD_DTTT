@@ -170,6 +170,17 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .topbar{display:flex;align-items:center;gap:6px;margin:0 0 14px;padding-bottom:12px;
   border-bottom:1px solid var(--line-8)}
 .tbspace{flex:1}
+/* The file input is the real control and the label is what you see. Hidden by opacity
+   and size rather than display:none, because a display:none input cannot receive focus
+   and the label would stop reaching it from the keyboard. */
+.imp{position:relative;overflow:hidden;cursor:pointer}
+.imp input[type="file"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+/* What the last import did. A line under the bar rather than a toast: it can run to
+   three clauses when stars fall outside the plan, and that is the part worth reading. */
+.impnote{margin:0 0 14px;padding:7px 10px;font-size:var(--fs-xs);line-height:1.45;
+  color:var(--ink-7);background:var(--surface-2);border:1px solid var(--line-8);
+  border-radius:5px}
+.impnote.bad{color:var(--ink-3);border-color:var(--accent-warn-border)}
 /* The switcher and the rename field are the same size and sit in the same place, so
    swapping one for the other does not move the buttons beside them. */
 .cpick,.cname{height:30px;min-width:190px;max-width:340px;box-sizing:border-box;

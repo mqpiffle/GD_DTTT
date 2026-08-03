@@ -4,6 +4,29 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.0 — 2 Aug 2026
+
+**Import a character from a Grim Dawn save.** Pick your `player.gdc` and the tool builds
+a character with the game's own name and class, and the devotion stars you have already
+bought ticked off. The tracker half now fills itself in.
+
+The join is by DBR record path, not by name: a save names each bought star as
+`records/skills/devotion/tier1_01a.dbr`, and `ui-index.json` now carries the same stems.
+So it is a lookup, with nothing to drift as display names change. Verified against four
+real characters.
+
+Import always creates a NEW character rather than overwriting the one you are on. It is
+the only action that brings in information from outside, so it is the one where "that
+wasn't what I meant" is most likely, and the character you were on may hold hours of
+planning.
+
+What does not come across is your tags. Nothing in a save says what you were aiming for,
+and a guess would be putting words in your mouth.
+
+If some of the stars you own are not in the current plan, it says so. They are stored and
+reappear when the plan includes them, but a character that looks like it lost progress is
+the first thing anyone would report as a bug.
+
 ## 0.3.1 — 2 Aug 2026
 
 **Controls.** A new column on the left holds four ways of saying what you want, which

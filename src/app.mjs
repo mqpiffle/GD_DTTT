@@ -17,6 +17,8 @@ import { solveBest, blockedPowers } from './lib/solver.mjs';
 import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
+import { readCharacter } from './lib/gdc.mjs';
+import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 
 const MAX = 5;
 // [button label, tooltip]. The label is short enough to read as a tile; the
@@ -52,6 +54,15 @@ const app = document.getElementById('app');
 const raw = await fetch('../ui-index.json', { cache: 'no-cache' }).then(r => r.json());
 const chips = raw.chips;
 const db = buildDb(raw);
+
+// Mastery-combination names, for characters read from a save. A `.gdc` stores the class
+// as a TAG (`tagSkillClassName0607`) and only this resolves it to "Vindicator".
+//
+// Optional on purpose: it is a nicety, and a missing or stale file must not stop the app
+// loading. `characterLabel()` degrades to the bare name.
+const classes = await fetch('../classes.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : {}))
+  .catch(() => ({}));
 
 const state = {
   // Sized from MAX, not a literal -- a three-slot array silently caps you at three
@@ -111,6 +122,10 @@ const state = {
   // Renaming swaps the switcher for a text field in place. Transient: an interrupted
   // rename should not survive a reload as a half-open control.
   renaming: false,
+  // What the last save import did, shown under the top bar. Transient and never
+  // persisted -- it describes an action, not the character, and a note about an import
+  // you did last week would be noise on load.
+  importNote: null,
   // --- controls ---------------------------------------------------------------
   // Which controls are switched on, in the order they were switched on. Order is
   // priority: at the five-tag limit the earlier one keeps its tags.
@@ -451,6 +466,55 @@ function addChar({ from = null, name = null } = {}) {
   doc.active = id;
   applyChar(doc.chars[id]);
   return id;
+}
+
+/**
+ * Build a character from a Grim Dawn save.
+ *
+ * A NEW character, never an overwrite. Import is the one action here that brings in
+ * information from outside, so it is also the one where "that wasn't what I meant" is
+ * most likely -- and the character you were on may hold hours of planning. Landing
+ * beside it costs a row in the switcher and makes the mistake free.
+ *
+ * What comes across is what the save actually knows: the name, the class, and the
+ * devotion stars already bought. NOT the tags -- nothing in a save says what you were
+ * aiming for, and inventing a guess would put words in the player's mouth.
+ *
+ * @returns a summary for the caller to report, or `{ error }`. Never throws at the UI.
+ */
+function importSave(bytes) {
+  let ch;
+  try {
+    ch = readCharacter(bytes);
+  } catch (e) {
+    // A save from an older patch has older block versions and is refused rather than
+    // misread -- see gdc.mjs. Say so plainly instead of showing a stack.
+    return { error: e?.message ?? 'could not read that file' };
+  }
+
+  const { keys, unmatched } = mapDevotions(ch.devotions, raw.constellations);
+  const id = addChar({ name: ch.name });
+  if (!id) return { error: 'could not create a character' };
+
+  doc.chars[id].named = true;          // the game's name wins over auto-naming
+  state.done = new Set(keys);
+  stash();
+
+  // Ticks are stored per constellation and star, but the panels only draw what the
+  // CURRENT plan contains -- so an imported character whose real devotions differ from
+  // the tags in play will look like it lost stars. Nothing is lost; it needs saying.
+  const hidden = offPlan(keys, pathStarKeys());
+
+  return {
+    id,
+    label: characterLabel(ch, classes),
+    stars: keys.length,
+    spent: ch.bio.totalDevotion - ch.bio.devotionPoints,
+    unspent: ch.bio.devotionPoints,
+    total: ch.bio.totalDevotion,
+    unmatched,
+    hidden: hidden.length,
+  };
 }
 
 function renameChar(id, name) {
@@ -1903,7 +1967,16 @@ function render() {
     <button class="plainbtn iconbtn" data-cdel="1"${chars.length > 1 ? '' : ' disabled'}
       title="${chars.length > 1 ? 'Delete this character' : 'The only character cannot be deleted'}"
       aria-label="Delete character"><i class="ti ti-trash"></i></button>`;
+  // A real <input type="file"> rather than a button calling .click(), because the file
+  // dialog needs a genuine user gesture on the input itself in some browsers. The label
+  // is the visible control; the input is hidden but still focusable through it.
+  h += `<label class="plainbtn iconbtn imp" title="Import a character from a Grim Dawn save (player.gdc)"
+      aria-label="Import a save file"><i class="ti ti-file-import"></i>
+      <input type="file" data-cimport="1" accept=".gdc"></label>`;
   h += '</div>';
+  if (state.importNote) {
+    h += `<p class="impnote${state.importNote.error ? ' bad' : ''}">${esc(state.importNote.text)}</p>`;
+  }
 
   // --- controls column --------------------------------------------------------
   // Leftmost, because a control is upstream of everything to its right: it decides the
@@ -2439,6 +2512,41 @@ app.addEventListener('dragend', () => {
 // than folded into the click handler, because a click anywhere on a select would fire
 // before the value has moved.
 app.addEventListener('change', (e) => {
+  const file = e.target?.closest?.('[data-cimport]');
+  if (file && app.contains(file)) {
+    const f = file.files?.[0];
+    if (!f) return;
+    f.arrayBuffer().then((buf) => {
+      const r = importSave(new Uint8Array(buf));
+      if (r.error) {
+        state.importNote = { error: true, text: `Could not read that save: ${r.error}` };
+      } else {
+        const bits = [`Imported ${r.label} with ${r.stars} devotion `
+          + `star${r.stars === 1 ? '' : 's'} ticked`];
+        // The bio counts the points spent by completely separate code, hundreds of bytes
+        // earlier in the file. If it disagrees with the stars we ticked, say so rather
+        // than picking one -- that mismatch is the signal that the parse went wrong.
+        if (r.spent !== r.stars) {
+          bits.push(`but the save says ${r.spent} points are spent, which does not match`);
+        }
+        if (r.unspent) bits.push(`${r.unspent} point${r.unspent === 1 ? '' : 's'} unspent`);
+        if (r.hidden) {
+          bits.push(`${r.hidden} of them are not in the current plan, so they are stored `
+            + 'but not shown -- change your tags to see them');
+        }
+        if (r.unmatched.length) {
+          bits.push(`${r.unmatched.length} record${r.unmatched.length === 1 ? '' : 's'} `
+            + 'could not be matched to a star');
+        }
+        state.importNote = { error: false, text: `${bits.join('. ')}.` };
+      }
+      // Clear the input, or picking the same file twice fires no change event.
+      file.value = '';
+      render();
+    });
+    return;
+  }
+
   const ci = e.target?.closest?.('[data-ctlin]');
   if (ci && app.contains(ci)) {
     const raw = String(ci.value ?? '').trim();
@@ -2676,4 +2784,5 @@ export {
   applyOrder, currentOrder, moveInOrder, reorderNow, landingsFor, immovableSet,
   askForProof, onProof, __setProofWorker,
   load, charList, activeChar, switchChar, addChar, renameChar, deleteChar, autoName,
+  importSave,
 };
