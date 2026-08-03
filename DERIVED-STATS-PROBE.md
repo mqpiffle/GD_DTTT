@@ -153,13 +153,36 @@ version(int)  isInMainQuest  hasBeenInGame  difficulty  greatestDifficultyComple
 almost anything; money is checkable against the game. The save reads 161,842 where the
 character panel showed 163,575 a short play session later — right field, right place.
 
-The difficulty byte reads **16**, which is `0x10`: a flag bit, not a tier. Farker is on
-Veteran, so the reading is tier 0 with a Veteran flag set.
+The byte is a tier in the low nibble plus `0x10` for Veteran. Confirmed across four
+characters covering all three tiers:
 
-**Caveat worth keeping.** The Veteran bit is on firm ground — 16 is not a plausible tier
-number and the character is demonstrably on Veteran. That the low nibble carries the tier
-is INFERRED from one character on one difficulty, because no Elite or Ultimate save was
-available. A second save would settle it.
+| character | level | byte | reads as | actual |
+|---|---|---|---|---|
+| Farker | 28 | `0x10` | normal + Veteran | Veteran ✓ |
+| Sparkles | 80 | `0x01` | elite | Elite ✓ |
+| Malodorous | 100 | `0x10` | normal + Veteran | **expected Ultimate** |
+| Chphthzhmh | 100 | `0x02` | ultimate | Ultimate ✓ |
+
+### What Malodorous taught, which is the useful part
+
+Malodorous is level 100 with 55/55 devotions, 7.3M iron bits and
+`greatestDifficultyCompleted` 2 — a finished character by every measure — and the byte
+says normal+Veteran. That looked like a falsification, and was worth stopping on.
+
+It is not. Chphthzhmh is *also* level 100 with 55/55 and reads ultimate correctly, so the
+encoding is sound. Malodorous was simply last standing on Veteran.
+
+**Which is precisely why the value is a default and not a fact.** The byte records where
+a character last stood, not what they have beaten or where they belong. A level 100 who
+has cleared Ultimate can be parked on Normal, and a tool that read that as "this
+character plays Normal" and applied a 0 penalty would be confidently wrong about the only
+number that matters here.
+
+So the design was right before the evidence arrived: read it to save the player a click,
+let them change it, and never treat it as more than an opening guess.
+
+Note also that Veteran only ever appears on tier 0 in this sample, which fits — it is a
+Normal-difficulty option rather than a mode that follows a character upward.
 
 Farker projected to Ultimate, for illustration: fire −6, chaos −42, physical −50, nothing
 above 23. That is the honest picture of a level 28 character looking at the top

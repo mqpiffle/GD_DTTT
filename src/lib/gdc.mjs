@@ -430,15 +430,23 @@ const VETERAN_FLAG = 0x10;
 /**
  * Split the difficulty byte into a tier and the Veteran flag.
  *
- * Farker reads 16, which is `0x10` -- tier 0 with the flag set -- and the game shows
- * "Veteran" in the corner. That is the whole of the evidence: the low nibble being the
- * tier is INFERRED from one character on one difficulty, because a save on Elite or
- * Ultimate was not available to check. The Veteran bit is on firmer ground, since 16 is
- * not a plausible tier number and the character is demonstrably on Veteran.
+ * Tier in the low nibble, `0x10` for Veteran. Confirmed across four characters covering
+ * all three tiers: Farker `0x10` normal+Veteran, Sparkles `0x01` elite, Chphthzhmh
+ * `0x02` ultimate.
  *
- * Veteran carries NO resistance penalty -- it is normal difficulty with tougher enemies
- * -- so it does not affect planning. It is returned because a caller displaying "Normal"
- * for a Veteran character would look broken.
+ * THE ONE THAT LOOKED WRONG IS THE INSTRUCTIVE ONE. Malodorous is level 100 with 55/55
+ * devotions and `greatestDifficultyCompleted` 2 -- finished by every measure -- and reads
+ * normal+Veteran. Not a bad parse: the byte records where a character last STOOD, not
+ * what they have beaten. A finished character can be parked on Normal.
+ *
+ * So this value is an opening guess and callers must let it be changed. Treating it as a
+ * fact would apply a 0 penalty to a character who plays Ultimate, and being wrong about
+ * the penalty costs 50 points on every resistance -- far more than any other error in
+ * deriving them.
+ *
+ * Veteran carries NO resistance penalty -- normal difficulty with tougher enemies -- so
+ * it does not affect planning. It is returned because a caller displaying "Normal" for a
+ * Veteran character would look broken.
  */
 function decodeDifficulty(byte) {
   return {
