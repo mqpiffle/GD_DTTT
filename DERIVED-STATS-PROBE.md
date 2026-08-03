@@ -189,6 +189,80 @@ above 23. That is the honest picture of a level 28 character looking at the top
 difficulty, and no amount of devotion planning fixes it — which is itself worth the tool
 being able to say.
 
+## Two terms found by testing against Sparkles, and one still missing
+
+Farker validated at 10/10 and that was misleading. Sparkles — level 80, Elite, 52
+devotion points — broke it badly, and each break was a real omission.
+
+### Devotions (found, fixed)
+
+A devotion planner was not counting devotions. Sparkles has stars across Owl, Wraith,
+Vulture, Rhowan's Crown, Quill and Ultos worth 25-58 points on five resistances. Farker
+hid it entirely: nine points, mostly Crossroads, contributing near zero.
+
+Devotion grants are the most tractable term in the model — fixed values, no jitter,
+complete data, already keyed by the DBR path the extract uses.
+
+### Skill rank: the save stores BASE, gear adds +N (found, not fixed)
+
+Oak Skin's tooltip reads **"Current Level: 4 + 3"**. The save stores 4. Gear grants +3.
+The game uses 7.
+
+```
+naturesblessing3   defensivePierce  r4=14  r7=25
+                   defensiveAether  r4=12  r7=19
+```
+
+25 and 19 are exactly what the tooltip shows. So **any skill value read at its stored
+rank is wrong wherever gear grants "+N to skills"**, which is most of an endgame build.
+Computing effective ranks means modelling gear skill bonuses, which is not done.
+
+Two naming traps sit on top of this. The record is `naturesblessing3`; the skill is
+**Oak Skin**, under Mogdrogen's Pact. Searching the owned skills for "Mogdrogen" or "oak"
+finds nothing and produces a confident, wrong "the character doesn't have it" — the same
+internal-vs-display mismatch `AUDIT-2026-07-28.md` found on 27 constellations. Resolve
+names through `skillDisplayName` → `text_en`, never by matching the record path.
+
+### The difficulty penalty IS applied to the character sheet
+
+Settled by pierce, which now closes exactly:
+
+```
+2 x resilientchestplate  30
+Oak Skin at rank 7      +25
+                        ---
+                         55  less the Elite 25  =  30   sheet: 30
+```
+
+An earlier reading of this file argued the opposite, on the strength of three
+resistances that matched with no penalty. Those three were short by 25 for a different
+reason — see below — and agreeing with a wrong model is not evidence.
+
+### Still missing: a uniform ~25 on four resistances
+
+With the penalty applied and Oak Skin at rank 7:
+
+| | derived | sheet | short by |
+|---|---|---|---|
+| Pierce | 30 | 30 | 0 |
+| Acid | 7 | 4 | in band |
+| Vitality | 8 | 33 | **25** |
+| Physical | −19 | 6 | **25** |
+| Bleeding | 44 | 71 | **27** |
+| Aether | 57 | 80 (capped) | **23** |
+
+Four shortfalls clustered at 23-27, while pierce and acid are right. A single flat term
+added to everything cannot explain that — it would break pierce.
+
+Ruled out by measurement, not assumption:
+
+- **Set bonuses.** No `itemSetName` on any equipped piece.
+- **Devotion `grants`.** Nothing behind `buffSkillName` carries resistance.
+- **Other skills.** Of every owned skill, only Oak Skin carries resistance at any rank.
+- **Augments.** `a12a_enchant` is offensive ability only; the runes carry nothing.
+- **Negative sources.** No equipped record carries a negative resistance.
+- **defensiveSlowPoison.** Zero, so the acid/poison split is not hiding anything here.
+
 ## Open gaps
 
 - The ±20% default is inferred from one tooltip, not found in the data. Worth confirming
