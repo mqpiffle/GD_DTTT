@@ -238,30 +238,52 @@ An earlier reading of this file argued the opposite, on the strength of three
 resistances that matched with no penalty. Those three were short by 25 for a different
 reason — see below — and agreeing with a wrong model is not evidence.
 
-### Still missing: a uniform ~25 on four resistances
+### The difficulty penalty applies to the sheet's TOP ROW only
 
-With the penalty applied and Oak Skin at rank 7:
+This is what all the thrashing was about, and the answer is neither of the two things
+being argued. The penalty is not global and it is not absent -- it is per row.
 
-| | derived | sheet | short by |
-|---|---|---|---|
-| Pierce | 30 | 30 | 0 |
-| Acid | 7 | 4 | in band |
-| Vitality | 8 | 33 | **25** |
-| Physical | −19 | 6 | **25** |
-| Bleeding | 44 | 71 | **27** |
-| Aether | 57 | 80 (capped) | **23** |
+Grim Dawn lays resistances out in two rows of five. On Elite:
 
-Four shortfalls clustered at 23-27, while pierce and acid are right. A single flat term
-added to everything cannot explain that — it would break pierce.
+| row | stats | penalty |
+|---|---|---|
+| top | Fire, Cold, Lightning, Acid, Pierce | **-25** |
+| bottom | Bleeding, Vitality, Aether, Chaos, Physical | **0** |
 
-Ruled out by measurement, not assumption:
+Sparkles, level 80, Elite, with every term computed in one pass:
 
-- **Set bonuses.** No `itemSetName` on any equipped piece.
-- **Devotion `grants`.** Nothing behind `buffSkillName` carries resistance.
-- **Other skills.** Of every owned skill, only Oak Skin carries resistance at any rank.
-- **Augments.** `a12a_enchant` is offensive ability only; the runes carry nothing.
-- **Negative sources.** No equipped record carries a negative resistance.
-- **defensiveSlowPoison.** Zero, so the acid/poison split is not hiding anything here.
+```
+  stat        gear  devo  skill  =  raw   pen   final   sheet   diff
+  Fire         144    26      0  =  170   -25    145      80   capped ok
+  Cold         144    26      0  =  170   -25    145      80   capped ok
+  Lightning    144    26      0  =  170   -25    145      80   capped ok
+  Acid          32     0      0  =   32   -25      7       4   +3
+  Pierce        30     0     25  =   55   -25     30      30   0
+  Bleeding      54    15      0  =   69     0     69      71   -2
+  Vitality      18    15      0  =   33     0     33      33   0
+  Aether        47    16     19  =   82     0     82      80   capped ok
+  Chaos        117    31      0  =  148     0    148      80   capped ok
+  Physical       3     3      0  =    6     0      6       6   0
+```
+
+**All ten fit.** Three exact (pierce, vitality, physical), two inside the jitter band
+(acid, bleeding), four capped at the 80 the panel clamps to.
+
+**Why this took so long, and the lesson.** A global penalty fits acid and pierce and
+breaks bleeding, vitality and aether. No penalty fits those three and breaks acid and
+pierce. Testing one global switch against ten numbers meant every model explained half
+the data, and reporting from memory between runs meant the half being quoted kept
+changing. Compute the whole table in one pass and print every term; do not narrate
+partial results.
+
+**Scope of the evidence.** One character, one difficulty. Five of the ten are uncapped
+and therefore actually test the rule -- acid and pierce demanding the penalty, bleeding,
+vitality and physical refusing it. Farker cannot corroborate it: he is on Veteran, where
+the penalty is zero either way.
+
+**Untested: whether Ultimate penalises the bottom row too.** The phrase "cumulative
+penalties" in the community sources hints it might. Chphthzhmh is level 100 on Ultimate
+and would settle it -- but that save is in an older block format the reader refuses.
 
 ## Open gaps
 
