@@ -266,8 +266,21 @@ Sparkles, level 80, Elite, with every term computed in one pass:
   Physical       3     3      0  =    6     0      6       6   0
 ```
 
-**All ten fit.** Three exact (pierce, vitality, physical), two inside the jitter band
-(acid, bleeding), four capped at the 80 the panel clamps to.
+**All ten fit.** Four exact (acid, pierce, vitality, physical), one inside the jitter
+band (bleeding), four capped at the 80 the panel clamps to.
+
+Acid became exact once the medal was inspected in game. The item shows **29% Poison &
+Acid [28-36]** where the record stores 32 — so the +3 residual was the roll, not the
+model. It is the only acid source on the character: 29 - 25 = 4, the sheet exactly.
+
+That same tooltip corroborates three separate parts of this document at once:
+
+- **The jitter model.** 32 with 15% jitter predicts 27.2-36.8; the game displays [28-36].
+- **The item scan was right here.** The prefix really is on the medal, so the acid was
+  never phantom.
+- **"+N to skills" is visible on items** — the medal reads "+3 to Thermite Mine, +3 to
+  Rune of Kalastor". That is the same mechanism that puts Oak Skin at rank 7, and it
+  means effective ranks are derivable from gear rather than needing to be guessed.
 
 **Why this took so long, and the lesson.** A global penalty fits acid and pierce and
 breaks bleeding, vitality and aether. No penalty fits those three and breaks acid and
