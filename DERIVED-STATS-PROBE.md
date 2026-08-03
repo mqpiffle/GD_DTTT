@@ -124,24 +124,42 @@ values cannot fix a wrong type. Do not read this as licensing "all out damage".
 **OA / DA / armor are untested.** Additive like resistances, but with flat and percentage
 terms applying in an order that has to be right. Plausible, unmeasured.
 
-## Difficulty is an INPUT, not a derived fact
+## Difficulty: read as a default, overridable by the player
 
-Veteran 0, Elite −25, Ultimate −50, applied flat to every resistance. The tool asks which
-difficulty you are planning for rather than reading it from the save, and this is a
-design decision rather than a shortcut.
+Normal 0, Elite −25, Ultimate −50, applied flat to every resistance. Veteran is **not** a
+penalty tier — it is normal difficulty with tougher enemies, same resistances.
 
-**A character can move freely between difficulties once it has unlocked them.** So there
-is no such thing as "the" difficulty a character is on — it is wherever they happen to be
-standing. A save could at best report the last one loaded, which is not a fact worth
-building on.
+**Both halves matter.** Reading it from the save matters because being wrong puts every
+resistance out by 25 or 50, an order of magnitude past the ~2 point modelling error, and
+does it silently — reporting a character as safe when it is not. Letting the player
+change it matters because a character moves freely between difficulties once it has
+unlocked them, so the stored value is only wherever they last stood, not a property of
+the build. And the useful question is often about somewhere they have *not* been: "will
+Elite kill me", asked from Veteran, is a question no save can answer.
 
-More usefully, the question people actually have is *"am I geared for where I'm going"*.
-Someone farming Veteran who wants to know whether Elite will kill them is asking about a
-difficulty they may not have entered, and no amount of parsing reaches it.
+So: default to the fact, let the player ask the counterfactual.
 
-It also removes the worst failure this probe could have had. Reading difficulty wrongly
-would put every resistance out by 25 or 50 — an order of magnitude past the ~2 point
-modelling error — and would do it silently, reporting a character as safe when it is not.
+### Where it lives, and how we know
+
+Block 1 (character info), four bytes in. It used to be skipped whole; now the front is
+parsed and the tail still skipped by declared length, which preserves the original reason
+for skipping — that layout has already changed once, from version 4 to 5.
+
+```
+version(int)  isInMainQuest  hasBeenInGame  difficulty  greatestDifficultyCompleted  money(int)
+```
+
+**Money is what proves the offsets.** Difficulty alone is a small number that could be
+almost anything; money is checkable against the game. The save reads 161,842 where the
+character panel showed 163,575 a short play session later — right field, right place.
+
+The difficulty byte reads **16**, which is `0x10`: a flag bit, not a tier. Farker is on
+Veteran, so the reading is tier 0 with a Veteran flag set.
+
+**Caveat worth keeping.** The Veteran bit is on firm ground — 16 is not a plausible tier
+number and the character is demonstrably on Veteran. That the low nibble carries the tier
+is INFERRED from one character on one difficulty, because no Elite or Ultimate save was
+available. A second save would settle it.
 
 Farker projected to Ultimate, for illustration: fire −6, chaos −42, physical −50, nothing
 above 23. That is the honest picture of a level 28 character looking at the top

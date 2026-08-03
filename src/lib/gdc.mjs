@@ -255,11 +255,29 @@ function readSummary(r) {
 
   r.skipUid();
 
-  // --- character info (block 1): skipped whole ---
-  // Nothing in it is wanted, and its layout has already changed once.
+  // --- character info (block 1): read the front, skip the rest ---
+  //
+  // This block used to be skipped whole on the grounds that nothing in it was wanted.
+  // Difficulty is wanted now -- as a DEFAULT the player can override -- and it sits four
+  // bytes in, so only the front needs parsing.
+  //
+  // The tail is still skipped by declared length, which preserves the original reason for
+  // skipping: the layout has already changed once (version 4 to 5), and anything past
+  // `money` can change again without breaking this.
   const infoBlock = r.int();
   if (infoBlock !== 1) throw new Error(`expected the character-info block, found ${infoBlock}`);
-  skipBlock(r, r.int({ advance: false }));
+  const infoLen = r.int({ advance: false });
+  const infoStart = r.pos;
+  const infoVersion = r.int();
+  r.byte();                          // isInMainQuest
+  r.byte();                          // hasBeenInGame
+  const difficultyByte = r.byte();
+  const greatestDifficultyCompleted = r.byte();
+  // Cross-checked against the game: this read 161,842 where the character sheet showed
+  // 163,575 a short play session later. Money is what PROVES the field offsets, since
+  // difficulty alone is a small number that could be almost anything.
+  const money = r.int();
+  skipBlock(r, infoLen - (r.pos - infoStart));
   r.blockEnd();
 
   // --- bio (block 2) ---
@@ -293,7 +311,12 @@ function readSummary(r) {
   }
   r.blockEnd();
 
-  return { name, sex, classId, level, hardcore, fileVersion, version, bio, at: r.pos };
+  return {
+    name, sex, classId, level, hardcore, fileVersion, version, bio,
+    difficulty: decodeDifficulty(difficultyByte),
+    greatestDifficultyCompleted, money, infoVersion,
+    at: r.pos,
+  };
 }
 
 
@@ -397,6 +420,42 @@ function readSkills(r, block) {
   // read anything after.
   return out;
 }
+
+/** Tiers in the order the game unlocks them; the index is also the stored value. */
+export const DIFFICULTIES = ['normal', 'elite', 'ultimate'];
+
+/** Veteran is a flag ON normal, not a tier of its own. */
+const VETERAN_FLAG = 0x10;
+
+/**
+ * Split the difficulty byte into a tier and the Veteran flag.
+ *
+ * Farker reads 16, which is `0x10` -- tier 0 with the flag set -- and the game shows
+ * "Veteran" in the corner. That is the whole of the evidence: the low nibble being the
+ * tier is INFERRED from one character on one difficulty, because a save on Elite or
+ * Ultimate was not available to check. The Veteran bit is on firmer ground, since 16 is
+ * not a plausible tier number and the character is demonstrably on Veteran.
+ *
+ * Veteran carries NO resistance penalty -- it is normal difficulty with tougher enemies
+ * -- so it does not affect planning. It is returned because a caller displaying "Normal"
+ * for a Veteran character would look broken.
+ */
+function decodeDifficulty(byte) {
+  return {
+    tier: DIFFICULTIES[byte & 0x0f] ?? 'normal',
+    veteran: (byte & VETERAN_FLAG) !== 0,
+    raw: byte,
+  };
+}
+
+/**
+ * The flat penalty a difficulty applies to every resistance.
+ *
+ * This is the number that makes reading difficulty worth doing at all: being wrong about
+ * it puts every resistance out by 25 or 50, which dwarfs any other error in deriving
+ * them, and does it silently.
+ */
+export const RESIST_PENALTY = { normal: 0, elite: -25, ultimate: -50 };
 
 const DEVOTION_PREFIX = 'records/skills/devotion/';
 

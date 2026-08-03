@@ -26,16 +26,16 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { __test } from '../src/lib/gdc.mjs';
+import { RESIST_PENALTY, __test } from '../src/lib/gdc.mjs';
 
 const { Reader, readSummary, openBlock, skipNested } = __test;
 
 const savePath = process.argv[2];
 const dataRoot = process.argv[3];
-const difficulty = (process.argv[4] ?? 'veteran').toLowerCase();
+const override = process.argv[4]?.toLowerCase();
 if (!savePath || !dataRoot) {
   console.error('usage: node scripts/probe-resists.mjs <player.gdc> <records-parent> [difficulty]');
-  console.error('       difficulty: veteran | elite | ultimate   (default veteran)');
+  console.error('       difficulty: normal | elite | ultimate   (default: read from the save)');
   process.exit(1);
 }
 
@@ -65,25 +65,18 @@ const ELEMENTAL = 'defensiveElementalResistance';
 const DEFAULT_JITTER = 20;
 
 /**
- * The flat penalty each difficulty applies to every resistance.
+ * Difficulty is READ from the save as a default and OVERRIDABLE by the player.
  *
- * CHOSEN, not read from the save, and this is not a shortcut.
+ * Reading it matters because being wrong puts every resistance out by 25 or 50, which
+ * dwarfs the ~2 point error in deriving them from gear and does it silently.
  *
- * Once a character unlocks a difficulty it can move between them freely, so there is no
- * such thing as "the" difficulty a character is on -- it is wherever they happen to be
- * standing. A save could at best report the last one loaded, which is not a fact worth
- * building on.
+ * Overriding it matters because a character moves freely between difficulties once it
+ * has unlocked them, so the stored value is only wherever they last stood -- not a
+ * property of the build. And the useful question is often about somewhere they have not
+ * been: "will Elite kill me", asked from Veteran, is a question no save can answer.
  *
- * The useful question is "am I geared for where I am GOING". Someone farming Veteran who
- * wants to know whether Elite will kill them is asking about a difficulty they may not
- * have entered, and no amount of parsing reaches it.
- *
- * It also removes the worst failure this probe could have had. Reading difficulty wrongly
- * would put every resistance out by 25 or 50 -- an order of magnitude past the ~2 point
- * modelling error -- and would do it silently, reporting a character as safe when it is
- * not.
+ * So: default to the fact, let the player ask the counterfactual.
  */
-const DIFFICULTY = { veteran: 0, elite: -25, ultimate: -50 };
 
 // ---------------------------------------------------------------- read the save
 
@@ -192,13 +185,19 @@ const SHEET = {
 /** What a control actually does with a resistance: bucket it. Only threshold crossings matter. */
 const weight = v => (v >= 75 ? 0 : v < 45 ? 3 : v < 60 ? 2 : 1);
 
-const penalty = DIFFICULTY[difficulty];
+const fromSave = summary.difficulty.tier;
+const difficulty = override ?? fromSave;
+const penalty = RESIST_PENALTY[difficulty];
 if (penalty === undefined) {
-  console.error(`unknown difficulty "${difficulty}" -- expected veteran, elite or ultimate`);
+  console.error(`unknown difficulty "${difficulty}" -- expected normal, elite or ultimate`);
   process.exit(1);
 }
 
-console.log(`\n--- derived, planning for ${difficulty} (${penalty || 'no'} penalty) ---`);
+const source = override && override !== fromSave
+  ? `chosen; the save says ${fromSave}${summary.difficulty.veteran ? ' (Veteran)' : ''}`
+  : `from the save${summary.difficulty.veteran ? ', Veteran' : ''}`;
+console.log(`\n--- derived, planning for ${difficulty} (${source}; `
+  + `${penalty || 'no'} penalty) ---`);
 console.log('  stat           central  band        sheet  in band  advice');
 let inBand = 0, agree = 0, absErr = 0;
 for (const [label, field] of RESISTS) {
@@ -220,7 +219,7 @@ for (const [label, field] of RESISTS) {
 // Comparing them against a penalised column would report a 50-point "error" that is just
 // the penalty doing its job, which is exactly the kind of number that gets quoted later
 // without its caveat.
-if (penalty === 0) {
+if (penalty === 0 && !override) {
   console.log(`\n${inBand}/10 inside the band, mean absolute error `
     + `${(absErr / RESISTS.length).toFixed(1)} points`);
   console.log(`advice agrees on ${agree}/10`);

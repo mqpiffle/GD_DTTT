@@ -15,7 +15,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterSummary, readCharacter, __test } from './gdc.mjs';
+import { readCharacterSummary, readCharacter, RESIST_PENALTY, __test } from './gdc.mjs';
 
 const { MAGIC, XOR_KEY, PRIME } = __test;
 
@@ -120,6 +120,7 @@ function buildSave(over = {}) {
   const o = {
     name: 'Tangie', sex: 1, classId: 'tagCharacterClass01', level: 42, hardcore: false,
     fileVersion: 2, saveVersion: 8, infoVersion: 5, money: 12345,
+    difficultyByte: 2,                               // ultimate, Veteran flag clear
     devotionPoints: 7, totalDevotion: 23,
     ...over,
   };
@@ -130,10 +131,11 @@ function buildSave(over = {}) {
   w.int(0, { advance: false }).int(o.saveVersion);
   for (let i = 0; i < 16; i++) w.byte(i);          // uid
 
-  // Block 1 is skipped by its declared length, so its contents are arbitrary. That is
-  // the point of the test: the reader must not care what is in here.
+  // Block 1's FRONT is now parsed -- difficulty, and money as the field that proves the
+  // offsets. Everything after money is still skipped by declared length, so the trailing
+  // junk here is deliberate: the reader must not care what is in it.
   const info = w.beginBlock(1);
-  w.int(o.infoVersion).bool(true).bool(true).byte(2).byte(3).uint(o.money)
+  w.int(o.infoVersion).bool(true).bool(true).byte(o.difficultyByte).byte(3).uint(o.money)
    .byte(1).int(2).byte(1).byte(0).byte(0).string('tex.tex');
   w.endBlock(info);
 
@@ -146,14 +148,43 @@ function buildSave(over = {}) {
   return w.bytes();
 }
 
+test('splits the difficulty byte into a tier and the Veteran flag', () => {
+  // Veteran is a flag ON normal rather than a tier, so 0x10 must read as normal with the
+  // flag set -- not as some fourth difficulty. Farker's save reads exactly 16.
+  const vet = readCharacterSummary(buildSave({ difficultyByte: 0x10 }));
+  assert.equal(vet.difficulty.tier, 'normal');
+  assert.equal(vet.difficulty.veteran, true);
+
+  // The flag must not leak into the tier when a higher difficulty carries it.
+  const eliteVet = readCharacterSummary(buildSave({ difficultyByte: 0x11 }));
+  assert.equal(eliteVet.difficulty.tier, 'elite');
+  assert.equal(eliteVet.difficulty.veteran, true);
+
+  const plain = readCharacterSummary(buildSave({ difficultyByte: 2 }));
+  assert.equal(plain.difficulty.tier, 'ultimate');
+  assert.equal(plain.difficulty.veteran, false);
+});
+
+test('the resistance penalty is what makes difficulty worth reading', () => {
+  // Being wrong here costs 25 or 50 points on every resistance, which dwarfs the ~2
+  // point error in deriving them from gear, and does it silently.
+  assert.equal(RESIST_PENALTY.normal, 0);
+  assert.equal(RESIST_PENALTY.elite, -25);
+  assert.equal(RESIST_PENALTY.ultimate, -50);
+  // Veteran is NOT a penalty tier: tougher enemies, same resistances.
+  const vet = readCharacterSummary(buildSave({ difficultyByte: 0x10 }));
+  assert.equal(RESIST_PENALTY[vet.difficulty.tier], 0);
+});
+
 test('reads a character header and bio', () => {
   const c = readCharacterSummary(buildSave());
   assert.equal(c.name, 'Tangie');
   assert.equal(c.classId, 'tagCharacterClass01');
   assert.equal(c.level, 42);
   assert.equal(c.hardcore, false);
-  // No `money`: it lives inside the character-info block, which is skipped whole.
-  assert.equal(c.money, undefined, 'money should not be read; that block is skipped');
+  // Money is what proves the character-info offsets are right. Difficulty alone is a
+  // small number that could be almost anything; money is checkable against the game.
+  assert.equal(c.money, 12345);
   assert.equal(c.bio.level, 42);
   assert.equal(c.bio.devotionPoints, 7);
   assert.equal(c.bio.totalDevotion, 23);
