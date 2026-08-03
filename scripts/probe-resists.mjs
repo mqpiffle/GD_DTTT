@@ -175,12 +175,21 @@ for (const c of contributors) {
     + (c.jitter ? `  (±${c.jitter}%)` : '  (fixed)'));
 }
 
-// Farker's sheet, read off the character panel. Veteran, so no difficulty penalty.
-const SHEET = {
-  defensiveFire: 45, defensiveCold: 55, defensiveLightning: 39, defensivePoison: 75,
-  defensivePierce: 56, defensiveBleeding: 28, defensiveLife: 23, defensiveAether: 32,
-  defensiveChaos: 10, defensivePhysical: 0,
+/**
+ * Character-sheet readings, keyed by name, in sheet order.
+ *
+ * Ground truth is per character AND per difficulty: a sheet read on Veteran says nothing
+ * about the same character on Elite, because the penalty is already baked into what the
+ * panel displays. Keyed by name so a save swapped underneath does not get silently
+ * compared against the wrong character, which is exactly the mistake available here.
+ */
+const SHEETS = {
+  Farker: [45, 55, 39, 75, 56, 28, 23, 32, 10, 0],
 };
+const sheetRow = SHEETS[summary.name];
+const SHEET = sheetRow
+  ? Object.fromEntries(RESISTS.map(([, f], i) => [f, sheetRow[i]]))
+  : null;
 
 /** What a control actually does with a resistance: bucket it. Only threshold crossings matter. */
 const weight = v => (v >= 75 ? 0 : v < 45 ? 3 : v < 60 ? 2 : 1);
@@ -198,32 +207,42 @@ const source = override && override !== fromSave
   : `from the save${summary.difficulty.veteran ? ', Veteran' : ''}`;
 console.log(`\n--- derived, planning for ${difficulty} (${source}; `
   + `${penalty || 'no'} penalty) ---`);
-console.log('  stat           central  band        sheet  in band  advice');
+// A sheet reading is only ground truth at the difficulty it was READ on, because the
+// penalty is already baked into what the panel displays. Comparing against a projected
+// column would report the penalty as error -- a 50-point "miss" that is the model
+// working correctly, and exactly the kind of number that gets quoted later without its
+// caveat.
+const comparable = SHEET && !override;
+
+console.log(`  stat           central  band      ${comparable ? '  sheet  in band  advice' : ''}`);
 let inBand = 0, agree = 0, absErr = 0;
 for (const [label, field] of RESISTS) {
   const v = total[field] + penalty;
   const band = Math.sqrt(jitterSq[field]);
   const lo = v - band, hi = v + band;
-  const real = SHEET[field];
-  const ok = real >= Math.floor(lo) && real <= Math.ceil(hi);
-  const same = weight(v) === weight(real);
-  if (ok) inBand++;
-  if (same) agree++;
-  absErr += Math.abs(v - real);
+  let tail = '';
+  if (comparable) {
+    const real = SHEET[field];
+    const ok = real >= Math.floor(lo) && real <= Math.ceil(hi);
+    const same = weight(v) === weight(real);
+    if (ok) inBand++;
+    if (same) agree++;
+    absErr += Math.abs(v - real);
+    tail = `${String(real).padStart(7)}  ${(ok ? 'yes' : 'NO').padEnd(7)}  `
+      + `${weight(v)}/${weight(real)}${same ? '' : '  <-- DIFFERS'}`;
+  }
   console.log(`  ${label.padEnd(13)} ${String(Math.round(v)).padStart(6)}  `
-    + `${(band ? `${Math.round(lo)}..${Math.round(hi)}` : 'exact').padEnd(10)} `
-    + `${String(real).padStart(5)}  ${(ok ? 'yes' : 'NO').padEnd(7)}  `
-    + `${weight(v)}/${weight(real)}${same ? '' : '  <-- DIFFERS'}`);
+    + `${(band ? `${Math.round(lo)}..${Math.round(hi)}` : 'exact').padEnd(10)}${tail}`);
 }
-// The sheet numbers were read on Veteran, so they are ground truth for Veteran only.
-// Comparing them against a penalised column would report a 50-point "error" that is just
-// the penalty doing its job, which is exactly the kind of number that gets quoted later
-// without its caveat.
-if (penalty === 0 && !override) {
+
+if (comparable) {
   console.log(`\n${inBand}/10 inside the band, mean absolute error `
     + `${(absErr / RESISTS.length).toFixed(1)} points`);
   console.log(`advice agrees on ${agree}/10`);
+} else if (!SHEET) {
+  console.log(`\nNo sheet reading on file for ${summary.name}, so nothing to check this`);
+  console.log('against. Add one to SHEETS, read at the difficulty the save reports.');
 } else {
-  console.log('\nNo comparison: the sheet was read on Veteran, so it is ground truth for');
-  console.log('Veteran only. The column above is a projection, not a measurement.');
+  console.log('\nNo comparison: the difficulty was overridden, so the column above is a');
+  console.log('projection rather than something the sheet can confirm.');
 }
