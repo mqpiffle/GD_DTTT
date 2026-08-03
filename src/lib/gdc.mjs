@@ -457,13 +457,48 @@ function decodeDifficulty(byte) {
 }
 
 /**
- * The flat penalty a difficulty applies to every resistance.
+ * The penalty a difficulty applies to each resistance.
  *
- * This is the number that makes reading difficulty worth doing at all: being wrong about
- * it puts every resistance out by 25 or 50, which dwarfs any other error in deriving
- * them, and does it silently.
+ * NOT a single number, which is the trap. Resistances fall into two groups that are
+ * penalised on a STAGGERED schedule, and the groups are exactly the two rows the
+ * character sheet draws:
+ *
+ *   top row     fire, cold, lightning, acid, pierce      -25 Elite   -50 Ultimate
+ *   bottom row  bleeding, vitality, aether, chaos          0 Elite   -25 Ultimate
+ *   physical                                               0          0
+ *
+ * Confirmed by loading one character at two difficulties with identical gear: acid went
+ * 4 -> 29 and pierce 30 -> 55 moving off Elite, while bleeding, vitality and physical did
+ * not move at all. Four predictions written down before the second reading, all correct.
+ *
+ * Assuming one flat penalty costs 25 points on four resistances at Elite -- and it fails
+ * in the direction that flatters the character, reporting resistances as worse than they
+ * are on the stats people actually neglect.
+ *
+ * Physical is exempt at every difficulty, as are the crowd-control resistances.
  */
-export const RESIST_PENALTY = { normal: 0, elite: -25, ultimate: -50 };
+const TOP_ROW = new Set([
+  'defensiveFire', 'defensiveCold', 'defensiveLightning',
+  'defensivePoison', 'defensivePierce',
+]);
+const BOTTOM_ROW = new Set([
+  'defensiveBleeding', 'defensiveLife', 'defensiveAether', 'defensiveChaos',
+]);
+
+const SCHEDULE = {
+  top:    { normal: 0, elite: -25, ultimate: -50 },
+  bottom: { normal: 0, elite: 0, ultimate: -25 },
+  exempt: { normal: 0, elite: 0, ultimate: 0 },
+};
+
+/**
+ * @param field a `defensive*` DBR field name
+ * @param tier  'normal' | 'elite' | 'ultimate'
+ */
+export function resistPenalty(field, tier) {
+  const row = TOP_ROW.has(field) ? 'top' : BOTTOM_ROW.has(field) ? 'bottom' : 'exempt';
+  return SCHEDULE[row][tier] ?? 0;
+}
 
 const DEVOTION_PREFIX = 'records/skills/devotion/';
 

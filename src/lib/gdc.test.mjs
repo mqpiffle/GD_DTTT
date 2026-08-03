@@ -15,7 +15,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterSummary, readCharacter, RESIST_PENALTY, __test } from './gdc.mjs';
+import { readCharacterSummary, readCharacter, resistPenalty, __test } from './gdc.mjs';
 
 const { MAGIC, XOR_KEY, PRIME } = __test;
 
@@ -165,15 +165,38 @@ test('splits the difficulty byte into a tier and the Veteran flag', () => {
   assert.equal(plain.difficulty.veteran, false);
 });
 
-test('the resistance penalty is what makes difficulty worth reading', () => {
-  // Being wrong here costs 25 or 50 points on every resistance, which dwarfs the ~2
-  // point error in deriving them from gear, and does it silently.
-  assert.equal(RESIST_PENALTY.normal, 0);
-  assert.equal(RESIST_PENALTY.elite, -25);
-  assert.equal(RESIST_PENALTY.ultimate, -50);
-  // Veteran is NOT a penalty tier: tougher enemies, same resistances.
+test('the resistance penalty is STAGGERED across two rows, not flat', () => {
+  // The trap this exists to prevent. Treating the penalty as one number costs 25 points
+  // on four resistances at Elite, and it errs in the flattering direction -- reporting
+  // bleeding, vitality, aether and chaos as worse than they are, which are exactly the
+  // ones players neglect.
+  //
+  // Measured by loading one character at two difficulties with identical gear: acid
+  // 4 -> 29 and pierce 30 -> 55 moving off Elite, bleeding and vitality unmoved.
+  assert.equal(resistPenalty('defensivePoison', 'elite'), -25, 'acid moved by 25 at Elite');
+  assert.equal(resistPenalty('defensivePierce', 'elite'), -25, 'pierce moved by 25 at Elite');
+  assert.equal(resistPenalty('defensiveBleeding', 'elite'), 0, 'bleeding did NOT move at Elite');
+  assert.equal(resistPenalty('defensiveLife', 'elite'), 0, 'vitality did NOT move at Elite');
+
+  // The bottom row is delayed, not exempt -- it takes its 25 one difficulty later.
+  assert.equal(resistPenalty('defensiveBleeding', 'ultimate'), -25);
+  assert.equal(resistPenalty('defensiveAether', 'ultimate'), -25);
+  assert.equal(resistPenalty('defensivePoison', 'ultimate'), -50);
+
+  // Physical never takes a penalty at any difficulty.
+  for (const tier of ['normal', 'elite', 'ultimate']) {
+    assert.equal(resistPenalty('defensivePhysical', tier), 0, `physical at ${tier}`);
+  }
+
+  // Nothing is penalised on normal, and Veteran is normal.
   const vet = readCharacterSummary(buildSave({ difficultyByte: 0x10 }));
-  assert.equal(RESIST_PENALTY[vet.difficulty.tier], 0);
+  assert.equal(vet.difficulty.tier, 'normal');
+  for (const f of ['defensiveFire', 'defensivePierce', 'defensiveLife']) {
+    assert.equal(resistPenalty(f, vet.difficulty.tier), 0);
+  }
+
+  // An unknown field must not silently invent a penalty.
+  assert.equal(resistPenalty('defensiveNonsense', 'ultimate'), 0);
 });
 
 test('reads a character header and bio', () => {

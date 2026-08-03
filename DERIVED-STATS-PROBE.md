@@ -317,8 +317,35 @@ penalty does the exact reverse. Every model explained half the data, and with te
 and a one-bit hypothesis there was no way to tell which half mattered. Two readings of
 the same character at different difficulties settled it in one step.
 
-Aether and chaos remain untested -- both sit at the 80 cap in both readings, so they
-carry no information. They are placed in the bottom row by analogy, not by measurement.
+### The full table, from the wiki
+
+The rows are **staggered, not exempt** -- which is what "cumulative penalties" in the
+first search result meant, and neither of us read it that way:
+
+| resistance | Normal / Veteran | Elite | Ultimate |
+|---|---|---|---|
+| Fire, Cold, Lightning, Acid, Pierce | 0 | **-25** | **-50** |
+| Bleeding, Vitality, Aether, Chaos | 0 | **0** | **-25** |
+| Physical, Stun / CC | 0 | 0 | 0 |
+
+This agrees with the experiment on every cell the experiment could reach, and fills in
+the two it could not: aether and chaos sit at the 80 cap in both readings, so they were
+grouped by analogy -- and the table puts them exactly there.
+
+**We should have looked for this table first.** The experiment cost a couple of hours
+and three reversals of position, and one lookup would have settled it.
+
+The reason it is not a simple lesson: the two AI search summaries consulted along the way
+were WRONG in a way that would have sent us further astray -- "vitality is affected by
+difficulty, 25% penalty on Elite", "aether is directly affected... along with chaos and
+all other vital resistances". Both are false at Elite. Had those been trusted without
+measuring, the bug would have shipped, and it fails in the flattering direction: it
+reports bleeding, vitality, aether and chaos as 25 points worse than they are, on exactly
+the resistances players neglect.
+
+So the lesson is narrower than "read the docs". Find the PRIMARY reference table; treat a
+generated summary of a forum thread as a hypothesis, not a source. The experiment is what
+revealed which of the two to believe.
 
 **Scope of the evidence.** One character, one difficulty. Five of the ten are uncapped
 and therefore actually test the rule -- acid and pierce demanding the penalty, bleeding,
