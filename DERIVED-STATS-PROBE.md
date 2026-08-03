@@ -238,12 +238,26 @@ An earlier reading of this file argued the opposite, on the strength of three
 resistances that matched with no penalty. Those three were short by 25 for a different
 reason — see below — and agreeing with a wrong model is not evidence.
 
-### The difficulty penalty: measurement and documentation DISAGREE
+### The difficulty penalty applies to the sheet's TOP ROW only
 
-**Unresolved. Do not build on either answer yet.**
+**Settled by controlled experiment**, against the documentation, which is wrong.
 
-What the numbers say, fitting all ten of Sparkles' resistances, is that the penalty is
-per row rather than global.
+The same character was loaded on Elite and on Veteran with identical gear, devotions and
+skills. Only the difficulty changed:
+
+| | Elite | Veteran | moved |
+|---|---|---|---|
+| Acid | 4 | 29 | **+25** |
+| Pierce | 30 | 55 | **+25** |
+| Bleeding | 71 | 71 | none |
+| Vitality | 33 | 33 | none |
+| Physical | 6 | 6 | none |
+| Fire / Cold / Lightning / Aether / Chaos | 80 | 80 | capped, no information |
+
+The four testable predictions were written down BEFORE the second reading arrived --
+29, 55, 71, 33 -- and all four came back correct. That is what makes this a test rather
+than another curve fit; the previous three reversals all came from fitting a rule to
+numbers already seen.
 
 Grim Dawn lays resistances out in two rows of five. On Elite:
 
@@ -291,29 +305,20 @@ the data, and reporting from memory between runs meant the half being quoted kep
 changing. Compute the whole table in one pass and print every term; do not narrate
 partial results.
 
-**THE WIKI SAYS OTHERWISE, EXPLICITLY.** Vitality: "affected by difficulty, 25% penalty
-on Elite, additional 25% on Ultimate." Aether: "directly affected... along with chaos and
-all other vital resistances." Only physical is documented as exempt, and that one agrees
-with the measurement.
+**The documentation says otherwise and should not be trusted here.** The Grim Dawn wiki
+and the Reddit summaries of it state plainly that vitality is "affected by difficulty,
+25% penalty on Elite" and that aether is "directly affected... along with chaos and all
+other vital resistances." The experiment above shows vitality unmoved across a difficulty
+change on the same character. Only the claim about physical being exempt survives.
 
-So there are two possibilities and no way to choose between them from here:
+This cost about two hours and three reversals of position, and the reason is worth
+keeping: a global penalty fits acid and pierce and breaks bleeding and vitality; no
+penalty does the exact reverse. Every model explained half the data, and with ten numbers
+and a one-bit hypothesis there was no way to tell which half mattered. Two readings of
+the same character at different difficulties settled it in one step.
 
-1. **The row rule is real** and the community documentation is loose about which stats
-   sit in which row.
-2. **The penalty is global** and my bleeding, vitality and aether totals are each ~25
-   short from a source I have not found.
-
-Against (2): every non-zero source for those three has now been enumerated by dumping
-each equipped record's full `defensive*` field list. There are exactly five, and they are
-all counted. Sets are ruled out -- `d002_head` is a Legendary with no `itemSetName`, and
-the shared d002 numbering is an index, not a set.
-
-Against (1): a game applying difficulty penalties to five resistances and not the other
-five would be strange design, and no source describes it that way.
-
-**The decisive test is cheap.** Move Sparkles to Normal and re-read the sheet. If acid
-and pierce jump by 25 while bleeding, vitality and aether do not, the row rule holds. If
-all of them jump, the penalty is global and the model is missing 25 on three resistances.
+Aether and chaos remain untested -- both sit at the 80 cap in both readings, so they
+carry no information. They are placed in the bottom row by analogy, not by measurement.
 
 **Scope of the evidence.** One character, one difficulty. Five of the ten are uncapped
 and therefore actually test the rule -- acid and pierce demanding the penalty, bleeding,
