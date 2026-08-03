@@ -26,9 +26,50 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { RESIST_PENALTY, __test } from '../src/lib/gdc.mjs';
+import { readCharacter, RESIST_PENALTY, __test } from '../src/lib/gdc.mjs';
 
 const { Reader, readSummary, openBlock, skipNested } = __test;
+
+/**
+ * Resistances granted by the devotion stars the character has BOUGHT.
+ *
+ * Left out of the first pass, and it was the largest error in the model by a wide margin
+ * -- Sparkles came out 25 to 58 points low on five resistances at once. Farker hid it
+ * completely: nine points, almost all Crossroads, contributing near zero. So the earlier
+ * "10 of 10 inside the band" was really "10 of 10 on a character where the missing term
+ * happened to be nothing".
+ *
+ * A devotion planner forgetting to count devotions is embarrassing, but this is the most
+ * tractable term in the whole model. Devotion grants are FIXED -- no jitter, nothing
+ * rolled -- `devotions.raw.json` carries every stat field, and readCharacter() already
+ * returns exactly which stars are owned, keyed by the same DBR path the extract uses.
+ */
+function devotionResists(bought, rawPath) {
+  if (!existsSync(rawPath)) return { totals: {}, stars: [], missing: 'no devotions.raw.json' };
+  const raw = JSON.parse(readFileSync(rawPath, 'utf8'));
+  const byRef = new Map();
+  for (const con of raw) for (const st of con.stars) byRef.set(st.ref, { con, st });
+
+  const totals = {};
+  const stars = [];
+  let unmatched = 0;
+  for (const ref of bought) {
+    const hit = byRef.get(ref);
+    if (!hit) { unmatched++; continue; }
+    const parts = [];
+    for (const [label, field] of RESISTS) {
+      let v = Number(hit.st.stats?.[field] ?? 0);
+      if (field === 'defensiveFire' || field === 'defensiveCold' || field === 'defensiveLightning') {
+        v += Number(hit.st.stats?.[ELEMENTAL] ?? 0);
+      }
+      if (!v) continue;
+      totals[field] = (totals[field] ?? 0) + v;
+      parts.push(`${label} +${v}`);
+    }
+    if (parts.length) stars.push({ name: `${hit.con.name} ${hit.st.index ?? ''}`.trim(), parts });
+  }
+  return { totals, stars, unmatched };
+}
 
 const savePath = process.argv[2];
 const dataRoot = process.argv[3];
@@ -82,6 +123,13 @@ const DEFAULT_JITTER = 20;
 
 const r = new Reader(readFileSync(savePath));
 const summary = readSummary(r);
+
+// The devotion stars this character owns, read by the same code path the app will use.
+const character = readCharacter(readFileSync(savePath));
+const dev = devotionResists(
+  character.devotions,
+  join(import.meta.dirname, '../devotions.raw.json'),
+);
 
 const inv = openBlock(r);
 if (inv.id !== 3) throw new Error(`expected the inventory block, found ${inv.id}`);
@@ -185,7 +233,15 @@ for (const c of contributors) {
  */
 const SHEETS = {
   Farker: [45, 55, 39, 75, 56, 28, 23, 32, 10, 0],
+  Sparkles: [80, 80, 80, 4, 30, 71, 33, 80, 80, 6],
 };
+
+/**
+ * The panel clamps at 80, so a reading of 80 means "80 or more" and can only ever
+ * confirm a lower bound. Treating it as an exact figure would score an overcapped
+ * character as a miss when the model is right.
+ */
+const DISPLAY_CAP = 80;
 const sheetRow = SHEETS[summary.name];
 const SHEET = sheetRow
   ? Object.fromEntries(RESISTS.map(([, f], i) => [f, sheetRow[i]]))
@@ -205,6 +261,11 @@ if (penalty === undefined) {
 const source = override && override !== fromSave
   ? `chosen; the save says ${fromSave}${summary.difficulty.veteran ? ' (Veteran)' : ''}`
   : `from the save${summary.difficulty.veteran ? ', Veteran' : ''}`;
+console.log(`\n--- from ${character.devotions.length} devotion stars ---`);
+if (dev.missing) console.log(`  (${dev.missing})`);
+for (const st of dev.stars) console.log(`  ${st.name.padEnd(34)} ${st.parts.join(', ')}`);
+if (dev.unmatched) console.log(`  ${dev.unmatched} stars not found in the extract`);
+
 console.log(`\n--- derived, planning for ${difficulty} (${source}; `
   + `${penalty || 'no'} penalty) ---`);
 // A sheet reading is only ground truth at the difficulty it was READ on, because the
@@ -217,7 +278,7 @@ const comparable = SHEET && !override;
 console.log(`  stat           central  band      ${comparable ? '  sheet  in band  advice' : ''}`);
 let inBand = 0, agree = 0, absErr = 0;
 for (const [label, field] of RESISTS) {
-  const v = total[field] + penalty;
+  const v = total[field] + (dev.totals[field] ?? 0) + penalty;
   const band = Math.sqrt(jitterSq[field]);
   const lo = v - band, hi = v + band;
   let tail = '';
