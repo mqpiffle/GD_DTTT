@@ -6,6 +6,109 @@ have to be re-derived later.
 
 ---
 
+## Actual vs suggested: what import turns this into — AGREED 2 Aug, not built
+
+Worked out in conversation after v0.4.0 shipped import and it became obvious that
+importing a character left you looking at nothing. Recorded in full because the
+reasoning matters more than the conclusions and none of it is in the code yet.
+
+### The problem import exposed
+
+Importing Sparkles gives 52 ticked stars, no tags, therefore no plan, therefore nothing
+drawn. Measured, not guessed: `off-plan: 52 of 52`. Ticks were only ever rendered where
+they overlapped the current plan, so a character with real devotions and no tags shows
+an empty screen.
+
+### What it becomes
+
+**Two devotion paths: ACTUAL and SUGGESTED.** Actual is what you own. Suggested is what
+the tool recommends. You can still push the suggestion around however you like — tags,
+presets, drag to reorder.
+
+**Actual is not import-only.** Someone who has never imported but ticks stars as they buy
+them has exactly the same data, entered by hand. So actual is "what you own", sourced
+from either a save or clicking, and import merely fills it in faster and more accurately.
+
+**There is therefore no import mode, and no playground mode.** Import versus blank is a
+FACT about a character, not a choice: an imported one knows its level, budget, devotions
+and gear; a blank one knows none of that. The UI shows more where it knows more. This
+matters because the project already rejected a two-stage mode design once, in favour of
+the lock, on the grounds that stages need a transition trigger, a wipe policy, a "you are
+now in tracking mode" affordance and a ruling on which stage owns every control.
+
+**Track versus evaluate IS a real question**, because only the player can answer it, which
+makes it a control rather than a state. "What do I buy next" and "is what I have any good"
+pull in opposite directions: the first wants your devotions to constrain the solver, the
+second wants them left alone so it can propose something better.
+
+### The lock still holds, and gains a rule
+
+The lock protects INTENT. Re-import updates FACTS. Locked, you cannot change what you are
+aiming for — but you can re-import, because that is not changing your mind, it is telling
+the tool the world moved. Same shape as the existing rule that locked ticking stays live
+because ticking is the point of being locked.
+
+Consequence: **re-import largely replaces manual ticking** for anyone who imports. The
+game already knows which stars you bought. Ticking becomes the fallback for people who
+do not import, not the primary record of progress.
+
+### Identity: match on the character NAME, stored separately from the display name
+
+- **The UID is useless.** The 16 bytes after the header that `skipUid()` skips read as
+  all zeros on a real save. Checked, not assumed.
+- **Names are unique by construction.** Grim Dawn names each character's save folder after
+  the character, and a filesystem cannot hold two folders with the same name in one
+  directory. This is a mechanical guarantee rather than a design rule, which is why it is
+  worth trusting.
+- **Our app allows renaming; the game does not.** So the imported name must be stored as
+  its own field -- `source: 'Sparkles'` beside `name: 'Sparkles (cold build)'` -- and
+  re-import must match on `source`, never on `name`. Otherwise the first rename orphans
+  the character from its save and the next import silently creates a duplicate. Cheap now,
+  awkward after there are stored characters in the old shape.
+
+### Import all
+
+`webkitdirectory` on a file input takes a FOLDER and returns everything under it, with
+the folder name preserved in `webkitRelativePath`. Point it at `save/main/` and every
+character arrives at once; filter to files named `player.gdc`, since those folders also
+hold map and quest data.
+
+With `source` as the key this is safe to re-run: new characters appear, existing ones
+update, nothing duplicates.
+
+**It makes the old-save-format failure unavoidable and it must be per character.**
+Chphthzhmh throws `unsupported skill-block version 5` -- inventory v4, stash v6, skills v5
+against the current 11/11/8. One file at a time that is a confusing error; a whole folder,
+one stale character would kill the batch. Report it per character with the actual remedy:
+load it once in Grim Dawn, save, try again.
+
+Two smaller notes. The directory picker raises a browser confirmation naming a file count,
+which reads as an upload prompt though nothing leaves the machine -- worth a line of text
+beside the button. And `showDirectoryPicker()` would remember the folder so "refresh all"
+needs no re-picking, but it is Chromium-only and belongs as an enhancement rather than the
+foundation.
+
+### Things to get right
+
+- **`state.done` changes meaning.** Today it is progress against the current plan.
+  Promoting it to "the actual build, independent of any plan" is a data-model change, and
+  stored characters hold `done` sets written under the old meaning. A deliberate v2 -> v3
+  migration, not an accident.
+- **The valuable output is the DIFF, not two columns.** Keep / buy / lose — what you have
+  that the suggestion also wants, what you would need to buy, what you would throw away.
+  That is the respec cost, and it is the evaluator half. Two paths side by side invite
+  eyeballing; a diff answers the question.
+- **A save records no purchase order.** Actual is exact as a STATE — these constellations,
+  these stars, this affinity — but any path through it is reconstructed by our scheduler.
+  Worth not implying otherwise, particularly since Crossroads refunds mean the real order
+  may not even be reproducible.
+- **`controls` becomes `presets`.** A module name, four CSS classes, two data attributes,
+  a test file and the visible label.
+
+**The UI is going to change** to accommodate this. Nothing above is built.
+
+---
+
 ## Saved state: profiles and shareable builds
 
 Right now the tool keeps a single saved state in `localStorage` under
