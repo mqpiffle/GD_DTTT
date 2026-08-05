@@ -4,6 +4,28 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.5 — 5 Aug 2026
+
+**An imported character can be turned into a starting set of tags.** `proposeTags()`
+composes what the character is built for with what it is missing. Still not wired to the
+UI.
+
+The rule is that **strengths take the slots they earn and weak resistances fill the
+rest** — neither side gets a fixed allocation, because a fixed one is wrong for most
+characters. A mid-level cold caster comes out as Cold, Frostburn, Elemental, then
+Vitality and Chaos Resistance for the two holes that would actually kill him. An endgame
+character with every resistance overcapped gets all five slots for damage, which is the
+honest answer rather than a failure to find anything defensive.
+
+Weakest resistances go first when slots are scarce, so points land where it hurts most.
+Anything at or above target is not proposed at all, which is what stops a well-defended
+character being handed busywork. Fire, cold and lightning collapse to one tag driven by
+the weakest of the three, since they share the only chip the tree offers.
+
+Every tag carries a reason — "184% on your gear", "Vitality at 36" — because a proposal
+you cannot interrogate is one you have to take on trust. And anything crowded out is
+named rather than quietly dropped.
+
 ## 0.4.4 — 5 Aug 2026
 
 **Strengths are read from damage types only**, and the reason took four measured attempts

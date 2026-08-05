@@ -82,7 +82,15 @@ export const RESISTS = [
  */
 export const EXCLUDED_RESIST = 'character:defensivePhysical';
 
-/** How badly a resistance wants attention: 3 is dire, 0 is fine. */
+/**
+ * How badly a resistance wants attention: 3 is dire, 0 is fine.
+ *
+ * Exported so the import proposal uses the SAME judgement as the equaliser rather than a
+ * second copy of these thresholds. Two versions of "what counts as dire" would drift, and
+ * the drift would be invisible -- both would keep producing plausible numbers.
+ */
+export const resistWeightOf = value => resistWeight(value);
+
 function resistWeight(value) {
   if (value >= RESIST_TARGET) return 0;
   if (value < 45) return 3;
