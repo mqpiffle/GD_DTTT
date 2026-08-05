@@ -15,7 +15,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterSummary, readCharacter, __test } from './gdc.mjs';
+import { readCharacterSummary, readCharacter, readEquipment, equippedRecords, __test }
+  from './gdc.mjs';
 
 const { MAGIC, XOR_KEY, PRIME } = __test;
 
@@ -143,6 +144,51 @@ function buildSave(over = {}) {
   w.int(o.devotionPoints).int(o.totalDevotion);
   w.float(700.5).float(400.25).float(300).float(9999.5).float(1234.5);
   w.endBlock(bio);
+  return w.bytes();
+}
+
+/**
+ * A save with an inventory block, so the equipment parse can be exercised without a real
+ * character. `slots` describes the 12 worn slots and the 4 weapon slots; anything absent
+ * is written as an EMPTY slot, which is the case a real save cannot easily provide -- a
+ * character wearing nothing is not something you can conveniently produce in game.
+ */
+function buildSaveWithEquipment(over = {}) {
+  const o = { useAlternate: 0, equipment: [], weapons: [[], []], sacks: 0, ...over };
+  const w = new Writer();
+  w.int(MAGIC).int(2);
+  w.wstring('Tangie').byte(1).string('tagCharacterClass01').int(42).bool(false).byte(7);
+  w.int(0, { advance: false }).int(8);
+  for (let i = 0; i < 16; i++) w.byte(i);
+  const info = w.beginBlock(1);
+  w.int(5).bool(true).bool(true).byte(2).byte(3).uint(12345);
+  w.endBlock(info);
+  const bio = w.beginBlock(2);
+  w.int(8).int(42).int(1000000).int(4).int(12).int(7).int(23);
+  w.float(700.5).float(400.25).float(300).float(9999.5).float(1234.5);
+  w.endBlock(bio);
+
+  const item = (it = {}) => {
+    for (const k of ['baseName', 'prefixName', 'suffixName', 'modifierName', 'transmuteName'])
+      w.string(it[k] ?? '');
+    w.int(it.seed ?? 0);
+    w.string(it.relicName ?? '').string(it.relicBonus ?? '');
+    w.int(0);
+    w.string(it.augmentName ?? '');
+    for (let i = 0; i < 8; i++) w.int(0);
+    w.byte(1);
+  };
+
+  const inv = w.beginBlock(3);
+  w.int(11).bool(true).int(o.sacks).int(0).int(0);
+  w.byte(o.useAlternate);
+  for (let i = 0; i < 12; i++) item(o.equipment[i]);
+  for (const set of o.weapons) { w.byte(0); item(set[0]); item(set[1]); }
+  // Padding stands in for a future format that adds a field: the block is LONGER than
+  // the items account for, while the end marker stays perfectly valid. That is the only
+  // shape in which a wrong item layout is silent.
+  for (let i = 0; i < (o.padding ?? 0); i++) w.byte(0);
+  w.endBlock(inv);
   return w.bytes();
 }
 
@@ -360,4 +406,69 @@ test('a corrupt file is NOT reported as an outdated save', () => {
   try { readCharacterSummary(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])); } catch (e) { err = e; }
   assert.ok(err);
   assert.notEqual(err.outdated, true, 'garbage must not claim to be an old save');
+});
+
+// --- equipment ------------------------------------------------------------------
+
+test('an entirely empty character parses and yields nothing', () => {
+  // The case a real save cannot easily provide. Every one of the 16 slots is empty, so
+  // this is where an item layout that mishandles a zero-length string would show up.
+  const eq = readEquipment(buildSaveWithEquipment());
+  assert.equal(eq.equipment.length, 12);
+  assert.equal(eq.weaponSets.length, 2);
+  assert.deepEqual(equippedRecords(eq), [], 'nothing is equipped, so nothing applies');
+});
+
+test('only the weapon set IN HAND contributes', () => {
+  // The failure this prevents is silent and was demonstrated on a real character: a
+  // spare weapon injected a damage type the character does not use at all.
+  const save = which => buildSaveWithEquipment({
+    useAlternate: which,
+    weapons: [
+      [{ baseName: 'records/items/gearweapons/axe1h/held.dbr' }, {}],
+      [{ baseName: 'records/items/gearweapons/guns2h/spare.dbr' }, {}],
+    ],
+  });
+  assert.deepEqual(equippedRecords(readEquipment(save(0))),
+    ['records/items/gearweapons/axe1h/held.dbr']);
+  assert.deepEqual(equippedRecords(readEquipment(save(1))),
+    ['records/items/gearweapons/guns2h/spare.dbr']);
+});
+
+test("a two-hander's shadow slot contributes nothing", () => {
+  // A 2H weapon occupies both slots: the second carries an EMPTY base name and a COPY of
+  // the same component. It applies once -- the game's own tooltip lists it once -- so
+  // counting the shadow would double every socketed stat on any two-handed build.
+  const eq = readEquipment(buildSaveWithEquipment({
+    useAlternate: 0,
+    weapons: [
+      [{ baseName: 'records/items/gearweapons/melee2h/sword.dbr',
+         relicName: 'records/items/materia/compa_searingember.dbr' },
+       { relicName: 'records/items/materia/compa_searingember.dbr' }],
+      [{}, {}],
+    ],
+  }));
+  const recs = equippedRecords(eq);
+  assert.equal(recs.filter(x => x.includes('searingember')).length, 1,
+    'the component was counted twice');
+  assert.equal(recs.length, 2, 'base plus one component');
+});
+
+test('an equipment parse that does not land exactly is REFUSED', () => {
+  // closeBlock() runs to the declared end and only verifies the MARKER, so an under-read
+  // is absorbed in silence and the items -- parsed at the wrong offsets -- come back
+  // looking plausible. This is the only thing between a future format change and quietly
+  // wrong gear.
+  //
+  // The corruption has to be shaped correctly to test that. Flipping a byte at the end
+  // breaks the marker, and closeBlock throws on its own -- so the test would pass with
+  // the check REMOVED. Caught by mutation, and the fix is padding: a block genuinely
+  // longer than its items, with a valid marker, which is exactly what an added field
+  // would look like.
+  const padded = buildSaveWithEquipment({ padding: 4 });
+  assert.throws(() => readEquipment(padded), /off by -4|item layout has changed/,
+    'four unexplained bytes were absorbed silently');
+
+  // And the unpadded fixture must still parse, or the check is just rejecting everything.
+  assert.doesNotThrow(() => readEquipment(buildSaveWithEquipment()));
 });

@@ -4,6 +4,26 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.2 — 5 Aug 2026
+
+**A save's equipped items can be read.** `readEquipment()` returns the twelve worn slots
+and both weapon sets, and `equippedRecords()` flattens that to just what the game is
+actually applying. Nothing uses it yet; it is the foundation for reading a character's
+strengths off their gear.
+
+The item layout was derived rather than ported. The reference implementation this reader
+came from has eight strings and six ints per item; a current save has four more ints. It
+was found by span arithmetic — across every item on a real character, string count plus
+four-byte-field count came to eighteen every time — and confirmed by the walk landing
+exactly on the inventory block's declared end. A stream cipher gives no second chances,
+so landing on the marker is not something a wrong layout can fake.
+
+Two things fall out of a real parse that a scan could not tell you. Only the weapon set
+**in hand** is counted, so a spare weapon no longer injects a damage type the character
+does not use. And a two-hander occupies both weapon slots, the second carrying an empty
+base name and a copy of the same component — that shadow slot now contributes nothing,
+where counting it would have doubled every socketed stat on any two-handed build.
+
 ## 0.4.1 — 5 Aug 2026
 
 Three fixes, all found by testing the tool against real characters rather than by

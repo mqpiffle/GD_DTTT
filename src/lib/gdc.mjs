@@ -414,6 +414,124 @@ function readSkills(r, block) {
  * So this carries the instruction, and `outdated` lets a caller detect the case rather
  * than matching on message text.
  */
+/**
+ * One item record: what a character is wearing, holding, or has socketed into either.
+ *
+ * EIGHT STRINGS AND TEN INTS, then a byte. Derived rather than ported -- iagd's record
+ * has eight strings and six ints, and a current save has four more ints. Found by span
+ * arithmetic across every item on a real character: `(four-byte fields + strings)` came
+ * to 18 every time, whatever the mix, and calibrating the tail against the offset where
+ * the next record path decodes gave nine trailing bytes -- two ints and the byte.
+ *
+ * The proof it is right is that parsing the whole tail this way lands EXACTLY on the
+ * block's declared end. A cipher whose key mutates per byte gives no second chances:
+ * a field read at the wrong width desynchronises everything after it, so landing on the
+ * marker is not something a wrong layout can fake.
+ */
+function readItem(r) {
+  const baseName = r.string();
+  const prefixName = r.string();
+  const suffixName = r.string();
+  const modifierName = r.string();
+  const transmuteName = r.string();
+  const seed = r.int();
+  const relicName = r.string();          // the socketed component
+  const relicBonus = r.string();         // its completion bonus
+  const relicSeed = r.int();
+  const augmentName = r.string();        // the applied augment
+  // Four more than iagd knows about. Unidentified, and nothing needs them -- they are
+  // read only to keep the stream in step.
+  for (let i = 0; i < 8; i++) r.int();
+  const attached = r.byte();
+  return {
+    baseName, prefixName, suffixName, modifierName, transmuteName,
+    relicName, relicBonus, augmentName, seed, relicSeed, attached,
+  };
+}
+
+/** The twelve worn slots, in the order the file stores them. */
+const EQUIPMENT_SLOTS = 12;
+
+/**
+ * Everything a character has equipped, including which weapon set is in hand.
+ *
+ * Walks the header again rather than sharing `readCharacter`'s pass. That costs
+ * microseconds and buys independence: the route to the skills flat-skips this tail and
+ * is proven, so a future change here cannot break devotion reading.
+ *
+ * TWO-HANDERS OCCUPY BOTH WEAPON SLOTS. The second slot carries an EMPTY base name and
+ * a copy of the same component -- which is why a naive scan of the tail sees a
+ * two-hander's component twice. It applies once (the game's own tooltip lists it once),
+ * so a slot with no base name is the shadow half and contributes nothing. That is a
+ * structural rule rather than a deduplication guess.
+ */
+export function readEquipment(bytes) {
+  const r = new Reader(bytes);
+  readSummary(r);
+
+  const inv = openBlock(r);
+  if (inv.id !== 3) throw new Error(`expected the inventory block, found ${inv.id}`);
+  r.int();                       // version
+  r.bool();                      // allGood
+  const sacks = r.int();
+  r.int(); r.int();              // focused, selected
+  for (let i = 0; i < sacks; i++) skipNested(r);
+
+  // Which weapon set is in hand. Confirmed by experiment rather than inferred: one
+  // character was switched between sets in game with nothing else changed, and this byte
+  // moved 0 <-> 1 in three separate configurations.
+  const useAlternate = r.byte();
+
+  const equipment = [];
+  for (let i = 0; i < EQUIPMENT_SLOTS; i++) equipment.push(readItem(r));
+
+  const weaponSets = [];
+  for (let set = 0; set < 2; set++) {
+    r.byte();                    // a per-set flag; not needed, read to stay in step
+    weaponSets.push([readItem(r), readItem(r)]);
+  }
+
+  // The whole point of parsing rather than scanning: the walk must land EXACTLY on the
+  // block's declared end.
+  //
+  // Checked here rather than left to closeBlock(), which runs to the end and only
+  // verifies the marker -- so it would silently absorb an under-read and hand back items
+  // that were parsed wrong. An item layout that is off by a field produces plausible
+  // rubbish, not an error, so this is the only thing standing between a format change
+  // and quietly wrong gear.
+  const consumed = r.pos - inv.start;
+  if (consumed !== inv.len) {
+    throw new Error(`equipment parse consumed ${consumed} bytes of a ${inv.len}-byte `
+      + `block (off by ${consumed - inv.len}); the item layout has changed`);
+  }
+  closeBlock(r, inv);
+
+  return { useAlternate, equipment, weaponSets };
+}
+
+/**
+ * Every DBR record that actually applies to the character, as a flat list.
+ *
+ * This is what a caller summing stats wants: it drops the weapon set that is not in
+ * hand, and drops a two-hander's shadow slot, so nothing is counted that the game is not
+ * applying.
+ */
+export function equippedRecords(eq) {
+  const out = [];
+  const take = (it) => {
+    // No base name means an empty slot, or the second half of a two-hander. Either way
+    // it holds nothing of its own.
+    if (!it?.baseName) return;
+    for (const k of ['baseName', 'prefixName', 'suffixName', 'modifierName',
+      'transmuteName', 'relicName', 'relicBonus', 'augmentName']) {
+      if (it[k]) out.push(it[k]);
+    }
+  };
+  for (const it of eq.equipment) take(it);
+  for (const it of eq.weaponSets[eq.useAlternate ? 1 : 0] ?? []) take(it);
+  return out;
+}
+
 export class OutdatedSaveError extends Error {
   constructor(what, found, expected) {
     super(`This character has not been played since a Grim Dawn update, so its save is `
