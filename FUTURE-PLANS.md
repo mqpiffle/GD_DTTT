@@ -168,6 +168,38 @@ one build concept, a type and its damage-over-time counterpart; so are Physical 
 Internal Trauma. Chphthzhmh's five tags are really three ideas. Worth collapsing, or at
 least not proposing both at equal weight.
 
+### The active weapon set is ONE BYTE — the item parse is not a prerequisite
+
+The offset scan cannot tell an equipped item from the alternate weapon set, and weapons
+carry the largest damage numbers, so this looked like it blocked the whole tag proposal.
+Demonstrated on Sparkles: her "Bleeding Damage +100%" was entirely phantom, coming from
+`d101_gun2h` — a weapon she was not holding.
+
+**Measured by experiment rather than parsed.** The equipment tail begins with one byte
+before the first item. Farker was switched between weapon sets in game with nothing else
+changed, and it moved in both directions:
+
+```
+tail[0] == 0   ->  weapon set 1 in hand   (axe + scepter)
+tail[0] == 1   ->  weapon set 2 in hand   (gun + focus)
+```
+
+Weapons are identifiable by their `gearweapons/` path and arrive in slot order, so the
+active pair is the first two or the last two. That is enough to drop the inactive set
+without identifying the item record's unknown fields.
+
+**A warning about the diff that found it.** Decrypting the tail with byte-at-a-time reads
+produces the TRUE plaintext only at offset 0. The game wrote the tail as mixed ints,
+strings and bytes; an int is one 32-bit XOR against a single key value, so reading its
+four bytes individually XORs each against an advancing key and yields nonsense — and
+since every save has a different seed, the nonsense differs between saves. That is why
+868 bytes appeared to change when only a flag had moved. Everything before the tail is
+read with correct types, which is what makes offset 0 trustworthy and nothing after it.
+
+Sparkles' apparent within-item duplication (affixes listed twice under one gun) is
+specific to 2H weapons filling both slots. Farker shows none of it across 14 and later 16
+items. Not yet explained, and it does not need to be for this.
+
 ### Physical resistance is EXCLUDED from automatic weighting — measured
 
 It came back "DIRE" on all three characters, including Farker at 0, which is entirely
