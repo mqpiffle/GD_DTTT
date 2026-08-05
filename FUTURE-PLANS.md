@@ -107,6 +107,114 @@ foundation.
 
 **The UI is going to change** to accommodate this. Nothing above is built.
 
+### What happens the moment a character is imported
+
+Agreed 5 Aug. The app should immediately:
+
+1. **Analyse what it can and auto-populate the target tags** with what the character is
+   for, not with a guess at what they meant.
+2. **Default to Balanced power scoring.** Note this is currently BROKEN and unrelated to
+   import: `state.mode` initialises to 1 (Balanced) but `blankChar()` sets `mode: 0`, so
+   every character actually starts on Passives. The initial state value only applies
+   before a character loads.
+3. **Show both paths** — actual and suggested.
+
+Auto-populating tags looks like a reversal of "tags are deliberately not imported", and
+is not. That rule was about INTENT, which a save cannot know. This proposes what the
+character is BUILT FOR, which the gear states plainly — and it proposes, as presets
+already do, landing in the picker where it can be argued with.
+
+### Where the tag proposal comes from: gear, and it is unambiguous
+
+**Equipped gear's % damage modifiers are the signal.** Measured on three characters:
+
+```
+Farker (34)        Cold +184%  Frostburn +104%  Elemental +55% | cliff | Pierce +30%
+Sparkles (80)      Lightning +1072%  Electrocute +844% | cliff | Cold +104%
+Chphthzhmh (100)   Lightning +255%  Electrocute +255%  Physical +232%  Trauma +232%
+```
+
+Every field maps to an existing browsable chip by stripping `Modifier` and prefixing
+`character:` — `offensiveLightningModifier` -> `character:offensiveLightning` ->
+"Lightning Damage". No new machinery.
+
+**This kills the conversion objection that sank "all out damage".** The worry was that a
+skill declaring cold damage might be converted to fire by gear, making the tag wrong. But
+nobody stacks +110% Lightning Damage unless lightning is what they deal. Gearing choices
+are made AFTER conversions, so the gear already reflects post-conversion reality. The
+signal that looked blocked was never affected. (`conversionPercentage` is also readable
+on items, for when it is genuinely needed.)
+
+Also found in the same scan: `augmentSkillLevel1/2/3` is the **+N to skills** mechanism,
+which is where Oak Skin's "4 + 3" comes from. Effective skill ranks are computable.
+
+**Take a THRESHOLD, not a fixed five.** A count fills empty slots with noise — Sparkles'
+Cold at 104% is a stray affix on a piece worn for something else, and the solver would
+dutifully spend points chasing it. Something like "take strengths until the next falls
+below a fraction of the leader" gives Farker three and Sparkles two. Same principle as the
+equaliser already ignoring a resistance at or above 75.
+
+The threshold only earns its keep on lopsided builds. Chphthzhmh's distribution is flat
+(255/255/232/232/190, no cliff) so all five slots go to damage types — which is arguably
+correct, since every one of his resistances is overcapped and he has nothing to fix.
+
+**Weak resistances fill whatever slots the strengths do not earn**, weighted inversely as
+`resistWeight()` already does. That is what stops the padding. Farker comes out as Cold,
+Frostburn, Elemental, Vitality Resistance, Chaos Resistance — a fair brief for a
+mid-level cold caster.
+
+**Damage types come in pairs and each pair eats two slots.** Lightning and Electrocute are
+one build concept, a type and its damage-over-time counterpart; so are Physical and
+Internal Trauma. Chphthzhmh's five tags are really three ideas. Worth collapsing, or at
+least not proposing both at equal weight.
+
+### Physical resistance is EXCLUDED from automatic weighting — measured
+
+It came back "DIRE" on all three characters, including Farker at 0, which is entirely
+normal at level 34. The reason is not that the thresholds are miscalibrated. It is that
+**physical is not a stat devotions can move**:
+
+| | stars granting it | total available in the tree | median per star |
+|---|---|---|---|
+| **Physical** | 16 | **58%** | **4** |
+| Vitality | 18 | 254% | 15 |
+| Elemental | 17 | 223% | 15 |
+| Acid | 10 | 147% | 15 |
+
+Plenty of stars grant it, in useless amounts — four against fifteen, and 58% total across
+the whole tree where the others offer 150-250%. A real build might scrape 8-12% out of
+devotions. So flagging it as dire proposes a fix that does not exist.
+
+`resistWeight()` should therefore never weight it, and the equaliser should stop asking
+for it (a control that silently ignores one of its ten inputs is worse than one that does
+not ask). It remains available as a tag anyone can pick by hand.
+
+Where physical actually belongs is with armor and defensive ability in the **turtle**
+preset — a defensive stat you nudge rather than a hole you plug — and its real source is
+gear, shields especially.
+
+### Old saves fix themselves; the error message is the whole feature
+
+**Confirmed by experiment.** Chphthzhmh would not parse — inventory v4, stash v6, skills
+v5 against the current 11/11/8. Loading him once in Fangs of Asterkarn and saving rewrote
+all three to current, the file grew 58,551 -> 67,291 bytes, and he now imports cleanly
+with 55 devotions and 151 skills.
+
+So supporting historical block layouts would be work with no user at the end of it. What
+is needed is to detect the failure and say the remedy: *this character has not been
+played since a game update — load it once in Grim Dawn, save, and try again.*
+
+### Layout: the controls column goes
+
+The leftmost column was always provisional ("for now let's just make a new column").
+**Presets move into the tag picker**, which is the right home since presets exist to
+produce tags and the picker is where tags come from — and it gives back the width that
+made three columns cramped.
+
+**The picker needs reorganising** as its own piece of design. It currently has
+character/pet tabs and expandable categories, and presets are neither a chip nor a
+category, so wedging them above the tabs is not the answer.
+
 ---
 
 ## Saved state: profiles and shareable builds
