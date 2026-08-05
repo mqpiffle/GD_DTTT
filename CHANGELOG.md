@@ -4,6 +4,27 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.3 — 5 Aug 2026
+
+**What a character is built for can now be read off their gear.** `strengths.mjs` tallies
+every stat on the equipped items and ranks what the build is actually about. Not wired to
+the UI yet.
+
+Gear rather than skills, and the reason is the interesting part. An item converting
+physical damage to fire makes a skill's declared damage type false, which is what sank an
+earlier attempt at this. Gear does not have that problem: conversions happen upstream of
+gearing choices, so nobody stacks +110% Lightning Damage unless lightning is what they
+end up dealing. The percentages already describe the post-conversion reality.
+
+A **threshold rather than a fixed count** — a strength has to be worth a quarter of the
+biggest one. "Take the top five" fills empty slots with noise, and the solver would spend
+real points chasing a stray affix on a piece worn for something else. Farker comes out as
+Cold, Frostburn and Elemental; a character with a flat spread gets five, which is the
+honest answer when there is nothing to distinguish.
+
+Only percentage modifiers count. A flat +8 cold on a weapon is a rounding error; a +110%
+modifier is a deliberate choice.
+
 ## 0.4.2 — 5 Aug 2026
 
 **A save's equipped items can be read.** `readEquipment()` returns the twelve worn slots
