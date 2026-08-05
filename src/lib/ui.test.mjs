@@ -2721,7 +2721,12 @@ test('switching a control on fills the picker with its tags', () => {
     ui.load();
     click({ ctl: 'meta-offense' });
     const picked = ui.state.sel.filter(x => x != null).map(i => ui.chips[i].label);
-    assert.deepEqual(picked, ['Offensive Ability', 'Attack Speed', 'Crit Damage'],
+    // Casting speed sits here beside attack speed because a build wants one or the
+    // other and nothing can tell which -- it is common on gear AND deliberately
+    // stacked by casters, so no automatic measure separates those. That is precisely
+    // what a preset is for.
+    assert.deepEqual(picked,
+      ['Offensive Ability', 'Attack Speed', 'Casting Speed', 'Crit Damage'],
       'meta offense did not land in the picker');
     assert.equal(ui.state.weights[0], 3, 'the control\'s weight was not applied');
   } finally { s.restore(); }

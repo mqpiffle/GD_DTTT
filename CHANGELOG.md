@@ -4,6 +4,28 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.4 — 5 Aug 2026
+
+**Strengths are read from damage types only**, and the reason took four measured attempts
+against real characters.
+
+Summing every percentage modifier put Movement Speed +35% in the same ranking as Physical
+Damage +92% — not the same kind of number, since +35% movement speed is enormous and +35%
+damage is modest. Counting how many items carry a stat instead rewarded whatever is
+*common* on gear: movement speed led on a character not built for it, because armour rolls
+it by default. Dividing that count by how often the stat appears across all 14,000 indexed
+items measured *unusual* rather than *intentional* — a player deliberately stacking casting
+speed scored exactly average.
+
+Percentages were never the problem; mixing kinds of stat was. Within damage types the
+numbers are commensurable, and a mid-level cold caster reads as Cold, Frostburn and
+Elemental with a clean cut.
+
+**Casting speed joins the meta offense preset**, where it belongs alongside offensive
+ability, attack speed and crit damage. That is the honest home for it: a stat can be both
+common on gear and deliberately pursued, and no automatic measure separates those. Intent
+is the thing only the player can supply.
+
 ## 0.4.3 — 5 Aug 2026
 
 **What a character is built for can now be read off their gear.** `strengths.mjs` tallies

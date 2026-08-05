@@ -24,6 +24,43 @@ function idx(items, fields) {
   return { prefix: 'records/', fields: f, items: out };
 }
 
+test('only DAMAGE TYPES are ranked', () => {
+  // Four metrics were measured against real characters before this filter existed. The
+  // first summed every percentage modifier and put Movement Speed +35% in the same sort
+  // as Physical Damage +92%, which are not the same kind of number. Counting items
+  // instead favoured whatever is common on gear. Dividing by base rate measured UNUSUAL
+  // rather than INTENTIONAL -- a player deliberately stacking casting speed scored
+  // exactly average.
+  //
+  // Percentages were never the problem; mixing kinds was. Within damage types they are
+  // commensurable.
+  const index = idx({
+    'items/a.dbr': { offensiveColdModifier: 100, characterRunSpeedModifier: 5000 },
+  }, ['offensiveColdModifier', 'characterRunSpeedModifier']);
+  const { totals } = tallyGear(['records/items/a.dbr'], index);
+  const out = strengths(totals, f => `character:${f.replace('Modifier', '')}`);
+  assert.equal(out.length, 1, 'movement speed is not a damage type');
+  assert.equal(out[0].chip, 'character:offensiveCold');
+});
+
+test('an offensive stat that is not a damage TYPE does not rank', () => {
+  // The category is not enough to decide this: `Offense` also holds offensive ability,
+  // attack speed and crit damage. Nor is the `offensive` prefix enough --
+  // `offensiveCritDamageModifier` looks exactly like a damage type and is not one, which
+  // is why the type has to be checked against the game's own list.
+  //
+  // The first version of this test used characterOffensiveAbilityModifier, which does
+  // not start with `offensive` at all -- so it never reached the filter and passed with
+  // the filter DELETED. Caught by mutation.
+  const index = idx({
+    'items/a.dbr': { offensiveCritDamageModifier: 900, offensiveFireModifier: 10 },
+  }, ['offensiveCritDamageModifier', 'offensiveFireModifier']);
+  const { totals } = tallyGear(['records/items/a.dbr'], index);
+  const out = strengths(totals, f => `character:${f.replace('Modifier', '')}`);
+  assert.equal(out.length, 1, 'crit damage is not a damage type');
+  assert.equal(out[0].chip, 'character:offensiveFire');
+});
+
 test('only PERCENTAGE modifiers count as a strength', () => {
   // A flat +8 cold on a weapon is a rounding error and says nothing about intent; a
   // +110% modifier is a deliberate choice and says everything. Letting flat rolls into

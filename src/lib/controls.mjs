@@ -99,9 +99,20 @@ export const CONTROLS = [
     blurb: 'The numbers that make every attack better rather than any one of them: '
       + 'landing hits, landing them often, and hurting when they crit.',
     inputs: [],
+    // CASTING SPEED BELONGS HERE, and it is the reason this control matters more than it
+    // looks. A character's damage types can be read off their gear; how they deliver that
+    // damage cannot. Casting speed is common on gear AND deliberately stacked by casters,
+    // and no automatic measure separates those two -- one real character pursuing it
+    // scored exactly average against every other item in the game. Intent is the thing
+    // only the player can supply, which is what a preset is for.
+    //
+    // Attack speed and casting speed both appear because a build wants one or the other,
+    // never both, and nothing here knows which. Whichever is useless costs one tag slot
+    // that the picker will happily let you drop.
     suggest: () => [
       t('character:characterOffensiveAbility', 3),
       t('character:characterAttackSpeed', 2),
+      t('character:characterSpellCastSpeed', 2),
       t('character:offensiveCritDamage', 2),
     ],
   },

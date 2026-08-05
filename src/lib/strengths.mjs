@@ -11,6 +11,8 @@
 // lightning is what they end up dealing, so the percentages on the gear already describe
 // the post-conversion reality. The signal that looked blocked was never affected.
 //
+import { BODY_DAMAGE_TYPES } from './fields.mjs';
+
 // Measured across three real characters:
 //
 //   Farker (34)       Cold +184%  Frostburn +104%  Elemental +55% | cliff | Pierce +30%
@@ -45,6 +47,40 @@ export const STRENGTH_THRESHOLD = 0.25;
  * character is built around.
  */
 const MODIFIER = /Modifier$/;
+
+/**
+ * ONLY DAMAGE TYPES ARE RANKED, and this is the conclusion of four measured attempts
+ * rather than a simplification.
+ *
+ * The first version summed every percentage modifier and put Movement Speed +35% in the
+ * same sort as Physical Damage +92%. Those are not the same kind of number: +35% movement
+ * speed is enormous for that stat, +35% damage is modest. Two other metrics were tried
+ * against real characters and each had its own bias:
+ *
+ *   sum of every modifier   biased by SCALE      -- speed percentages dwarf damage ones
+ *   count of items          biased by COMMONNESS -- armour rolls movement speed by default,
+ *                                                  so it led on a character not built for it
+ *   count / base rate       measures UNUSUAL, not INTENTIONAL
+ *
+ * The third is the instructive failure. A player deliberately building for casting speed
+ * scored exactly 1.0x -- statistically unremarkable -- because a stat can be both common
+ * and wanted. No count-based metric can separate those.
+ *
+ * Restricting to damage types fixes it, and the reason is that percentages were never the
+ * problem: MIXING KINDS was. Within damage types the numbers are commensurable, so summing
+ * is sound.
+ *
+ * Everything else a player deliberately pursues -- casting speed, attack speed, armour,
+ * attributes -- is what the PRESETS exist for. Those are intent, and intent is the thing
+ * only the player can supply.
+ *
+ * Note the category is not enough: `Offense` also holds offensive ability, attack speed
+ * and crit damage, none of which are damage types. The test is the field name.
+ */
+const DAMAGE_TYPE = /^offensive([A-Za-z]+)Modifier$/;
+
+/** The game's damage types, shared with the keyword pipeline so the two cannot drift. */
+const DEFAULT_DAMAGE_TYPES = new Set(BODY_DAMAGE_TYPES);
 
 /**
  * Fields that end in Modifier but are not a strength.
@@ -120,10 +156,15 @@ export function tallyGear(records, index) {
  * @param opts.threshold  fraction of the leader a strength must reach
  * @returns [{ chip, value, share }] strongest first, already cut at the threshold
  */
-export function strengths(totals, chipOf, { threshold = STRENGTH_THRESHOLD } = {}) {
+export function strengths(totals, chipOf, {
+  threshold = STRENGTH_THRESHOLD,
+  damageTypes = DEFAULT_DAMAGE_TYPES,
+} = {}) {
   const byChip = new Map();
   for (const [field, value] of totals ?? []) {
     if (!MODIFIER.test(field) || NOT_A_STRENGTH.test(field)) continue;
+    const m = DAMAGE_TYPE.exec(field);
+    if (!m || !damageTypes.has(m[1])) continue;
     const chip = chipOf?.(field);
     if (!chip) continue;
     byChip.set(chip, (byChip.get(chip) ?? 0) + value);
