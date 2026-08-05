@@ -4,6 +4,29 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.1 — 5 Aug 2026
+
+Three fixes, all found by testing the tool against real characters rather than by
+reading the code.
+
+**Every character was starting on Passives.** The initial state said Balanced and
+`blankChar()` said Passives, and since a character's own value is applied on load, the
+character always won. Powers were being ignored entirely for anyone who never touched
+the scoring tabs. A deliberately chosen Passives still survives a reload.
+
+**Physical resistance is no longer proposed by the resistance equaliser.** It came back
+"dire" on every character tested, including one at 0, which is normal. The reason is not
+that the thresholds were wrong for it: the devotion tree offers 58% of physical in total
+at a median of 4 per star, against 150-250% at a median of 15 for every other
+resistance. It is not a stat devotions can move, so flagging it proposed a fix that does
+not exist. It stays pickable by hand.
+
+**An older save now says what to do about it.** A character not played since a game
+update carries older block versions and is refused rather than misread — but
+"unsupported skill-block version 5" helps nobody. It now says to load the character once
+in Grim Dawn and save. Confirmed: doing that rewrites the save to the current format and
+it imports cleanly.
+
 ## 0.4.0 — 2 Aug 2026
 
 **Import a character from a Grim Dawn save.** Pick your `player.gdc` and the tool builds

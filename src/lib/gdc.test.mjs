@@ -119,7 +119,7 @@ class Writer {
 function buildSave(over = {}) {
   const o = {
     name: 'Tangie', sex: 1, classId: 'tagCharacterClass01', level: 42, hardcore: false,
-    fileVersion: 2, saveVersion: 8, infoVersion: 5, money: 12345,
+    fileVersion: 2, saveVersion: 8, infoVersion: 5, money: 12345, bioVersion: 8,
     devotionPoints: 7, totalDevotion: 23,
     ...over,
   };
@@ -138,7 +138,7 @@ function buildSave(over = {}) {
   w.endBlock(info);
 
   const bio = w.beginBlock(2);
-  w.int(8);                                        // bio version
+  w.int(o.bioVersion);                             // bio version
   w.int(o.level).int(1000000).int(4).int(12);
   w.int(o.devotionPoints).int(o.totalDevotion);
   w.float(700.5).float(400.25).float(300).float(9999.5).float(1234.5);
@@ -334,4 +334,30 @@ test('the devotions map onto the planner\'s own stars', { skip: !fs.existsSync(R
   assert.ok(total > 0, 'no affinity reconstructed; the completion rule is not firing');
   assert.ok(total <= c.bio.totalDevotion,
     `${total} affinity from ${c.bio.totalDevotion} points earned is impossible`);
+});
+
+test('an older save is refused with the REMEDY, not a version number', () => {
+  // A character not played since a game update carries the old block versions. Refusing
+  // is right -- the skill record grew a byte, so reading an old layout as a new one
+  // yields plausible nonsense rather than an error. But "unsupported skill-block version
+  // 5" tells the player nothing they can act on, and the fix is trivial and confirmed:
+  // load it once in Grim Dawn, save, import again.
+  let err;
+  try { readCharacterSummary(buildSave({ bioVersion: 6 })); } catch (e) { err = e; }
+  assert.ok(err, 'an old bio version should be refused');
+  assert.equal(err.outdated, true, 'callers need to detect this without matching text');
+  assert.match(err.message, /Load it once in Grim Dawn and save/,
+    'the error must carry the remedy');
+  assert.match(err.message, /older format/);
+  assert.equal(err.found, 6);
+  assert.equal(err.expected, 8);
+});
+
+test('a corrupt file is NOT reported as an outdated save', () => {
+  // The remedy is specific and wrong for anything else. Telling someone to reload a
+  // character in game when they picked the wrong file would send them in circles.
+  let err;
+  try { readCharacterSummary(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])); } catch (e) { err = e; }
+  assert.ok(err);
+  assert.notEqual(err.outdated, true, 'garbage must not claim to be an old save');
 });

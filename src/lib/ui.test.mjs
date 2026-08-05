@@ -2881,3 +2881,102 @@ test('a file that is not a save is refused with a message, not an exception', ()
     assert.equal(ui.charList().length, before, 'a failed import must not leave a character');
   } finally { s.restore(); }
 });
+
+test('a new character starts on the DEFAULT scoring mode, not Passives', () => {
+  // The bug this pins: `state.mode` initialised to 1 (Balanced) while `blankChar()` set
+  // 0, and since applyChar() runs on load the character's value always won. Every
+  // character silently started on Passives -- powers ignored entirely -- which is the
+  // least useful of the three and not what the initial state claimed.
+  //
+  // Asserting the VALUE rather than a named constant on purpose: the whole failure was
+  // two literals drifting apart, and a test that reads the same constant as the code
+  // would have agreed with the bug.
+  const s = withStore();
+  try {
+    ui.load();
+    assert.equal(ui.state.mode, 1, 'a fresh character should start on Balanced');
+
+    const id = ui.addChar({});
+    assert.equal(ui.state.mode, 1, 'a character added later should too');
+    assert.equal(ui.activeChar().mode, 1, 'and it should be stored on the character');
+
+    // A v1 document with no mode recorded lands on the same default. Anyone migrating
+    // saw Balanced, because state.mode was 1 and there was nothing to override it.
+    const s2 = withStore({ 'gd-devotion-planner:v1': JSON.stringify({ tags: [], done: [] }) });
+    try {
+      ui.load();
+      assert.equal(ui.state.mode, 1, 'a migrated v1 doc with no mode should default to Balanced');
+    } finally { s2.restore(); }
+  } finally { s.restore(); }
+});
+
+test('an explicitly saved scoring mode survives, including Passives', () => {
+  // The default must not trample a real choice. Someone who picked Passives and reloads
+  // must still be on Passives -- otherwise fixing the default breaks saved builds.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.state.mode = 0;
+    ui.save();
+    ui.load();
+    assert.equal(ui.state.mode, 0, 'a deliberately chosen Passives was overwritten');
+  } finally { s.restore(); }
+});
+
+/**
+ * A save whose bio block claims an older version, to exercise the outdated path.
+ *
+ * Only the first two blocks are needed: the reader refuses at the bio and never reaches
+ * the inventory, which is the whole point -- it stops before it can misread anything.
+ */
+function oldFormatSave() {
+  const XOR = 0x55555555, PRIME = 39916801, MAGIC = 0x58434447;
+  const out = []; let key = 0x1234abcd >>> 0;
+  const table = new Uint32Array(256);
+  out.push(...[0, 8, 16, 24].map(sh => (((0x1234abcd ^ XOR) >>> 0) >>> sh) & 0xff));
+  let k = 0x1234abcd >>> 0;
+  for (let i = 0; i < 256; i++) { k = ((k >>> 1) | (k << 31)) >>> 0; k = Math.imul(k, PRIME) >>> 0; table[i] = k; }
+  const adv = bs => { for (const b of bs) key = (key ^ table[b]) >>> 0; };
+  const u = (v, advance = true) => { const raw = ((v >>> 0) ^ key) >>> 0;
+    const bs = [0, 8, 16, 24].map(sh => (raw >>> sh) & 0xff); out.push(...bs);
+    if (advance) adv(bs); };
+  const by = v => { const raw = (v ^ key) & 0xff; out.push(raw); adv([raw]); };
+  const st = t => { u(t.length); for (const c of t) { const raw = (c.charCodeAt(0) ^ key) & 0xff;
+    out.push(raw); key = (key ^ table[raw]) >>> 0; } };
+  const ws = t => { u(t.length); for (const c of t) { by(c.charCodeAt(0) & 0xff); by((c.charCodeAt(0) >>> 8) & 0xff); } };
+  const open = id => { u(id); const keyAtLen = key; const at = out.length; u(0, false);
+    return { at, keyAtLen, start: out.length }; };
+  const close = h => { const len = out.length - h.start; const raw = ((len >>> 0) ^ h.keyAtLen) >>> 0;
+    for (let i = 0; i < 4; i++) out[h.at + i] = (raw >>> (i * 8)) & 0xff; u(0, false); };
+
+  u(MAGIC); u(2); ws('Oldie'); by(1); st('tagCharacterClass01'); u(30); by(0); by(7);
+  u(0, false); u(8);
+  for (let i = 0; i < 16; i++) by(i);
+  const info = open(1); u(5); by(1); by(1); by(0); by(0); u(999); close(info);
+  const bio = open(2); u(6); u(30); u(1000); u(0); u(0); u(5); u(12);
+  for (let i = 0; i < 5; i++) u(0);
+  close(bio);
+  return Uint8Array.from(out);
+}
+
+test('an outdated save reaches the UI as advice, not as a parse failure', () => {
+  // The player meets this, not the library. The remedy is confirmed -- load the
+  // character once in Grim Dawn and save -- so the note must carry it rather than
+  // reporting a version number, and it must not be dressed up as "could not read",
+  // which buries the useful half.
+  const s = withStore();
+  try {
+    ui.load();
+    const before = ui.charList().length;
+
+    // A real save whose bio block claims an older version. Built here rather than
+    // mocked, so it exercises the actual reader.
+    const old = oldFormatSave();
+    const r = ui.importSave(old);
+
+    assert.ok(r.error, 'an old-format save should be refused');
+    assert.equal(r.outdated, true, 'the UI needs to distinguish this from corruption');
+    assert.match(r.error, /Load it once in Grim Dawn and save/);
+    assert.equal(ui.charList().length, before, 'a refused import must leave no character');
+  } finally { s.restore(); }
+});

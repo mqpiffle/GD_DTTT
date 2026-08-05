@@ -268,7 +268,7 @@ function readSummary(r) {
   const bioLen = r.int({ advance: false });
   const bioStart = r.pos;
   const bioVersion = r.int();
-  if (bioVersion !== 8) throw new Error(`unsupported bio version ${bioVersion}`);
+  if (bioVersion !== 8) throw new OutdatedSaveError('bio block', bioVersion, 8);
   const bio = {
     level: r.int(),
     experience: r.int(),
@@ -380,7 +380,7 @@ function walkToSkills(r) {
  */
 function readSkills(r, block) {
   const version = r.int();
-  if (version !== 8) throw new Error(`unsupported skill-block version ${version}`);
+  if (version !== 8) throw new OutdatedSaveError('skill block', version, 8);
   const count = r.int();
   const out = [];
   for (let i = 0; i < count; i++) {
@@ -396,6 +396,35 @@ function readSkills(r, block) {
   // there. Nothing needs it, and stopping short is fine because the caller does not
   // read anything after.
   return out;
+}
+
+/**
+ * A save written by an older game build, refused rather than misread.
+ *
+ * The block versions inside a save reflect whatever last WROTE it, and a character not
+ * played since a game update still carries the old ones. One real example: a level 100
+ * with inventory v4, stash v6 and skills v5 against the current 11, 11 and 8.
+ *
+ * Refusing is right -- the skill record grew a byte between versions, so reading an old
+ * layout as a new one yields plausible nonsense rather than an error. But the version
+ * number is no use to anyone, and the remedy is trivial and CONFIRMED BY EXPERIMENT:
+ * loading that character once in Grim Dawn and saving rewrote all three blocks to
+ * current, and it then imported cleanly.
+ *
+ * So this carries the instruction, and `outdated` lets a caller detect the case rather
+ * than matching on message text.
+ */
+export class OutdatedSaveError extends Error {
+  constructor(what, found, expected) {
+    super(`This character has not been played since a Grim Dawn update, so its save is `
+      + `in an older format (${what} version ${found}, expected ${expected}). `
+      + `Load it once in Grim Dawn and save, then import it again.`);
+    this.name = 'OutdatedSaveError';
+    this.outdated = true;
+    this.block = what;
+    this.found = found;
+    this.expected = expected;
+  }
 }
 
 const DEVOTION_PREFIX = 'records/skills/devotion/';

@@ -4,7 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CONTROLS, RESISTS, applyControls, controlById, MAX_TAGS } from './controls.mjs';
+import { CONTROLS, RESISTS, applyControls, controlById, MAX_TAGS, EXCLUDED_RESIST }
+  from './controls.mjs';
 
 const index = JSON.parse(
   fs.readFileSync(path.join(import.meta.dirname, '../../ui-index.json'), 'utf8'));
@@ -102,4 +103,34 @@ test('every control declares what it needs', () => {
     assert.ok(Array.isArray(c.inputs), `${c.id} does not declare its inputs`);
     for (const i of c.inputs) assert.ok(i.key && i.label, `${c.id} has an unlabelled input`);
   }
+});
+
+test('physical resistance is never proposed, at any value', () => {
+  // Not a calibration problem. The tree offers 58% of physical in total at a median of
+  // 4 per star, against 150-250% at a median of 15 for every other resistance -- so a
+  // low physical is not a hole devotions can plug, and flagging it proposes a fix that
+  // does not exist. It flagged DIRE on all three real characters tested, including one
+  // at 0, which is normal at level 34.
+  const c = controlById('resist-equalizer');
+
+  // It is not asked for.
+  assert.ok(!c.inputs.some(i => i.key === 'physical'),
+    'the equaliser should not ask for a number it can never act on');
+  assert.ok(!RESISTS.some(r => r.tag === EXCLUDED_RESIST));
+
+  // And even handed one, nothing comes back for it. Everything else at 0 would be dire,
+  // so this is the case that would fail loudest if physical leaked back in.
+  const zeroed = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
+  const { tags } = applyControls(['resist-equalizer'], { inputs: { ...zeroed, physical: 0 } });
+  assert.deepEqual(tags, [], 'a capped character plus a physical of 0 should propose nothing');
+});
+
+test('the other nine resistances still work, so the exclusion is surgical', () => {
+  // The risk in removing one entry from a list is taking its neighbours with it.
+  const inputs = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
+  inputs.aether = 20;
+  const { tags } = applyControls(['resist-equalizer'], { inputs });
+  assert.equal(tags.length, 1);
+  assert.equal(tags[0].tag, 'character:defensiveAether');
+  assert.equal(tags[0].weight, 3, 'aether at 20 is dire and should say so');
 });

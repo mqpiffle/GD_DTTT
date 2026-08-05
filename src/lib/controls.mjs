@@ -40,6 +40,8 @@ const RESIST_TARGET = 75;
  * chip the devotion tree offers -- there is no separate Fire Resistance tag. That has a
  * consequence worth knowing: the three are treated as one, and the weakest of them
  * drives the weighting, since elemental resistance raises all three together.
+ *
+ * PHYSICAL IS NOT HERE, and its absence is deliberate -- see below.
  */
 export const RESISTS = [
   { key: 'fire', label: 'Fire', tag: 'character:defensiveElementalResistance' },
@@ -51,8 +53,34 @@ export const RESISTS = [
   { key: 'vitality', label: 'Vitality', tag: 'character:defensiveLife' },
   { key: 'aether', label: 'Aether', tag: 'character:defensiveAether' },
   { key: 'chaos', label: 'Chaos', tag: 'character:defensiveChaos' },
-  { key: 'physical', label: 'Physical', tag: 'character:defensivePhysical' },
 ];
+
+/**
+ * PHYSICAL RESISTANCE IS EXCLUDED, and the reason is measured rather than a matter of
+ * taste.
+ *
+ * It is not that the thresholds below are miscalibrated for it. It is that physical is
+ * not a stat this tree can move:
+ *
+ *   physical    16 stars    58% available in the whole tree    median 4 per star
+ *   vitality    18 stars   254%                                median 15
+ *   elemental   17 stars   223%                                median 15
+ *   acid        10 stars   147%                                median 15
+ *
+ * Plenty of stars grant it, in useless amounts. A real build might scrape 8-12% out of
+ * devotions. So flagging a low physical resistance would propose a fix that does not
+ * exist -- and it flagged DIRE on all three characters tested, including one at 0, which
+ * is entirely normal at level 34.
+ *
+ * It is also the one resistance exempt from difficulty penalties, so it does not behave
+ * like the others in any respect.
+ *
+ * Where it actually belongs is with armour and defensive ability in the TURTLE control --
+ * a defensive stat you nudge rather than a hole you plug -- and its real source is gear,
+ * shields especially. It remains pickable by hand like any other chip; what stops is this
+ * code asserting something it cannot know.
+ */
+export const EXCLUDED_RESIST = 'character:defensivePhysical';
 
 /** How badly a resistance wants attention: 3 is dire, 0 is fine. */
 function resistWeight(value) {

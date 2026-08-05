@@ -24,6 +24,17 @@ const MAX = 5;
 // [button label, tooltip]. The label is short enough to read as a tile; the
 // explanation lives in the tooltip, so it can be a full sentence instead of the
 // clipped fragment that fit under a button.
+/**
+ * The scoring mode a character starts on.
+ *
+ * Named rather than written as a literal in two places, which is what let them drift:
+ * `state.mode` initialised to 1 while `blankChar()` set 0, and since `applyChar()` runs
+ * on load, the character's value always won. Every character silently started on
+ * Passives -- celestial powers ignored entirely -- which is the least useful default of
+ * the three and not what the initial state claimed.
+ */
+const DEFAULT_MODE = 1;   // Balanced
+
 const MODES = [
   ['Passives', 'Celestial powers ignored entirely — constellations are worth only their'
     + ' passive stats and the affinity they grant'],
@@ -67,7 +78,7 @@ const classes = await fetch('../classes.json', { cache: 'no-cache' })
 const state = {
   // Sized from MAX, not a literal -- a three-slot array silently caps you at three
   // picks no matter what MAX says, because sel.indexOf(null) can't find a fourth.
-  sel: Array(MAX).fill(null), tab: 'character', mode: 1,
+  sel: Array(MAX).fill(null), tab: 'character', mode: DEFAULT_MODE,
   weights: Array(MAX).fill(DEFAULT_WEIGHT),   // how much each slot's tag matters, 1-3
   open: new Set(['character|Offense']),
   plan: null, error: null, builtMode: null, solving: false,
@@ -316,7 +327,8 @@ function applyChar(c = {}) {
 const blankChar = () => ({
   name: 'New character', named: false,
   tags: Array(MAX).fill(null), weights: Array(MAX).fill(DEFAULT_WEIGHT),
-  mode: 0, order: null, done: [], locked: false, controls: [], controlInputs: {},
+  mode: DEFAULT_MODE, order: null, done: [], locked: false,
+  controls: [], controlInputs: {},
 });
 
 /** A fresh document with one empty character. */
@@ -351,7 +363,7 @@ function readDoc() {
           name: 'My build', named: false,
           tags: old.tags ?? Array(MAX).fill(null),
           weights: old.weights ?? Array(MAX).fill(DEFAULT_WEIGHT),
-          mode: old.mode ?? 0,
+          mode: old.mode ?? DEFAULT_MODE,
           order: old.order ?? null,
           done: old.done ?? [],
           locked: old.locked === true,
@@ -488,8 +500,9 @@ function importSave(bytes) {
     ch = readCharacter(bytes);
   } catch (e) {
     // A save from an older patch has older block versions and is refused rather than
-    // misread -- see gdc.mjs. Say so plainly instead of showing a stack.
-    return { error: e?.message ?? 'could not read that file' };
+    // misread -- see gdc.mjs. That message already carries the remedy, so it is passed
+    // straight through; `outdated` lets the UI treat it as advice rather than a fault.
+    return { error: e?.message ?? 'could not read that file', outdated: e?.outdated === true };
   }
 
   const { keys, unmatched } = mapDevotions(ch.devotions, raw.constellations);
@@ -2519,7 +2532,12 @@ app.addEventListener('change', (e) => {
     f.arrayBuffer().then((buf) => {
       const r = importSave(new Uint8Array(buf));
       if (r.error) {
-        state.importNote = { error: true, text: `Could not read that save: ${r.error}` };
+        // An outdated save is not a fault to apologise for -- it is an instruction. The
+        // message already says what to do, so prefixing it with "could not read" would
+        // bury the useful half.
+        state.importNote = r.outdated
+          ? { error: true, text: r.error }
+          : { error: true, text: `Could not read that save: ${r.error}` };
       } else {
         const bits = [`Imported ${r.label} with ${r.stars} devotion `
           + `star${r.stars === 1 ? '' : 's'} ticked`];
