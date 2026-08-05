@@ -196,9 +196,45 @@ since every save has a different seed, the nonsense differs between saves. That 
 868 bytes appeared to change when only a flag had moved. Everything before the tail is
 read with correct types, which is what makes offset 0 trustworthy and nothing after it.
 
-Sparkles' apparent within-item duplication (affixes listed twice under one gun) is
-specific to 2H weapons filling both slots. Farker shows none of it across 14 and later 16
-items. Not yet explained, and it does not need to be for this.
+### 2H weapons duplicate their SOCKETABLES in the save — dedupe within an item
+
+Sparkles' guns listed their components and augments twice; Farker's 1H weapons showed
+nothing of the sort. Tested directly: a 2H sword was equipped on Farker with a single
+Searing Ember socketed, and the save stores it **twice**:
+
+```
+15. gearweapons/melee2h/c102_sword2h.dbr
+     + materia/compa_searingember.dbr
+     + materia/compa_searingember.dbr
+```
+
+The BASE record appears once; only socketables repeat. Presumably a two-hander occupies
+both weapon slots and the game writes the component into both records, with only the
+main-hand one carrying a base name.
+
+**It applies once, so it must be counted once.** Confirmed twice over: the game's own
+tooltip lists Searing Ember's effects a single time, and the community position is
+explicit that a 2H weapon has one component slot and one augment slot with no doubling —
+the trade-off being higher base weapon damage instead of a second slot.
+
+**Fix: deduplicate record paths within a single item's span.** Safe because an item has
+one component slot and one augment slot, so a repeat inside one item is always this
+artifact. Legitimate duplicates survive, since they sit on DIFFERENT items — Sparkles has
+`compa_resilientchestplate` on both her torso and her shoulders, and both are real.
+
+Impact is smaller than it first looked: a weapon's own numbers sit on the base record and
+were never inflated. Only socketable stats doubled. Sparkles' `hellbaneammo` at +25%
+Lightning was counted four times rather than once, against a 1072% total, so her ranking
+would not have moved — but a build leaning on components would have been skewed.
+
+### What gear reading needs, in full
+
+With the three findings above, none of the item record's unknown fields are required:
+
+1. `tail[0]` selects the active weapon set
+2. Weapons are identified by `gearweapons/` path and arrive in slot order, so the active
+   pair is the first two or the last two
+3. Record paths are deduplicated within each item's span
 
 ### Physical resistance is EXCLUDED from automatic weighting — measured
 
