@@ -130,3 +130,96 @@ test('nothing in, nothing out', () => {
   assert.deepEqual(tags, []);
   assert.deepEqual(dropped, []);
 });
+
+test('a character below the analysis level is DECLINED, with a reason', () => {
+  // Not a technical limit -- it all works on a level 10. The answer is just not useful:
+  // gear turns over every few levels, resistances are whatever dropped, and there are
+  // too few devotion points to fix any of it. Five confident tags off that is noise the
+  // player cannot distinguish from signal.
+  const r = proposeTags({
+    level: 12,
+    strengths: [S('character:offensiveCold', 200)],
+    resists: { ...CAPPED, vitality: 10 },
+  });
+  assert.deepEqual(r.tags, [], 'nothing should be proposed');
+  assert.match(r.tooEarly, /level 12/);
+  assert.match(r.tooEarly, /around level 25/);
+});
+
+test('and runs anyway when asked', () => {
+  // Someone who asks for it should get it. Declining is a default, not a rule.
+  const r = proposeTags({
+    level: 12, force: true,
+    strengths: [S('character:offensiveCold', 200)],
+    resists: CAPPED,
+  });
+  assert.equal(r.tags.length, 1);
+  assert.equal(r.tooEarly, undefined);
+});
+
+test('an unknown level does not block analysis', () => {
+  // A character typed in by hand has no level. Refusing to help them would be worse than
+  // the noise the gate exists to prevent.
+  const r = proposeTags({ strengths: [S('a', 1)], resists: CAPPED });
+  assert.equal(r.tags.length, 1);
+});
+
+/**
+ * Overcapped far enough to survive any penalty, so a difficulty test isolates the one
+ * resistance under examination.
+ *
+ * 200 is not absurd: an endgame character genuinely carries numbers like this, and the
+ * reason is exactly what these tests are about -- you need 80 AFTER the penalty, so
+ * planning for Ultimate means 130 on the sheet.
+ */
+const OVERCAPPED = Object.fromEntries(Object.keys(CAPPED).map(k => [k, 200]));
+
+test('resistances are weighted against the difficulty being PLANNED FOR', () => {
+  // The mechanism is the game's own penalty rather than a second scale invented for it:
+  // 80 fire reads 55 on Elite and 30 on Ultimate, so weighting the penalised number
+  // harshens the thresholds by itself.
+  //
+  // This is what stops the tool telling someone about to step up that they are fine.
+  const resists = { ...OVERCAPPED, fire: 80, cold: 80, lightning: 80 };
+
+  // Comfortable where they are.
+  assert.deepEqual(proposeTags({ resists, difficulty: 'normal' }).tags, []);
+
+  // The same character stepping into Ultimate: 80 becomes 30, which is dire.
+  const ult = proposeTags({ resists, difficulty: 'ultimate' });
+  assert.equal(ult.tags.length, 1);
+  assert.equal(ult.tags[0].tag, 'character:defensiveElementalResistance');
+  assert.equal(ult.tags[0].weight, 3, 'elemental at an effective 30 is dire');
+  assert.match(ult.reasons.get('character:defensiveElementalResistance'),
+    /at 80, which is 30 on ultimate/);
+});
+
+test('the difficulty penalty is STAGGERED, so the two rows differ', () => {
+  // Acid and pierce take theirs at Elite; vitality, aether, chaos and bleeding not until
+  // Ultimate. Treating it as one flat number would flag four resistances that are
+  // genuinely fine, on exactly the stats players neglect.
+  const resists = { ...OVERCAPPED, acid: 80, vitality: 80 };
+
+  const elite = proposeTags({ resists, difficulty: 'elite' });
+  assert.deepEqual(elite.tags.map(t => t.tag), ['character:defensivePoison'],
+    'only acid is penalised at Elite; vitality is untouched until Ultimate');
+
+  const ultimate = proposeTags({ resists, difficulty: 'ultimate' });
+  assert.deepEqual(ultimate.tags.map(t => t.tag).sort(),
+    ['character:defensiveLife', 'character:defensivePoison'].sort(),
+    'both rows are penalised at Ultimate');
+  // And acid, one tier deeper, is worse off than vitality.
+  const byTag = new Map(ultimate.tags.map(t => [t.tag, t.weight]));
+  assert.ok(byTag.get('character:defensivePoison') > byTag.get('character:defensiveLife'));
+});
+
+test('an 80-across-the-board character is NOT fine for Ultimate', () => {
+  // The finding that surprised me writing these: everything at 80 is comfortable on
+  // Veteran and in real trouble on Ultimate, where it reads 30 on the top row and 55 on
+  // the bottom. That is not the model over-reacting -- it is why endgame builds overcap
+  // to 130 and beyond.
+  const flagged = proposeTags({ resists: CAPPED, difficulty: 'ultimate' });
+  assert.ok(flagged.tags.length > 0, 'an 80-everywhere character has work to do');
+  assert.deepEqual(proposeTags({ resists: CAPPED, difficulty: 'normal' }).tags, [],
+    'and none of it matters where they are now');
+});

@@ -15,8 +15,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCharacterSummary, readCharacter, readEquipment, equippedRecords, __test }
-  from './gdc.mjs';
+import { readCharacterSummary, readCharacter, readEquipment, equippedRecords,
+  resistPenalty, __test } from './gdc.mjs';
 
 const { MAGIC, XOR_KEY, PRIME } = __test;
 
@@ -121,6 +121,7 @@ function buildSave(over = {}) {
   const o = {
     name: 'Tangie', sex: 1, classId: 'tagCharacterClass01', level: 42, hardcore: false,
     fileVersion: 2, saveVersion: 8, infoVersion: 5, money: 12345, bioVersion: 8,
+    difficultyByte: 2,                               // ultimate, Veteran flag clear
     devotionPoints: 7, totalDevotion: 23,
     ...over,
   };
@@ -134,7 +135,7 @@ function buildSave(over = {}) {
   // Block 1 is skipped by its declared length, so its contents are arbitrary. That is
   // the point of the test: the reader must not care what is in here.
   const info = w.beginBlock(1);
-  w.int(o.infoVersion).bool(true).bool(true).byte(2).byte(3).uint(o.money)
+  w.int(o.infoVersion).bool(true).bool(true).byte(o.difficultyByte).byte(3).uint(o.money)
    .byte(1).int(2).byte(1).byte(0).byte(0).string('tex.tex');
   w.endBlock(info);
 
@@ -198,8 +199,9 @@ test('reads a character header and bio', () => {
   assert.equal(c.classId, 'tagCharacterClass01');
   assert.equal(c.level, 42);
   assert.equal(c.hardcore, false);
-  // No `money`: it lives inside the character-info block, which is skipped whole.
-  assert.equal(c.money, undefined, 'money should not be read; that block is skipped');
+  // Money is what PROVES the character-info offsets are right. Difficulty alone is a
+  // small number that could be almost anything; money is checkable against the game.
+  assert.equal(c.money, 12345);
   assert.equal(c.bio.level, 42);
   assert.equal(c.bio.devotionPoints, 7);
   assert.equal(c.bio.totalDevotion, 23);
@@ -471,4 +473,50 @@ test('an equipment parse that does not land exactly is REFUSED', () => {
 
   // And the unpadded fixture must still parse, or the check is just rejecting everything.
   assert.doesNotThrow(() => readEquipment(buildSaveWithEquipment()));
+});
+
+test('the difficulty byte splits into a tier and the Veteran flag', () => {
+  // Veteran is a flag ON normal rather than a tier of its own, so 0x10 must read as
+  // normal with the flag set. Confirmed across four real characters covering all three
+  // tiers.
+  const vet = readCharacterSummary(buildSave({ difficultyByte: 0x10 }));
+  assert.equal(vet.difficulty.tier, 'normal');
+  assert.equal(vet.difficulty.veteran, true);
+
+  const eliteVet = readCharacterSummary(buildSave({ difficultyByte: 0x11 }));
+  assert.equal(eliteVet.difficulty.tier, 'elite', 'the flag must not leak into the tier');
+  assert.equal(eliteVet.difficulty.veteran, true);
+
+  const plain = readCharacterSummary(buildSave({ difficultyByte: 2 }));
+  assert.equal(plain.difficulty.tier, 'ultimate');
+  assert.equal(plain.difficulty.veteran, false);
+});
+
+test('the resistance penalty is STAGGERED across two rows, not flat', () => {
+  // Treating it as one number costs 25 points on four resistances at Elite, and it errs
+  // in the flattering direction -- reporting bleeding, vitality, aether and chaos as
+  // worse than they are, which are exactly the ones players neglect.
+  //
+  // Measured by loading one character at two difficulties with identical gear: acid
+  // 4 -> 29 and pierce 30 -> 55 coming off Elite, bleeding and vitality unmoved.
+  assert.equal(resistPenalty('defensivePoison', 'elite'), -25);
+  assert.equal(resistPenalty('defensivePierce', 'elite'), -25);
+  assert.equal(resistPenalty('defensiveBleeding', 'elite'), 0);
+  assert.equal(resistPenalty('defensiveLife', 'elite'), 0);
+
+  // Delayed, not exempt: the bottom row takes its 25 one difficulty later.
+  assert.equal(resistPenalty('defensiveBleeding', 'ultimate'), -25);
+  assert.equal(resistPenalty('defensivePoison', 'ultimate'), -50);
+
+  // The devotion tree's ELEMENTAL chip must take the top-row penalty, since it raises
+  // fire, cold and lightning. Missing it made elemental read as exempt, which is a
+  // 50-point error on the resistance most builds lean on.
+  assert.equal(resistPenalty('defensiveElementalResistance', 'ultimate'), -50);
+
+  // Physical never takes one, at any difficulty.
+  for (const tier of ['normal', 'elite', 'ultimate']) {
+    assert.equal(resistPenalty('defensivePhysical', tier), 0);
+  }
+  // And an unknown field must not invent a penalty.
+  assert.equal(resistPenalty('defensiveNonsense', 'ultimate'), 0);
 });

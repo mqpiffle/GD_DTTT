@@ -4,6 +4,31 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.6 — 5 Aug 2026
+
+**Resistances are weighted against the difficulty you are planning for**, not the one your
+numbers came from. Walking into Elite or Ultimate on resistances that were adequate a tier
+below is the most common way a working build stops working, and the tool now says so
+before it happens.
+
+The mechanism is the game's own penalty rather than a second scale invented for it. Acid
+at 58 reads 33 on Elite and 8 on Ultimate, so weighting the penalised number makes the
+thresholds harshen by themselves. The penalty is staggered, not flat — acid and pierce
+take theirs at Elite, while vitality, aether, chaos and bleeding wait until Ultimate — so
+the advice changes shape between tiers rather than just getting louder.
+
+A consequence worth knowing: **80 across the board is comfortable on Veteran and in real
+trouble on Ultimate**, where it reads 30 on the top row. That is not the tool
+over-reacting; it is why endgame builds overcap past 130.
+
+**A character below level 25 is not analysed unless asked.** Nothing technical stops it —
+the answer just is not useful yet. Gear turns over every few levels, resistances are
+whatever dropped, and there are too few devotion points to fix any of it. It declines with
+its reason rather than silently doing nothing, and runs anyway if you ask.
+
+Difficulty parsing has also moved onto the main line, so a save's own difficulty can serve
+as the default.
+
 ## 0.4.5 — 5 Aug 2026
 
 **An imported character can be turned into a starting set of tags.** `proposeTags()`

@@ -255,11 +255,27 @@ function readSummary(r) {
 
   r.skipUid();
 
-  // --- character info (block 1): skipped whole ---
-  // Nothing in it is wanted, and its layout has already changed once.
+  // --- character info (block 1): read the front, skip the rest ---
+  //
+  // This used to be skipped whole. Difficulty is wanted now -- as a DEFAULT the player
+  // can override -- and it sits four bytes in, so only the front is parsed. The tail is
+  // still skipped by declared length, which keeps the original reason for skipping: the
+  // layout has already changed once, from version 4 to 5, and anything past `money` can
+  // change again without breaking this.
   const infoBlock = r.int();
   if (infoBlock !== 1) throw new Error(`expected the character-info block, found ${infoBlock}`);
-  skipBlock(r, r.int({ advance: false }));
+  const infoLen = r.int({ advance: false });
+  const infoStart = r.pos;
+  const infoVersion = r.int();
+  r.byte();                          // isInMainQuest
+  r.byte();                          // hasBeenInGame
+  const difficultyByte = r.byte();
+  const greatestDifficultyCompleted = r.byte();
+  // MONEY IS WHAT PROVES THE OFFSETS. Difficulty alone is a small number that could be
+  // almost anything; money is checkable against the game, and read 161,842 where the
+  // character panel showed 163,575 a short play session later.
+  const money = r.int();
+  skipBlock(r, infoLen - (r.pos - infoStart));
   r.blockEnd();
 
   // --- bio (block 2) ---
@@ -293,7 +309,12 @@ function readSummary(r) {
   }
   r.blockEnd();
 
-  return { name, sex, classId, level, hardcore, fileVersion, version, bio, at: r.pos };
+  return {
+    name, sex, classId, level, hardcore, fileVersion, version, bio,
+    difficulty: decodeDifficulty(difficultyByte),
+    greatestDifficultyCompleted, money, infoVersion,
+    at: r.pos,
+  };
 }
 
 
@@ -543,6 +564,79 @@ export class OutdatedSaveError extends Error {
     this.found = found;
     this.expected = expected;
   }
+}
+
+/** Tiers in the order the game unlocks them; the index is also the stored value. */
+export const DIFFICULTIES = ['normal', 'elite', 'ultimate'];
+
+/** Veteran is a flag ON normal, not a tier of its own. */
+const VETERAN_FLAG = 0x10;
+
+/**
+ * Split the difficulty byte into a tier and the Veteran flag.
+ *
+ * Tier in the low nibble, `0x10` for Veteran. Confirmed across four characters covering
+ * all three tiers.
+ *
+ * THE ONE THAT LOOKED WRONG IS THE INSTRUCTIVE ONE. A level 100 with 55/55 devotions and
+ * `greatestDifficultyCompleted` 2 -- finished by every measure -- reads normal+Veteran.
+ * Not a bad parse: the byte records where a character last STOOD, not what they have
+ * beaten. A finished character can be parked on Normal.
+ *
+ * So this is an opening guess and callers must let it be changed. Treating it as fact
+ * would apply a zero penalty to a character who plays Ultimate, and being wrong about the
+ * penalty costs 50 points on every resistance.
+ */
+function decodeDifficulty(byte) {
+  return {
+    tier: DIFFICULTIES[byte & 0x0f] ?? 'normal',
+    veteran: (byte & VETERAN_FLAG) !== 0,
+    raw: byte,
+  };
+}
+
+/**
+ * The penalty a difficulty applies to each resistance.
+ *
+ * NOT a single number, which is the trap. Resistances fall into two groups penalised on a
+ * STAGGERED schedule, and the groups are exactly the two rows the character sheet draws:
+ *
+ *   top row     fire, cold, lightning, acid, pierce      -25 Elite   -50 Ultimate
+ *   bottom row  bleeding, vitality, aether, chaos          0 Elite   -25 Ultimate
+ *   physical                                               0          0
+ *
+ * Confirmed by loading one character at two difficulties with identical gear: acid went
+ * 4 -> 29 and pierce 30 -> 55 coming off Elite, while bleeding, vitality and physical did
+ * not move at all. Four predictions written down before the second reading, all correct.
+ *
+ * Assuming one flat penalty costs 25 points on four resistances at Elite -- and it fails
+ * in the direction that flatters the character, on exactly the stats people neglect.
+ */
+const TOP_ROW = new Set([
+  'defensiveFire', 'defensiveCold', 'defensiveLightning',
+  'defensivePoison', 'defensivePierce',
+  // The devotion tree's chip for the first three. It is not a resistance the sheet shows
+  // -- it raises fire, cold and lightning together -- but a caller weighting that TAG has
+  // to get the same penalty those three take, or elemental silently reads as exempt.
+  'defensiveElementalResistance',
+]);
+const BOTTOM_ROW = new Set([
+  'defensiveBleeding', 'defensiveLife', 'defensiveAether', 'defensiveChaos',
+]);
+
+const SCHEDULE = {
+  top: { normal: 0, elite: -25, ultimate: -50 },
+  bottom: { normal: 0, elite: 0, ultimate: -25 },
+  exempt: { normal: 0, elite: 0, ultimate: 0 },
+};
+
+/**
+ * @param field a `defensive*` DBR field name
+ * @param tier  'normal' | 'elite' | 'ultimate'
+ */
+export function resistPenalty(field, tier) {
+  const row = TOP_ROW.has(field) ? 'top' : BOTTOM_ROW.has(field) ? 'bottom' : 'exempt';
+  return SCHEDULE[row][tier] ?? 0;
 }
 
 const DEVOTION_PREFIX = 'records/skills/devotion/';
