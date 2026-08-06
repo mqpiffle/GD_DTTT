@@ -769,3 +769,39 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 /* The difficulty being planned for. Sized like the switcher so the bar keeps one line. */
 .dpick{font-size:var(--fs-xs);color:var(--ink-4);background:var(--surface-2);
   border:1px solid var(--line-6);border-radius:5px;padding:3px 6px}
+
+/* --- actual vs suggested ---------------------------------------------------------
+   Two columns with every row carrying its relationship to the other side. Two plain
+   lists would invite eyeballing; the markers and the summary make it a decision. */
+.cmp{display:block}
+/* The summary is the headline, so it gets the weight -- it is the one line that says
+   what changing would cost. */
+.cmpsum{display:flex;align-items:center;gap:10px;margin:0 0 12px;
+  font-size:var(--fs-sm);color:var(--ink-3)}
+.adopt{margin-left:auto;padding:5px 12px;border:1px solid var(--ink-9);border-radius:6px;
+  color:var(--ink-1);white-space:nowrap}
+.adopt:hover{background:var(--tone-bright);color:var(--surface-2)}
+.cmphead{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 6px;
+  font-size:var(--fs-xs);color:var(--ink-10);text-transform:uppercase;letter-spacing:.06em}
+.cmphead b{color:var(--ink-4);font-weight:600}
+/* Rows align where they match, so the eye reads across. A gap on one side IS the
+   signal -- it is where the two builds part company. */
+.cmprow{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;
+  margin:0 0 3px}
+.cmpc{display:flex;align-items:center;gap:7px;min-height:30px;padding:4px 9px;
+  border:1px solid var(--line-8);border-radius:6px;background:var(--surface-3);
+  font-size:var(--fs-sm);color:var(--ink-4)}
+.cmpc b{margin-left:auto;color:var(--ink-9);font-weight:500}
+.cmpc i{font-size:var(--fs-sm)}
+/* No border on an empty half: a box implies something is missing, and nothing is --
+   the constellation simply is not on that side. */
+.cmpc.empty{border-color:transparent;background:none}
+.cmpc.ok{color:var(--ink-3)}
+.cmpc.ok i{color:var(--accent-success)}
+.cmpc.buy{border-color:var(--accent-current-muted);background:var(--tint-current-row)}
+.cmpc.buy i{color:var(--accent-current)}
+.cmpc.lose{border-color:var(--accent-danger-border);background:var(--tint-danger)}
+.cmpc.lose i{color:var(--accent-danger-soft)}
+/* A kept constellation taken to a different depth -- the case a whole-constellation
+   view would report as free. */
+.cmpd{font-size:var(--fs-xs);color:var(--accent-warn);min-width:22px;text-align:right}

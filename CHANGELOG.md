@@ -4,6 +4,30 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.5.1 — 6 Aug 2026
+
+**Your build beside the suggestion.** Two columns — what you actually own on the left,
+what the tags propose on the right — with every row marked as one you keep, one you would
+buy, or one you would give up. A kept constellation taken to a different depth says so on
+the row, because a whole-constellation view would call that free. Above them a summary
+line states the price in points, and separates what switching costs from what you can
+spend right now. **Adopt** turns the suggestion into the plan; it clears your ticks,
+because they recorded progress against the build being replaced, and Ctrl+Z puts them
+back.
+
+**Compare is a view, not a mode**, and the distinction was bought the hard way. The first
+version let the comparison REPLACE the path whenever your build and the plan disagreed,
+which silently took away the stars you tick as you buy them — change one tag mid-
+playthrough and the thing you used every session was simply gone. It now sits beside
+Overview and Detail: it opens on its own when there is something to decide, one click
+puts the path back, and leaving it is an answer that sticks. Switching character asks
+again, since it was an answer about that build against that plan.
+
+The button only appears when there is a disagreement to look at. A Compare button that
+showed you two identical columns would be a button that lies about having something to
+say. Following a plan you made here is not a decision to be shown a diff about; owning a
+build the plan does not contain is.
+
 ## 0.5.0 — 5 Aug 2026
 
 **Back to two columns.** Everything you set and everything you read about your inputs is

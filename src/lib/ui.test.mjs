@@ -98,6 +98,7 @@ const SEL = {
   '[data-cdel]': 'cdel', '[data-cswitch]': 'cswitch',
   '[data-ctl]': 'ctl', '[data-ctlin]': 'ctlin',
   '[data-collapse]': 'collapse', '[data-difficulty]': 'difficulty',
+  '[data-compare]': 'compare', '[data-adopt]': 'adopt',
 };
 
 /** Fire a `change` on an element carrying `dataset`, as a <select> does. */
@@ -178,7 +179,10 @@ const ui = await import('../app.mjs');
 const chipIdx = (label, ns = 'character') =>
   ui.chips.findIndex(c => c.label === label && c.ns === ns);
 
-function plan(labels, mode) {
+// `keep` opts out of the progress reset, for the tests that are ABOUT progress
+// surviving a rebuild -- for those, clearing it would make the assertion pass on an
+// empty set and prove nothing.
+function plan(labels, mode, { keep = false } = {}) {
   ui.state.sel = ui.state.sel.map(() => null);
   // Reset the weights too. A test that set them and moved on used to change every
   // fixture that ran after it -- the re-order tests failed only when the whole file ran,
@@ -189,6 +193,10 @@ function plan(labels, mode) {
   // Module state is shared across tests, and a manual order left behind by one would
   // silently re-order every fixture after it -- the same trap the weights reset fixed.
   ui.state.order = null;
+  // Third instance of the same trap, and this one changed the VIEW rather than the
+  // plan: ticks left behind by an earlier test made hasComparison() true, so the
+  // comparison rendered and a later test found no tickable stars at all.
+  if (!keep) { ui.state.done.clear(); ui.state.compare = null; }
   ui.build();
   return ui.state.plan;
 }
@@ -986,7 +994,7 @@ test('a rebuild clears the undo trail but keeps your ticks', () => {
   click({ star: /data-star="([^"]+)"/.exec(app.innerHTML)[1] });
   const ticks = [...ui.state.done].sort();
 
-  plan([['Cold Damage']], 1);   // same tags, different mode -> new path
+  plan([['Cold Damage']], 1, { keep: true });   // same tags, different mode -> new path
   assert.deepEqual([...ui.state.done].sort(), ticks,
     'a rebuild lost progress; ticks are keyed constellation:star and should survive');
   assert.equal(ui.history.length, 0, 'a rebuild should clear the undo trail');
@@ -3146,5 +3154,120 @@ test('the difficulty being planned for is per character', () => {
 
     ui.switchChar(first);
     assert.equal(ui.activeChar().difficulty, 'ultimate', 'it did not come back');
+  } finally { s.restore(); }
+});
+
+// --- the comparison view --------------------------------------------------------
+//
+// The comparison is a VIEW beside Overview and Detail, not a mode that replaces them,
+// and these tests exist because the first version got that wrong in a way no test
+// caught: it swapped the path out whenever your build and the plan disagreed, which
+// took away the stars you tick as you buy them. Change a tag mid-playthrough and the
+// thing you used every session was simply gone.
+//
+// So the two halves are tested apart. Whether there IS a comparison is about the data;
+// whether you are LOOKING at one is about you, and you can always leave.
+
+/** Tick some stars, then add one from a constellation the plan does not contain. */
+function withOffPlanBuild() {
+  plan([['Cold Damage']], 2);
+  const planned = new Set(ui.state.plan.schedule.path.map(p => p.id));
+  const outsider = Object.keys(ui.db.constellations).find(id => !planned.has(id));
+  assert.ok(outsider, 'every constellation is in the plan, so nothing can be off-plan');
+  ui.state.done.add(`${outsider}:1`);
+  ui.render();
+  return outsider;
+}
+
+test('owning something the plan does not offers the comparison', () => {
+  withOffPlanBuild();
+  assert.match(app.innerHTML, /data-compare/, 'no way to reach the comparison');
+  assert.match(app.innerHTML, /class="cmp"/, 'an off-plan build should open on the diff');
+});
+
+test('following the plan is not offered a comparison', () => {
+  plan([['Cold Damage']], 2);
+  // Tick the first step, which is by definition part of the plan.
+  ui.state.plain = false; ui.render();
+  click({ star: /data-star="([^"]+)"/.exec(app.innerHTML)[1] });
+
+  assert.doesNotMatch(app.innerHTML, /data-compare/,
+    'a Compare button that shows two identical columns is a button that lies');
+  assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+    'following your own plan is not a decision to be shown a diff about');
+});
+
+test('leaving the comparison puts the tickable path back', () => {
+  withOffPlanBuild();
+  assert.equal(keysOf(app.innerHTML).length, 0, 'the comparison has no stars to tick');
+
+  click({ compare: '1' });
+  assert.doesNotMatch(app.innerHTML, /class="cmp"/, 'Compare did not turn off');
+  assert.ok(keysOf(app.innerHTML).length > 0,
+    'leaving the comparison left no stars to tick, so the view is still a trap');
+});
+
+test('asking for Overview or Detail leaves the comparison', () => {
+  withOffPlanBuild();
+  click({ plain: '1' });
+  assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+    'clicking a path view and staying in the comparison makes the button look broken');
+});
+
+test('leaving the comparison sticks across a re-solve', () => {
+  withOffPlanBuild();
+  click({ compare: '1' });
+  const done = new Set(ui.state.done);
+  plan([['Cold Damage'], ['Armor']], 2, { keep: true });
+
+  // The disagreement is still there -- it is the answer that has to survive.
+  assert.deepEqual(ui.state.done, done, 'the fixture lost its ticks');
+  assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+    'the comparison sprang back open after being dismissed');
+  assert.match(app.innerHTML, /data-compare/, 'but it should still be reachable');
+});
+
+test('Adopt makes the suggestion the build and clears the ticks', () => {
+  withOffPlanBuild();
+  assert.ok(ui.state.done.size > 0, 'nothing to clear');
+
+  click({ adopt: '1' });
+  assert.equal(ui.state.done.size, 0,
+    'ticks recorded progress against the build being replaced and must not carry over');
+  assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+    'with nothing left to disagree about the comparison should be gone');
+});
+
+test('Adopt is undoable', () => {
+  withOffPlanBuild();
+  const before = [...ui.state.done].sort();
+
+  click({ adopt: '1' });
+  click({ undo: '1' });
+  assert.deepEqual([...ui.state.done].sort(), before,
+    'Adopt threw away a build with no way back');
+});
+
+test('switching character asks the comparison question again', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const first = ui.charList()[0].id;
+    withOffPlanBuild();
+    click({ compare: '1' });   // no thanks, for THIS character
+    ui.save();
+
+    // NOT through plan(): the helper resets the flag, so building a fixture on the
+    // second character would clear the dismissal before the switch and the test would
+    // pass without ever exercising the switch. It passed that way once.
+    ui.addChar({});
+    assert.ok(ui.switchChar(first), 'could not switch back');
+    ui.build();
+
+    // Coming back is a fresh look at a build you have not seen since. Carrying the
+    // dismissal across would hide the diff on a character you never dismissed it for --
+    // and after a re-import, on a build that is not even the one you dismissed.
+    assert.match(app.innerHTML, /class="cmp"/,
+      'the comparison stayed dismissed for a character switched away from and back');
   } finally { s.restore(); }
 });

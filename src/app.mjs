@@ -19,6 +19,7 @@ import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
 import { readCharacter, DIFFICULTIES } from './lib/gdc.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
+import { diffPaths, summarise } from './lib/diff.mjs';
 
 const MAX = 5;
 // [button label, tooltip]. The label is short enough to read as a tile; the
@@ -84,6 +85,20 @@ const state = {
   plan: null, error: null, builtMode: null, solving: false,
   done: new Set(),        // stars ticked off in game, keyed constellation:star
   plain: false,           // Overview: the whole path as one scannable column
+  // Compare: your actual build beside the suggestion. THREE-VALUED on purpose.
+  //
+  // `null` means undecided, and shows the comparison whenever there is one to show --
+  // an import should land on the diff without anyone hunting for it. `true` and `false`
+  // are your answer, and they stick until the next import replaces the question.
+  //
+  // It is a VIEW, not a mode, and the distinction was bought the hard way: the first
+  // version let the comparison REPLACE the path whenever the two disagreed, which
+  // silently took away the stars you tick as you buy them. Change one tag mid-
+  // playthrough and the thing you were using every session vanished. A view you can
+  // leave cannot do that.
+  //
+  // Not saved. It belongs to the plan in front of you, not to the document.
+  compare: null,
   // The manual order: constellation ids in the sequence you dragged them into, or
   // null for "whatever the solver chose". An INPUT, like tags and weights -- it is
   // something you decided, so it is saved and it outlives a reload. It does not
@@ -282,7 +297,7 @@ const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked',
   'controls', 'controlInputs'];
 
 /** Facts a save told us about a character, as opposed to anything they chose. */
-const SAVE_FACTS = ['level', 'classId', 'difficulty'];
+const SAVE_FACTS = ['level', 'classId', 'difficulty', 'totalDevotion'];
 
 /**
  * The name of the SAVE a character came from, kept apart from the editable display name.
@@ -354,6 +369,10 @@ function applyChar(c = {}) {
   state.orderPrev = null;
   state.orderNote = null;
   state.done = new Set(Array.isArray(c.done) ? c.done : []);
+  // Undecided again. Whether you wanted to see the comparison was an answer about THIS
+  // character's build against THIS plan; a different character, or the same one freshly
+  // re-imported, is a new question and deserves to be asked.
+  state.compare = null;
   state.locked = c.locked === true;
   state.controls = Array.isArray(c.controls) ? [...c.controls] : [];
   state.controlInputs = (c.controlInputs && typeof c.controlInputs === 'object')
@@ -584,6 +603,9 @@ function importSave(bytes) {
   // where they last stood.
   doc.chars[id].level = ch.level;
   doc.chars[id].classId = ch.classId;
+  // What they have EARNED, which is what makes "18 points to switch" mean something.
+  // Without it the summary cannot tell a respec from the rest of the game.
+  doc.chars[id].totalDevotion = ch.bio.totalDevotion;
   if (doc.chars[id].difficulty == null) doc.chars[id].difficulty = ch.difficulty?.tier ?? 'normal';
   state.done = new Set(keys);
   stash();
@@ -1879,6 +1901,110 @@ function applyOrder(solution) {
 }
 
 /**
+ * The two columns: what you have beside what is being suggested.
+ *
+ * Two plain lists would invite eyeballing -- you can see both paths and still not know
+ * what changing costs. So every row carries its relationship to the other side, and the
+ * summary line above states the price. That line is the thing that turns a comparison
+ * into a decision.
+ */
+function comparisonHtml() {
+  const d = diffPaths(actualPath(), state.plan.schedule.path);
+  const cur = activeChar() ?? {};
+  // What they could spend TODAY -- earned minus already committed. Without it the
+  // summary cannot tell a respec from the rest of the game, and would call both
+  // "to switch".
+  const available = cur.totalDevotion == null ? null
+    : Math.max(0, cur.totalDevotion - [...state.done].length);
+
+  const MARK = {
+    keep: ['ok', 'ti-check', 'You already have this'],
+    buy: ['buy', 'ti-plus', 'You would buy this'],
+    lose: ['lose', 'ti-x', 'You would give this up'],
+  };
+
+  let h = `<div class="cmp">
+    <p class="cmpsum">${esc(summarise(d, { available }))}
+      <button class="plainbtn adopt" data-adopt="1"
+        title="Make the suggestion this character's plan. Your ticks are cleared, because they recorded progress against the old one -- Ctrl+Z undoes it.">Adopt</button></p>
+    <div class="cmphead"><span>Actual <b>${d.rows.reduce((n, r) => n + r.actualPoints, 0)}</b></span>
+      <span>Suggested <b>${d.rows.reduce((n, r) => n + r.suggestedPoints, 0)}</b></span></div>`;
+
+  for (const r of d.rows) {
+    const [cls, icon, why] = MARK[r.status];
+    const name = esc(consName(r.id));
+    // Rows ALIGN where they match, so the eye reads across; the buy and lose rows are
+    // what break the alignment, which is exactly where attention belongs.
+    const left = r.actualPoints
+      ? `<span class="cmpc ${cls}"><i class="ti ${icon}"></i>${name}<b>${r.actualPoints}</b></span>`
+      : '<span class="cmpc empty"></span>';
+    const right = r.suggestedPoints
+      ? `<span class="cmpc ${cls}"><i class="ti ${icon}"></i>${name}<b>${r.suggestedPoints}</b></span>`
+      : '<span class="cmpc empty"></span>';
+    // A kept constellation taken to a different depth is the case a whole-constellation
+    // view would report as free, so it says so on the row.
+    const depth = r.deeper
+      ? `<span class="cmpd" title="${r.deeper > 0 ? 'deeper' : 'shallower'} than you have">${
+        r.deeper > 0 ? '+' : ''}${r.deeper}</span>` : '';
+    h += `<div class="cmprow" title="${esc(why)}">${left}${right}${depth}</div>`;
+  }
+  return h + '</div>';
+}
+
+/**
+ * The build the character ACTUALLY has, as scheduled-path entries.
+ *
+ * `state.done` is a flat set of `constellation:star` keys -- what they own, independent
+ * of any plan. This groups it into the same shape a scheduled path uses, so the two can
+ * be compared without either side knowing where the other came from.
+ *
+ * NOT a real path: the save records no purchase order, and Crossroads refunds mean the
+ * order actually taken may not even be reproducible. It is exact as a STATE -- these
+ * constellations, these many stars -- and that is all the comparison needs.
+ */
+function actualPath() {
+  const points = new Map();
+  for (const key of state.done) {
+    const id = key.slice(0, key.lastIndexOf(':'));
+    if (!id) continue;
+    points.set(id, (points.get(id) ?? 0) + 1);
+  }
+  return [...points].map(([id, pts]) => ({ id, points: pts }));
+}
+
+/**
+ * Is there anything worth comparing against the plan?
+ *
+ * WHEN THE SECOND COLUMN APPEARS, and this is deliberately not "is this character
+ * imported". Someone ticking off the plan as they buy it has an actual build too, and it
+ * is a PREFIX of the suggestion -- there is nothing to decide, so showing them two
+ * columns would turn following a plan into reading a diff.
+ *
+ * The comparison earns its place when the character owns something the plan does not,
+ * which is exactly when "should I change?" becomes a real question. That happens on
+ * import, and equally when someone changes their tags after ticking -- both cases get
+ * the same answer for the same reason, and no mode is switched to reach it.
+ */
+function hasComparison() {
+  if (!state.plan || !state.done.size) return false;
+  const planned = new Set(state.plan.schedule.path.filter(p => p.kind !== 'refund')
+    .map(p => p.id));
+  return actualPath().some(e => !planned.has(e.id));
+}
+
+/**
+ * Is the comparison the view on screen right now?
+ *
+ * Two conditions, and they answer different questions. `hasComparison()` is about the
+ * data -- is there a disagreement worth showing. `state.compare` is about you -- do you
+ * want to look at it. An undecided `null` says yes, so a fresh import opens on the diff,
+ * but the moment you switch to Detail or Overview that becomes a no and stays one.
+ */
+function showComparison() {
+  return hasComparison() && state.compare !== false;
+}
+
+/**
  * The order the path is currently in, as constellation ids -- the starting point for
  * a drag. Refund steps are Crossroads the scheduler inserts and removes on its own,
  * so they are not yours to place and never enter the order.
@@ -2277,8 +2403,21 @@ function render() {
       title="${state.plain
         ? 'Back to one card per step, with the stars to click'
         : 'The whole path in one column -- every pick in order, at a glance'}">${
-      state.plain ? 'Detail' : 'Overview'}</button></span></p>`;
-  h += `<div class="dwrap"><div class="dscroll">` + pathHtml() + '</div>';
+      state.plain ? 'Detail' : 'Overview'}</button>${
+    // Only offered when there is a disagreement to look at. A Compare button that
+    // showed you two identical columns would be a button that lies about having
+    // something to say.
+    hasComparison() ? `<button class="plainbtn cmpbtn${showComparison() ? ' on' : ''}"
+      data-compare="1" aria-pressed="${showComparison()}"
+      title="${showComparison()
+        ? 'Back to the path, with the stars to tick'
+        : 'Your actual build beside the suggestion, and what changing would cost'}"><i
+      class="ti ti-columns"></i> Compare</button>` : ''}</span></p>`;
+  // The comparison is a VIEW you can leave, not a mode that takes the path away. See
+  // showComparison() -- it opens on its own when there is something to decide, and one
+  // click puts the tickable path back.
+  h += `<div class="dwrap"><div class="dscroll">`
+    + (showComparison() ? comparisonHtml() : pathHtml()) + '</div>';
   // Both lock dialogs share the modal shell. They sit over the devotions list
   // rather than the whole app because that is what they are about -- which stars you
   // may click -- and it keeps the left column readable while you answer.
@@ -2753,6 +2892,22 @@ app.addEventListener('click', e => {
 
   // Fold every open category. Acts on the whole library rather than the visible tab,
   // which is why it sits on the title and not beside the tabs.
+  // ADOPT: make the suggestion this character's build.
+  //
+  // It CLEARS the ticks, the same way accepting the old rush-offer did. They recorded
+  // progress against the plan being replaced; carried into a new one they would show you
+  // part-way through something you never started. A snapshot goes on the undo stack
+  // first, so Ctrl+Z puts them back.
+  const adopt = e.target.closest('[data-adopt]');
+  if (adopt && app.contains(adopt)) {
+    if (state.locked) return;
+    pushHistory();
+    state.done = new Set();
+    save();
+    render();
+    return;
+  }
+
   const collapse = e.target.closest('[data-collapse]');
   if (collapse && app.contains(collapse)) {
     state.open = new Set();
@@ -2809,9 +2964,22 @@ app.addEventListener('click', e => {
   }
 
   // Pure view switch -- no re-solve, so it can't disturb the plan or the ticks.
+  // Compare: enter or leave the two-column view. `false` rather than a toggled boolean
+  // so that leaving it is an ANSWER -- it stays left when the next re-solve changes the
+  // plan, instead of springing back open because there is still a difference.
+  const cmp = e.target.closest('[data-compare]');
+  if (cmp && app.contains(cmp)) {
+    state.compare = !showComparison();
+    render();
+    return;
+  }
+
   const pl = e.target.closest('[data-plain]');
   if (pl && app.contains(pl)) {
     state.plain = !state.plain;
+    // Asking for a path view is asking for the path. Anything else makes the button
+    // look broken: you click Overview, you are in the comparison, nothing happens.
+    state.compare = false;
     render();
     // Only Overview drags, so the sweep is paid for on the way in rather than kept
     // warm for someone who never opens it.
