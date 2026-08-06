@@ -4,6 +4,34 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.5.3 — 6 Aug 2026
+
+**Attribute points now speak first.** They are the only pure statement of intent in a
+save: every other signal is contaminated by what dropped. A helmet worn for its
+resistances brings its damage modifiers along whether or not they were wanted, so reading
+gear is always partly a report on the loot table. Nothing drops attribute points. Farker's
+gear grants 23% casting speed against 15% attack speed — near-noise either way — while his
+allocation is 0 Physique, 0 Cunning, 26 Spirit. Unanimous, and previously ignored.
+
+So a committed attribute takes the first slot ahead of every damage type, and Farker now
+imports as Spirit first. It only speaks when **lopsided** — 70% of the points or more,
+and at least ten of them. An even 12/10/11 is someone meeting a gear requirement, not a
+build statement, and proposing devotion points chase attributes off the back of that
+would be inventing intent. A level 6 with everything in one attribute is a sample size,
+not a decision.
+
+Read from the bio's BASE values, not the character sheet: the sheet's numbers already
+have mastery, gear and devotion added on, which would put the contamination straight back
+into the one signal that has none. Verified — spent plus unspent comes to exactly
+level − 1.
+
+**The comparison was vanishing on import**, and for the characters it exists to serve.
+Whether there is one to show was tested at whole-constellation level only, so once tags
+are derived from your own gear — and the suggestion therefore lands on the constellations
+you already picked — the test came back false. What is left to decide in that case is
+depth, and depth is where the points are. It now counts a constellation the plan takes
+less far than you already have.
+
 ## 0.5.2 — 6 Aug 2026
 
 **Import now fills the picker.** It reads your equipped gear, ranks what the build is

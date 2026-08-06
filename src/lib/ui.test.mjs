@@ -3365,7 +3365,11 @@ test('each proposed tag carries its reason on the pill',
     assert.equal(whys.length, ui.state.sel.filter(x => x != null).length,
       'a proposed tag with no reason is one the player has to take on trust');
     for (const [, why] of whys) {
-      assert.match(why, /gear|at \d/, `"${why}" does not say what put the tag there`);
+      // Gear percentages, a resistance reading, or an attribute allocation -- each of
+      // the three signals states its own evidence, and all of them carry a number.
+      assert.match(why, /gear|attribute point|at \d/,
+        `"${why}" does not say what put the tag there`);
+      assert.match(why, /\d/, `"${why}" asserts rather than shows`);
     }
 
     // Tags picked by hand explain nothing, because there is nothing to explain.
@@ -3374,4 +3378,23 @@ test('each proposed tag carries its reason on the pill',
     assert.doesNotMatch(app.innerHTML, /ti-info-circle why/,
       'a hand-picked tag was given an explanation it never had');
   } finally { s.restore(); }
+});
+
+test('taking a constellation further than the plan does is a comparison', () => {
+  // THE CASE THAT WAS MISSED. The first rule only asked about whole constellations, so
+  // once tags are derived from your own gear -- and the suggestion therefore lands on the
+  // constellations you already chose -- it came back false and the comparison vanished
+  // exactly where it was wanted. What is left to decide then is depth.
+  plan([['Cold Damage']], 2);
+  const partial = ui.state.plan.schedule.path
+    .find(p => p.kind !== 'refund' && p.points < ui.db.constellations[p.id].starCount);
+  assert.ok(partial, 'no constellation is taken partially, so depth cannot differ');
+
+  // Own every star of it -- the same constellation, further in than the plan goes.
+  for (let s = 1; s <= ui.db.constellations[partial.id].starCount; s++) {
+    ui.state.done.add(`${partial.id}:${s}`);
+  }
+  ui.render();
+  assert.match(app.innerHTML, /class="cmp"/,
+    'owning more of a constellation than the plan takes is something to decide about');
 });

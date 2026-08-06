@@ -223,3 +223,54 @@ test('an 80-across-the-board character is NOT fine for Ultimate', () => {
   assert.deepEqual(proposeTags({ resists: CAPPED, difficulty: 'normal' }).tags, [],
     'and none of it matters where they are now');
 });
+
+// --- the attribute signal ---------------------------------------------------------
+
+const ATTR = { chip: 'character:characterIntelligence', points: 26, share: 1, label: 'spirit' };
+
+test('a committed attribute takes the first slot, ahead of every damage type', () => {
+  // Gear is chosen from what dropped; attribute points have no source but the player.
+  // So this is not a tie to break, it is the better signal going first.
+  const p = proposeTags({
+    attribute: ATTR,
+    strengths: [S('character:offensivePhysical', 92), S('character:offensiveCold', 40)],
+    resists: CAPPED,
+  });
+  assert.equal(p.tags[0].tag, 'character:characterIntelligence',
+    'a damage type outranked the one number the player wrote themselves');
+  assert.equal(p.tags[1].tag, 'character:offensivePhysical', 'the gear reading was lost');
+});
+
+test('a spread allocation costs nothing -- no attribute, no slot taken', () => {
+  const p = proposeTags({
+    attribute: null,
+    strengths: [S('character:offensivePhysical', 92)],
+    resists: CAPPED,
+  });
+  assert.deepEqual(p.tags.map(t => t.tag), ['character:offensivePhysical'],
+    'a null attribute should leave the proposal exactly as it was');
+});
+
+test('the attribute says how many points put it there', () => {
+  const all = proposeTags({ attribute: ATTR, resists: CAPPED });
+  assert.match(all.reasons.get('character:characterIntelligence'), /26/,
+    'the reason has to carry the number, or it is an assertion rather than evidence');
+
+  // Not "every point" when it is not every point.
+  const most = proposeTags({
+    attribute: { ...ATTR, points: 21, share: 0.7 }, resists: CAPPED,
+  });
+  assert.doesNotMatch(most.reasons.get('character:characterIntelligence'), /every/,
+    '70% was described as the whole allocation');
+  assert.match(most.reasons.get('character:characterIntelligence'), /70%/);
+});
+
+test('an attribute already earned as a strength is not proposed twice', () => {
+  const p = proposeTags({
+    attribute: ATTR,
+    strengths: [S('character:characterIntelligence', 40)],
+    resists: CAPPED,
+  });
+  assert.equal(p.tags.filter(t => t.tag === 'character:characterIntelligence').length, 1,
+    'the same chip was placed twice, wasting a slot on a duplicate');
+});

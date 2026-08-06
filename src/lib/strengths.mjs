@@ -179,3 +179,73 @@ export function strengths(totals, chipOf, {
     .map(([chip, value]) => ({ chip, value, share: value / lead }))
     .filter(s => s.share >= threshold);
 }
+
+// --- attribute allocation ---------------------------------------------------------
+//
+// ATTRIBUTE POINTS ARE THE ONLY PURE STATEMENT OF INTENT IN A SAVE, and reading gear
+// while ignoring them had this exactly backwards.
+//
+// Every other signal is contaminated by what dropped. Gear is chosen from what you found;
+// a helmet worn for its resistances brings its casting speed along whether you wanted it
+// or not. Farker's gear grants 23% casting speed and 15% attack speed -- both small, both
+// incidental, and neither says which the character is for. His attribute allocation is
+// 0 Physique, 0 Cunning, 26 Spirit. Nothing dropped that. Every one of those points was
+// spent on purpose, and they are unanimous.
+//
+// So this is not another opinion to average in with the gear. It is the one number in the
+// file that the player wrote themselves.
+
+/** Attributes start at 50 and each point spent adds 8. Verified: Farker's 26 + 7 unspent
+ *  is 33, and a level 34 character has earned exactly level - 1. */
+const ATTR_BASE = 50;
+const ATTR_PER_POINT = 8;
+
+/**
+ * The share one attribute must hold to count as a decision.
+ *
+ * A LOPSIDED allocation is a build statement; a spread one is someone meeting a gear
+ * requirement. 12/10/11 means "I needed to wear the helmet", and proposing devotion
+ * points chase attributes off the back of that would be inventing intent that is not
+ * there. Farker's 0/0/26 is 100% and says its piece loudly.
+ */
+export const ATTRIBUTE_FOCUS = 0.7;
+
+/**
+ * Too few points to mean anything, however they are split.
+ *
+ * The first few levels have almost nothing to allocate, so an early character trivially
+ * reads as 100% focused on whichever attribute they touched first. That is not a
+ * decision, it is a sample size.
+ */
+const ATTRIBUTE_MINIMUM = 10;
+
+const ATTRIBUTE_CHIP = {
+  physique: 'character:characterStrength',
+  cunning: 'character:characterDexterity',
+  spirit: 'character:characterIntelligence',
+};
+
+/**
+ * Which attribute a character has committed to, if any.
+ *
+ * @param bio  from `readCharacter()` -- base physique/cunning/spirit, before mastery,
+ *             gear and devotion are added on. The BASE values are the point: the sheet's
+ *             numbers include everything the character is wearing, which would put the
+ *             contamination straight back in.
+ * @returns `{ chip, points, share, label }` or null. Null is the common answer and the
+ *          right one: most characters spread their points.
+ */
+export function attributeFocus(bio) {
+  const spent = {
+    physique: Math.round(((bio?.physique ?? ATTR_BASE) - ATTR_BASE) / ATTR_PER_POINT),
+    cunning: Math.round(((bio?.cunning ?? ATTR_BASE) - ATTR_BASE) / ATTR_PER_POINT),
+    spirit: Math.round(((bio?.spirit ?? ATTR_BASE) - ATTR_BASE) / ATTR_PER_POINT),
+  };
+  const total = spent.physique + spent.cunning + spent.spirit;
+  if (!(total >= ATTRIBUTE_MINIMUM)) return null;
+
+  const [key, points] = Object.entries(spent).sort((a, b) => b[1] - a[1])[0];
+  const share = points / total;
+  if (share < ATTRIBUTE_FOCUS) return null;
+  return { chip: ATTRIBUTE_CHIP[key], points, share, label: key };
+}

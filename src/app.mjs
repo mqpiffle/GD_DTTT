@@ -18,7 +18,7 @@ import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
 import { readCharacter, readEquipment, equippedRecords, DIFFICULTIES } from './lib/gdc.mjs';
-import { tallyGear, strengths, chipMapper } from './lib/strengths.mjs';
+import { tallyGear, strengths, chipMapper, attributeFocus } from './lib/strengths.mjs';
 import { proposeTags } from './lib/propose.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 import { diffPaths, summarise } from './lib/diff.mjs';
@@ -626,6 +626,10 @@ function analyseCharacter(bytes, ch, difficulty) {
 
   const p = proposeTags({
     strengths: strengths(totals, chipMapper(keywords)),
+    // The one number in the save the player wrote themselves -- see attributeFocus().
+    // Read off the BASE attributes in the bio, which is why it needs `ch` and not the
+    // gear tally: the sheet's numbers already have the gear added on.
+    attribute: attributeFocus(ch.bio),
     // RESISTANCES ARE NOT DERIVED YET, so the proposal is the strengths half only and
     // no resistance tag is offered. `null` says unknown -- which is the truth -- rather
     // than zero, which would have every resistance read as dire and fill all five slots
@@ -2104,9 +2108,22 @@ function actualPath() {
  */
 function hasComparison() {
   if (!state.plan || !state.done.size) return false;
-  const planned = new Set(state.plan.schedule.path.filter(p => p.kind !== 'refund')
-    .map(p => p.id));
-  return actualPath().some(e => !planned.has(e.id));
+  // ANYTHING YOU OWN THAT THE PLAN DOES NOT, at either level: a constellation it never
+  // picks, or a constellation it picks but takes less far than you already have.
+  //
+  // The first version only asked about whole constellations, and that was too coarse in
+  // exactly the case this feature is for. Once the tags are DERIVED from your gear the
+  // suggestion naturally lands on the same constellations you chose, so the whole-
+  // constellation test came back false and the comparison vanished on import -- for the
+  // characters it was built to serve. What is left to decide then is depth, and depth is
+  // where the points are.
+  //
+  // Still not "is this imported", and still not "does the plan have anything left to
+  // buy". Following a plan you made here leaves you a PREFIX of it: everything you own
+  // is planned, at a depth the plan means to exceed, so there is nothing to give up and
+  // nothing to decide.
+  return diffPaths(actualPath(), state.plan.schedule.path)
+    .rows.some(r => r.status === 'lose' || r.deeper < 0);
 }
 
 /**

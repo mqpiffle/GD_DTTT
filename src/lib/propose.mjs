@@ -62,6 +62,7 @@ function worstPerTag(resists) {
  * Build a starting tag set for a character.
  *
  * @param opts.strengths  from `strengths()` -- [{ chip, value, share }], strongest first
+ * @param opts.attribute  from `attributeFocus()`, or null when the points are spread
  * @param opts.resists    the ten sheet numbers by key, or a subset; missing ones are
  *                        simply unknown rather than assumed to be zero
  * @param opts.max        slots available
@@ -71,7 +72,7 @@ function worstPerTag(resists) {
  * proposal the player cannot interrogate is one they have to take on trust.
  */
 export function proposeTags({
-  strengths = [], resists = null, max = MAX_TAGS,
+  strengths = [], attribute = null, resists = null, max = MAX_TAGS,
   level = null, force = false, difficulty = 'normal',
 } = {}) {
   const tags = [];
@@ -99,7 +100,27 @@ export function proposeTags({
     return true;
   };
 
-  // Strengths first. They are already cut at the threshold, so everything here has
+  // A COMMITTED ATTRIBUTE GOES FIRST, ahead of every damage type, and the ordering is the
+  // argument rather than a tie-break.
+  //
+  // Gear is chosen from what dropped. A helmet worn for its resistances brings its damage
+  // modifiers along whether or not they were wanted, so a gear reading is always partly a
+  // report on the loot table. Attribute points are not like that: there is no source for
+  // them but the player, and a character who put all 26 into Spirit has said something no
+  // amount of percentage-summing can contradict.
+  //
+  // It only speaks when LOPSIDED -- see attributeFocus(). Most characters spread their
+  // points to meet gear requirements and get nothing from this, which is correct: meeting
+  // a requirement is not a build statement.
+  if (attribute) {
+    push(attribute.chip, STRENGTH_WEIGHT,
+      attribute.share >= 0.999
+        ? `every attribute point you have spent (${attribute.points})`
+        : `${Math.round(attribute.share * 100)}% of your attribute points `
+          + `(${attribute.points} of them)`);
+  }
+
+  // Then strengths. They are already cut at the threshold, so everything here has
   // earned its place -- there is no second-guessing to do.
   for (const s of strengths) {
     push(s.chip, STRENGTH_WEIGHT, `${Math.round(s.value)}% on your gear`);

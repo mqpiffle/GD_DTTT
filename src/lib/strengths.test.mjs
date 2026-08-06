@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { tallyGear, strengths, chipMapper, STRENGTH_THRESHOLD } from './strengths.mjs';
+import { tallyGear, strengths, chipMapper, attributeFocus, STRENGTH_THRESHOLD } from './strengths.mjs';
 
 /** A minimal index in the shape build-items.mjs emits. */
 function idx(items, fields) {
@@ -176,4 +176,66 @@ test('a real character resolves entirely against the shipped index',
   // Ranked strongest first, and nothing below the bar survived.
   for (let i = 1; i < out.length; i++) assert.ok(out[i].value <= out[i - 1].value);
   assert.ok(out.every(s => s.share >= STRENGTH_THRESHOLD));
+});
+
+// --- attribute allocation ---------------------------------------------------------
+//
+// The signal that was missing, and the reason it matters: it is the only thing in a save
+// that no drop can contaminate. A character wearing 23% casting speed may or may not be a
+// caster; a character who spent all 26 of their points on Spirit has said so outright.
+
+const bio = (physique, cunning, spirit) => ({
+  // Attributes start at 50 and each point adds 8.
+  physique: 50 + physique * 8, cunning: 50 + cunning * 8, spirit: 50 + spirit * 8,
+});
+
+test('all points in one attribute is read as a commitment', () => {
+  const f = attributeFocus(bio(0, 0, 26));   // Farker, level 34
+  assert.equal(f?.chip, 'character:characterIntelligence', 'Spirit was not recognised');
+  assert.equal(f.points, 26, 'the point count is what makes the reason worth reading');
+  assert.equal(f.share, 1);
+});
+
+test('a spread allocation says nothing', () => {
+  // Someone meeting gear requirements, which is not a build statement. Proposing devotion
+  // points chase attributes off the back of this would be inventing intent.
+  assert.equal(attributeFocus(bio(12, 10, 11)), null,
+    'an even spread was read as a decision');
+  assert.equal(attributeFocus(bio(14, 9, 7)), null,
+    '47% is a lean, not a commitment');
+});
+
+test('the threshold is a share, not a lead', () => {
+  // 70% of the points, so a commitment even though the rest went elsewhere.
+  assert.equal(attributeFocus(bio(21, 5, 4))?.chip, 'character:characterStrength');
+  // 69% -- one point the other way, and it is a lean again.
+  assert.equal(attributeFocus(bio(20, 5, 5)), null);
+});
+
+test('too few points is a sample size, not a decision', () => {
+  // Everything a level 6 character has is in one attribute, trivially. Reading that as a
+  // commitment would analyse noise and sound confident doing it.
+  assert.equal(attributeFocus(bio(0, 0, 5)), null, 'five points is not a build');
+  assert.equal(attributeFocus(bio(0, 0, 10))?.points, 10, 'ten is where it starts');
+});
+
+test('a character who has spent nothing is not a Physique build', () => {
+  // All three tie at zero, so the sort picks one. The minimum is what stops that
+  // becoming a confident proposal off an empty allocation.
+  assert.equal(attributeFocus(bio(0, 0, 0)), null);
+  assert.equal(attributeFocus(null), null, 'a missing bio should not throw');
+});
+
+test('base attributes, not the sheet', { skip: !haveBoth && 'needs player.gdc' }, async () => {
+  // The bio stores BASE values -- Farker reads 50/50/258 where the sheet says
+  // 387/434/305, because the sheet adds mastery bars, gear and devotion. Reading the
+  // sheet's numbers would put the gear contamination straight back into the one signal
+  // that does not have any.
+  const { readCharacter } = await import('./gdc.mjs');
+  const ch = readCharacter(new Uint8Array(fs.readFileSync(SAVE)));
+  const f = attributeFocus(ch.bio);
+  assert.equal(f?.chip, 'character:characterIntelligence', 'Farker is a Spirit build');
+  // Points earned is level - 1, so spent plus unspent must come to exactly that.
+  assert.equal(f.points + ch.bio.attributePoints, ch.level - 1,
+    'the allocation does not add up, so the 50/8 arithmetic is wrong');
 });
