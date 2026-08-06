@@ -612,20 +612,22 @@ function addChar({ from = null, name = null } = {}) {
  */
 function analyseCharacter(bytes, ch, difficulty) {
   if (!keywords || !itemIndex) return null;
-  let totals;
+  let totals; let sources;
   try {
     // A second pass over the same bytes rather than one combined read. Equipment sits
     // past the skills in the file, so reaching it means parsing further -- and keeping
     // the routes separate is what stops a change to item layout breaking devotion
     // reading, which is the half that must not fail.
-    totals = tallyGear(equippedRecords(readEquipment(bytes)), itemIndex).totals;
+    ({ totals, sources } = tallyGear(equippedRecords(readEquipment(bytes)), itemIndex));
   } catch {
     // Unreadable gear costs the analysis, not the import. The stars are already read.
     return null;
   }
 
   const p = proposeTags({
-    strengths: strengths(totals, chipMapper(keywords)),
+    // `sources` is what makes a stat qualify: appearing on more than one item is the
+    // claim that it is a pattern rather than one lucky roll. See MIN_SOURCES.
+    strengths: strengths(totals, chipMapper(keywords), { sources }),
     // The one number in the save the player wrote themselves -- see attributeFocus().
     // Read off the BASE attributes in the bio, which is why it needs `ch` and not the
     // gear tally: the sheet's numbers already have the gear added on.
@@ -2108,20 +2110,25 @@ function actualPath() {
  */
 function hasComparison() {
   if (!state.plan || !state.done.size) return false;
-  // ANYTHING YOU OWN THAT THE PLAN DOES NOT, at either level: a constellation it never
-  // picks, or a constellation it picks but takes less far than you already have.
+  // AN IMPORTED BUILD ALWAYS HAS A COMPARISON. It came out of the game, not out of
+  // ticking this plan, so "what have I got against what is suggested" is a live question
+  // even when the answer is "everything you have is endorsed" -- keeping 4 and buying 15
+  // is the useful reading of that.
   //
-  // The first version only asked about whole constellations, and that was too coarse in
-  // exactly the case this feature is for. Once the tags are DERIVED from your gear the
-  // suggestion naturally lands on the same constellations you chose, so the whole-
-  // constellation test came back false and the comparison vanished on import -- for the
-  // characters it was built to serve. What is left to decide then is depth, and depth is
-  // where the points are.
+  // It also has to be a property that does not move when the plan does. Deciding purely
+  // from the diff made the whole view appear and disappear as the scoring mode changed:
+  // measured on Farker, mode 0 produces a plan that is a superset of his build (nothing
+  // to give up) while modes 1 and 2 drop two constellations. A view that flickers in and
+  // out of existence as you adjust an unrelated control is worse than either state.
+  if (activeChar()?.[SOURCE_FIELD]) return true;
+
+  // Otherwise: anything you own that the plan does not, at either level -- a constellation
+  // it never picks, or one it picks but takes less far than you already have.
   //
-  // Still not "is this imported", and still not "does the plan have anything left to
-  // buy". Following a plan you made here leaves you a PREFIX of it: everything you own
-  // is planned, at a depth the plan means to exceed, so there is nothing to give up and
-  // nothing to decide.
+  // Following a plan you made here leaves you a PREFIX of it. Everything you own is
+  // planned, at a depth the plan means to exceed, so there is nothing to give up and
+  // nothing to decide, and turning that into a diff would take the tickable path away
+  // from someone who is simply using it.
   return diffPaths(actualPath(), state.plan.schedule.path)
     .rows.some(r => r.status === 'lose' || r.deeper < 0);
 }
@@ -3052,6 +3059,11 @@ app.addEventListener('click', e => {
     if (state.locked) return;
     pushHistory();
     state.done = new Set();
+    // Adopting IS the decision the comparison was asking for. Wanting the suggestion to
+    // be the plan means wanting the path to tick, not a diff -- and without this an
+    // imported character, which always has a comparison, would be handed one again the
+    // moment they ticked their first star. The Compare button stays there to go back.
+    state.compare = false;
     save();
     render();
     return;

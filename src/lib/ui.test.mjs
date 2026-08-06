@@ -203,6 +203,12 @@ function plan(labels, mode, { keep = false } = {}) {
   // plan: ticks left behind by an earlier test made hasComparison() true, so the
   // comparison rendered and a later test found no tickable stars at all.
   if (!keep) { ui.state.done.clear(); ui.state.compare = null; }
+  // Fourth instance of the leak, and the subtlest: withStore() puts localStorage back but
+  // NOT the in-memory document, so a test that marked its character as imported left that
+  // mark on every fixture after it -- and an imported character always has a comparison,
+  // so the next test looking for a tickable path found a diff instead.
+  const c = ui.activeChar?.();
+  if (c && !keep) delete c.source;
   ui.build();
   return ui.state.plan;
 }
@@ -3367,7 +3373,7 @@ test('each proposed tag carries its reason on the pill',
     for (const [, why] of whys) {
       // Gear percentages, a resistance reading, or an attribute allocation -- each of
       // the three signals states its own evidence, and all of them carry a number.
-      assert.match(why, /gear|attribute point|at \d/,
+      assert.match(why, /gear|equipped items|attribute point|at \d/,
         `"${why}" does not say what put the tag there`);
       assert.match(why, /\d/, `"${why}" asserts rather than shows`);
     }
@@ -3397,4 +3403,55 @@ test('taking a constellation further than the plan does is a comparison', () => 
   ui.render();
   assert.match(app.innerHTML, /class="cmp"/,
     'owning more of a constellation than the plan takes is something to decide about');
+});
+
+test('an imported build has a comparison even when the plan covers all of it', () => {
+  // THE PREFIX CASE, which is the whole difference between the two rules and the reason
+  // this is built synthetically rather than off the save. Measured on the real save,
+  // scoring mode 0 produced a plan that was a superset of the character's build -- so
+  // the diff-only rule hid the view -- while modes 1 and 2 dropped two constellations
+  // and showed it. A view that appears and disappears as you adjust an unrelated control
+  // is worse than either state. Whichever save happens to sit beside the repo cannot be
+  // relied on to reproduce that, so the shape is constructed here.
+  const s = withStore();
+  try {
+    ui.load();
+    plan([['Cold Damage']], 2);
+    // A strict PREFIX of the plan: everything owned is planned, nothing is given up.
+    ui.state.done = new Set(ui.pathStarKeys().slice(0, 3));
+    ui.render();
+    assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+      'a hand-built character part-way through its own plan has nothing to decide');
+
+    // The same build, but it came out of the game rather than out of ticking this plan.
+    ui.activeChar().source = 'Farker';
+    ui.state.compare = null;
+    ui.render();
+    assert.match(app.innerHTML, /class="cmp"/,
+      'an imported build should be comparable even when the plan endorses all of it');
+  } finally { s.restore(); }
+});
+
+test('Adopt ends the comparison, and ticking does not bring it back',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // Adopting IS the decision the comparison was asking for. Without this an imported
+  // character -- which always has one -- would be handed a diff again the moment they
+  // ticked their first star, instead of the path they just chose to follow.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    ui.render();
+    click({ adopt: '1' });
+    assert.doesNotMatch(app.innerHTML, /class="cmp"/, 'Adopt left the comparison up');
+
+    ui.state.plain = false; ui.render();
+    const star = /data-star="([^"]+)"/.exec(app.innerHTML);
+    assert.ok(star, 'Adopt left no tickable path, which is the thing it exists to give');
+    click({ star: star[1] });
+    assert.doesNotMatch(app.innerHTML, /class="cmp"/,
+      'ticking a star after adopting put the diff back');
+    // Still reachable on purpose -- leaving is an answer, not a one-way door.
+    assert.match(app.innerHTML, /data-compare/);
+  } finally { s.restore(); }
 });

@@ -4,6 +4,34 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.5.4 — 6 Aug 2026
+
+**Occurrences qualify, percentages rank.** A stat must appear on at least two equipped
+items to be taken seriously; the summed percentage then orders what's left. The two
+numbers answer different questions — a sum says how much, a count says how deliberate —
+and one huge roll looks identical to a stat the whole kit is built around until you count
+the slots.
+
+Ranking by count outright was measured and is worse: with twelve slots the counts run 1–3,
+so a one-item stat sits at 0.33x of a three-item leader and the 0.25 threshold cuts
+nothing. On the earlier save it kept **all nine** damage types. The percentages have the
+dynamic range; the counts have the meaning.
+
+The note in the code claiming count-based ranking had already been rejected was answering
+a different question: that measurement was over *all* modifiers, where movement speed
+dominates because armour rolls it by default. Within damage types it had never been run.
+
+Reasons now carry both numbers — "192% across 8 equipped items" — because the count is the
+test the stat had to pass, and reporting only the sum hides it.
+
+**The comparison no longer flickers.** An imported build always has one. Deciding purely
+from the diff meant the whole view appeared and disappeared as the scoring mode changed:
+measured on the save, mode 0 produces a plan that is a superset of the character's build
+while modes 1 and 2 drop two constellations. A build that came out of the game is worth
+comparing even when the answer is "everything you have is endorsed" — keeping 3 and buying
+12 is the useful reading of that. **Adopt** now ends the comparison, since adopting is the
+decision it was asking for.
+
 ## 0.5.3 — 6 Aug 2026
 
 **Attribute points now speak first.** They are the only pure statement of intent in a

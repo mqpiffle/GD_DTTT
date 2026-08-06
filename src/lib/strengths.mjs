@@ -117,13 +117,22 @@ export function chipMapper(keywords) {
  *
  * @param records  DBR paths from `equippedRecords()`
  * @param index    a parsed items-index.json
- * @returns { totals, jitter, missing } -- `missing` names records the index does not
- *          know, which is reported rather than swallowed. An item silently contributing
- *          nothing is the failure mode that looks like a working feature.
+ * @returns { totals, jitter, sources, missing }
+ *
+ * `missing` names records the index does not know, which is reported rather than
+ * swallowed -- an item silently contributing nothing is the failure mode that looks like
+ * a working feature.
+ *
+ * `sources` is field -> the set of records granting it. HOW MANY ITEMS carry a stat is a
+ * different question from how much they carry, and the two disagree in the case that
+ * matters: one enormous roll looks identical to a stat the whole build is assembled
+ * around. Sets rather than counts because a chip can be fed by several fields, and the
+ * same item granting two of them must not count twice.
  */
 export function tallyGear(records, index) {
   const totals = new Map();
   const jitter = new Map();
+  const sources = new Map();
   const missing = [];
   const prefix = index?.prefix ?? 'records/';
   const fields = index?.fields ?? [];
@@ -139,28 +148,65 @@ export function tallyGear(records, index) {
       const field = fields[s[i]];
       if (!field) continue;
       totals.set(field, (totals.get(field) ?? 0) + s[i + 1]);
+      // Only a POSITIVE contribution counts as a source. A negative roll is the item
+      // arguing against the stat, and counting it as evidence for it would be perverse.
+      if (s[i + 1] > 0) {
+        if (!sources.has(field)) sources.set(field, new Set());
+        sources.get(field).add(key);
+      }
       // Errors on independent rolls add in quadrature, so the band on a sum is much
       // tighter than on any one item.
       const half = (s[i + 1] * (entry.j ?? 0)) / 100;
       jitter.set(field, (jitter.get(field) ?? 0) + half * half);
     }
   }
-  return { totals, jitter, missing };
+  return { totals, jitter, sources, missing };
 }
+
+/**
+ * How many separate equipped items a stat must appear on to be taken seriously.
+ *
+ * OCCURRENCES QUALIFY, PERCENTAGES RANK, and the split is because the two numbers answer
+ * different questions. A sum says how much; a count says how deliberate. One item with a
+ * huge roll and a stat the whole kit is assembled around look identical in a sum, and
+ * only the count tells them apart -- a build is a pattern across slots, and a pattern
+ * needs more than one point to exist.
+ *
+ * Why not rank by the count as well: with twelve slots the counts run 1 to 3, and at that
+ * range a fractional threshold cuts nothing. Measured on Farker, ranking by count kept ALL
+ * NINE damage types, because a one-item stat is 0.33x of a three-item leader. The
+ * percentages have the dynamic range; the counts have the meaning. Use each for what it
+ * is good at.
+ *
+ * SET DELIBERATELY LOW. Two is "more than once", which is the whole claim being made. Any
+ * higher and it stops being a sanity check and starts being an opinion about how many
+ * slots a real build devotes to a stat -- and on a character wearing three set pieces and
+ * a relic, that opinion would be wrong.
+ */
+export const MIN_SOURCES = 2;
 
 /**
  * Rank what the character is built for, as chips.
  *
  * @param totals   from `tallyGear()`
  * @param chipOf   field -> chip id (from the same mapping the picker uses)
+ * @param opts.sources    from `tallyGear()` -- field -> set of records granting it.
+ *                        Omit it and every stat qualifies, which is the old behaviour
+ *                        and is what the pure-unit tests want.
  * @param opts.threshold  fraction of the leader a strength must reach
- * @returns [{ chip, value, share }] strongest first, already cut at the threshold
+ * @returns [{ chip, value, share, items }] strongest first, already cut
  */
 export function strengths(totals, chipOf, {
+  sources = null,
+  minSources = MIN_SOURCES,
   threshold = STRENGTH_THRESHOLD,
   damageTypes = DEFAULT_DAMAGE_TYPES,
 } = {}) {
   const byChip = new Map();
+  // Records per CHIP, unioned across every field feeding it. An item granting two fields
+  // of the same chip is one item, not two -- counting it twice would let a single piece
+  // qualify a stat on its own, which is the exact thing this is here to stop.
+  const chipSources = new Map();
   for (const [field, value] of totals ?? []) {
     if (!MODIFIER.test(field) || NOT_A_STRENGTH.test(field)) continue;
     const m = DAMAGE_TYPE.exec(field);
@@ -168,15 +214,24 @@ export function strengths(totals, chipOf, {
     const chip = chipOf?.(field);
     if (!chip) continue;
     byChip.set(chip, (byChip.get(chip) ?? 0) + value);
+    if (sources) {
+      if (!chipSources.has(chip)) chipSources.set(chip, new Set());
+      for (const rec of sources.get(field) ?? []) chipSources.get(chip).add(rec);
+    }
   }
+
+  const itemsFor = chip => (sources ? (chipSources.get(chip)?.size ?? 0) : null);
   const ranked = [...byChip.entries()]
-    .filter(([, v]) => v > 0)
+    .filter(([chip, v]) => v > 0 && (!sources || itemsFor(chip) >= minSources))
     .sort((a, b) => b[1] - a[1]);
   if (!ranked.length) return [];
 
+  // The leader is the biggest QUALIFYING stat, not the biggest overall. Measuring the
+  // share against something that was itself disqualified would let a single freak roll
+  // set the bar and quietly cut everything below it.
   const lead = ranked[0][1];
   return ranked
-    .map(([chip, value]) => ({ chip, value, share: value / lead }))
+    .map(([chip, value]) => ({ chip, value, share: value / lead, items: itemsFor(chip) }))
     .filter(s => s.share >= threshold);
 }
 

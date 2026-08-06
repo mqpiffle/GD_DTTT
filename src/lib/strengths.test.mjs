@@ -239,3 +239,119 @@ test('base attributes, not the sheet', { skip: !haveBoth && 'needs player.gdc' }
   assert.equal(f.points + ch.bio.attributePoints, ch.level - 1,
     'the allocation does not add up, so the 50/8 arithmetic is wrong');
 });
+
+// --- occurrences qualify, percentages rank ----------------------------------------
+//
+// Measured on Farker before this existed: ranking by ITEM COUNT kept all nine damage
+// types, because with twelve slots the counts run 1-3 and a one-item stat is 0.33x of a
+// three-item leader -- a fractional threshold cuts nothing at that range. Ranking by
+// PERCENTAGE alone cannot tell one enormous roll from a stat the kit is built around.
+// Each number is used for the thing it is good at.
+
+/** Two fields on the cold chip, so the same item feeding both can be tested. */
+const COLD2 = ['offensiveColdModifier', 'offensiveColdMin', 'offensiveFireModifier',
+  'offensivePierceModifier'];
+const cold = f => (f.startsWith('offensiveCold') ? 'character:offensiveCold'
+  : f.startsWith('offensiveFire') ? 'character:offensiveFire'
+  : f.startsWith('offensivePierce') ? 'character:offensivePierce' : null);
+
+test('one item is a roll, not a build, however big it is', () => {
+  const index = idx({
+    'items/weapon.dbr': { offensiveFireModifier: 500 },      // enormous, one slot
+    'items/a.dbr': { offensiveColdModifier: 20 },
+    'items/b.dbr': { offensiveColdModifier: 20 },
+  }, COLD2);
+  const { totals, sources } = tallyGear(
+    ['records/items/weapon.dbr', 'records/items/a.dbr', 'records/items/b.dbr'], index);
+
+  const s = strengths(totals, cold, { sources });
+  assert.deepEqual(s.map(x => x.chip), ['character:offensiveCold'],
+    'a 500% single-item roll outvoted a stat spread across two slots');
+  assert.equal(s[0].items, 2, 'the item count should be reported, not just used');
+});
+
+test('the leader is the biggest QUALIFYING stat', () => {
+  // Otherwise the disqualified freak roll still sets the bar, and everything real is
+  // measured against a number that was thrown out -- quietly cutting the whole list.
+  const index = idx({
+    'items/weapon.dbr': { offensiveFireModifier: 500 },
+    'items/a.dbr': { offensiveColdModifier: 50 },
+    'items/b.dbr': { offensiveColdModifier: 50 },
+    'items/c.dbr': { offensivePierceModifier: 30 },
+    'items/d.dbr': { offensivePierceModifier: 30 },
+  }, COLD2);
+  const { totals, sources } = tallyGear(
+    ['a', 'b', 'c', 'd', 'weapon'].map(n => `records/items/${n}.dbr`), index);
+
+  const s = strengths(totals, cold, { sources });
+  // Pierce is 60 of Cold's 100 -- 0.6, comfortably in. Measured against the discarded
+  // 500 it would be 0.12 and would vanish.
+  assert.deepEqual(s.map(x => x.chip),
+    ['character:offensiveCold', 'character:offensivePierce']);
+});
+
+test('one item feeding two fields of a chip is still one item', () => {
+  // Or a single piece qualifies a stat by itself, which is exactly what this prevents.
+  //
+  // Both fields have to be ones that SURVIVE the damage-type filter, or the second is
+  // dropped before the union runs and the test proves nothing. The first version of this
+  // used `offensiveColdMin`, which is not a Modifier -- it passed while keying the set by
+  // record AND field, the very bug it was written to catch.
+  const merged = () => 'character:offensiveCold';
+  const index = idx({
+    'items/a.dbr': { offensiveColdModifier: 40, offensiveFireModifier: 30 },
+  }, COLD2);
+  const { totals, sources } = tallyGear(['records/items/a.dbr'], index);
+  assert.equal(sources.size, 2, 'the fixture should have two fields on the one item');
+  assert.deepEqual(strengths(totals, merged, { sources }), [],
+    'one item counted twice because it granted two fields of the same chip');
+});
+
+test('a negative roll is not evidence for the stat', () => {
+  const index = idx({
+    'items/a.dbr': { offensiveColdModifier: 60 },
+    'items/cursed.dbr': { offensiveColdModifier: -10 },
+  }, COLD2);
+  const { totals, sources } = tallyGear(
+    ['records/items/a.dbr', 'records/items/cursed.dbr'], index);
+  assert.deepEqual(strengths(totals, cold, { sources }), [],
+    'an item arguing AGAINST the stat was counted as a second source for it');
+});
+
+test('without sources every stat qualifies, as before', () => {
+  // The gate is opt-in. Callers with no per-item data get the old behaviour rather than
+  // an empty list, which would be a silent and total failure.
+  const index = idx({ 'items/a.dbr': { offensiveColdModifier: 60 } }, COLD2);
+  const { totals } = tallyGear(['records/items/a.dbr'], index);
+  assert.equal(strengths(totals, cold).length, 1);
+  assert.equal(strengths(totals, cold)[0].items, null, 'no sources means no count to report');
+});
+
+test('a real character: the single-item stat drops out',
+  { skip: !haveBoth && 'needs player.gdc and items-index.json' }, async () => {
+  const { readEquipment, equippedRecords } = await import('./gdc.mjs');
+  const index = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
+  const keywords = JSON.parse(fs.readFileSync(
+    path.join(import.meta.dirname, '../../keywords.json'), 'utf8'));
+  const { totals, sources } = tallyGear(
+    equippedRecords(readEquipment(fs.readFileSync(SAVE))), index);
+
+  const withGate = strengths(totals, chipMapper(keywords), { sources });
+  assert.ok(withGate.length, 'a real character should have some strengths');
+  // The invariant, rather than "the gate excluded something": whether any single-item
+  // stat happens to be in the top few is a property of whatever save is sitting here,
+  // and asserting on it makes the test fail when the save is replaced. The synthetic
+  // fixtures above prove the exclusion; this proves it holds on real data.
+  for (const s of withGate) {
+    assert.ok(s.items >= 2, `${s.chip} qualified on ${s.items} item(s)`);
+  }
+  // And every stat the gate let through must be one a plain tally also found -- the gate
+  // removes, it never invents.
+  const plain = new Set(strengths(totals, chipMapper(keywords)).map(s => s.chip));
+  for (const s of withGate) assert.ok(plain.has(s.chip), `${s.chip} appeared from nowhere`);
+  // Ranking is still by percentage, so the list stays in descending value order.
+  for (let i = 1; i < withGate.length; i++) {
+    assert.ok(withGate[i - 1].value >= withGate[i].value,
+      'the list is not ordered by percentage, so occurrences leaked into the ranking');
+  }
+});

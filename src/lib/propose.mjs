@@ -122,8 +122,13 @@ export function proposeTags({
 
   // Then strengths. They are already cut at the threshold, so everything here has
   // earned its place -- there is no second-guessing to do.
+  // BOTH NUMBERS, because they are the two halves of the claim: the percentage is how
+  // much, the item count is why it counts as deliberate rather than as one lucky roll.
+  // Reporting only the sum would hide the test the stat actually had to pass.
   for (const s of strengths) {
-    push(s.chip, STRENGTH_WEIGHT, `${Math.round(s.value)}% on your gear`);
+    push(s.chip, STRENGTH_WEIGHT, s.items
+      ? `${Math.round(s.value)}% across ${s.items} equipped items`
+      : `${Math.round(s.value)}% on your gear`);
   }
 
   // Then the holes, WEAKEST FIRST so the scarce remaining slots go where it hurts most.
