@@ -4,6 +4,28 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.7 — 5 Aug 2026
+
+**The cost of switching builds can be computed.** `diffPaths()` reduces two devotion
+paths to what you keep, what you would buy, what you would give up, and the points it
+takes. Not rendered yet — the UI that shows it is specified in FUTURE-PLANS and not
+built.
+
+Compared by constellation rather than by star, because that is the unit of a devotion
+decision: the real question is whether you are in Owl at all, not whether you keep four of
+its five stars. Where both paths take one to different depths, the difference is carried
+on the row and costed.
+
+Two things it is careful about. A Crossroads bought as a stepping stone and later refunded
+is not something you own, so refund steps are dropped — counting them would inflate both
+sides and make every number wrong while looking entirely reasonable. And the headline is
+the **net**: "spend 24, get 6 back" makes you do arithmetic that "18" does not.
+
+**Switching and completing are told apart.** A finished character adopting a suggestion is
+doing a respec, decided now. A levelling character has most of the path still ahead, and
+the same number is the rest of the game rather than a cost. Measured on a real level 34:
+45 "points to switch" against the 1 point he actually had spare.
+
 ## 0.4.6 — 5 Aug 2026
 
 **Resistances are weighted against the difficulty you are planning for**, not the one your
