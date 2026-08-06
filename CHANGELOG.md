@@ -4,6 +4,36 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.5.2 — 6 Aug 2026
+
+**Import now fills the picker.** It reads your equipped gear, ranks what the build is
+actually for, and puts that in the target tags — Farker arrives with Physical, Internal
+Trauma, Pierce, Elemental and Cold rather than an empty picker. This was the missing half
+of import, and its absence looked like two separate bugs: with no tags there is no plan,
+so there was nothing to compare a build against. The diff visible for a moment after
+importing was the *previous* character's plan still on screen, and the first re-solve
+took it away with no way back.
+
+**Every proposed tag says what put it there** — an info icon on the pill reading "92% on
+your gear". A proposal you cannot interrogate is one you have to take on trust, and
+"Internal Trauma Damage" arriving unbidden reads as a bug until you learn it is 80% of
+what your gear grants.
+
+**Re-import never overwrites tags you chose.** It proposes only into an empty picker.
+Re-import exists to update what the game says — ticks, level, points earned — not to
+overrule what you decided.
+
+Resistances are still not derived, so the proposal is the strengths half only and no
+resistance tag is offered. `resists: null` says *unknown*, which is the truth; passing
+zero would read every resistance as dire and fill all five slots with holes the tool
+cannot actually see. Below level 25 the analysis declines and says why.
+
+Two smaller things behind these. The test suite's `fetch` stub ignored the URL and handed
+back `ui-index.json` whatever was asked for — harmless while only `classes.json` was
+affected, but it would have quietly disabled the gear analysis and left the tests passing.
+And `keywords.json` and `items-index.json` are now loaded at startup; both are optional,
+and a missing one degrades to "no automatic tags" rather than a broken app.
+
 ## 0.5.1 — 6 Aug 2026
 
 **Your build beside the suggestion.** Two columns — what you actually own on the left,

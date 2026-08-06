@@ -161,10 +161,16 @@ function fire(type, ev = {}) {
 globalThis.document = { getElementById: () => app };
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.requestAnimationFrame = fn => setTimeout(fn, 0);
-globalThis.fetch = async () => ({
-  json: async () => JSON.parse(
-    fs.readFileSync(path.join(srcDir, '../ui-index.json'), 'utf8')),
-});
+// Serves the real files by name. It used to ignore the URL and hand back ui-index.json
+// whatever was asked for, which meant classes.json silently arrived as the wrong file --
+// harmless only because characterLabel() degrades. Once import started reading the
+// keyword and item indexes that stub would have quietly disabled the analysis and left
+// the tests passing.
+globalThis.fetch = async (url) => {
+  const file = path.join(srcDir, '..', String(url).replace(/^\.\.\//, ''));
+  if (!fs.existsSync(file)) return { ok: false, json: async () => ({}) };
+  return { ok: true, json: async () => JSON.parse(fs.readFileSync(file, 'utf8')) };
+};
 
 // Imported like any other module, now that the page's logic lives in a file. Until
 // 1 Aug this had to read ui-mockup.html, regex the inline <script> out of it, rewrite
@@ -3269,5 +3275,103 @@ test('switching character asks the comparison question again', () => {
     // and after a re-import, on a build that is not even the one you dismissed.
     assert.match(app.innerHTML, /class="cmp"/,
       'the comparison stayed dismissed for a character switched away from and back');
+  } finally { s.restore(); }
+});
+
+// --- import fills the picker ------------------------------------------------------
+//
+// These are the tests that were missing, and their absence hid a bug that looked like
+// two: import set ticks and nothing else, so a freshly imported character had no tags,
+// therefore no plan, therefore nothing to compare its build against. The diff visible
+// for a moment after import was the PREVIOUS character's plan still on screen, and the
+// first re-solve took it away with no way back.
+//
+// So the thing to assert is not "a comparison appeared" -- that passed while broken --
+// but that the picker has tags of its own and they survive touching another control.
+
+test('importing fills the picker from what the gear is built for',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const r = ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    assert.ok(!r.error, `import failed: ${r.error}`);
+
+    assert.ok(ui.state.sel.filter(x => x != null).length > 0,
+      'import left the picker empty, so there is nothing to plan and nothing to compare');
+    // Every proposed tag says what put it there. A proposal you cannot interrogate is
+    // one you have to take on trust.
+    for (const i of ui.state.sel.filter(x => x != null)) {
+      assert.ok(ui.state.tagReasons?.get(ui.chips[i].id),
+        `${ui.chips[i].label} was proposed with no reason attached`);
+    }
+    assert.ok(ui.state.plan, 'tags but no plan -- import did not re-solve');
+  } finally { s.restore(); }
+});
+
+test('the imported diff survives changing the power scoring',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // The reported bug. Whether there is a comparison is a fact about the build, so it
+  // must not depend on which controls have been touched since.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    ui.render();
+    const had = /class="cmp"/.test(app.innerHTML);
+
+    click({ score: String(ui.state.mode === 0 ? 1 : 0) });
+    ui.build();       // the handler defers this; do it now rather than wait on a timer
+    ui.render();
+
+    assert.equal(/class="cmp"/.test(app.innerHTML), had,
+      'changing the scoring mode lost the comparison');
+    if (had) {
+      assert.match(app.innerHTML, /data-compare/,
+        'and left no way to get it back');
+    }
+  } finally { s.restore(); }
+});
+
+test('re-import updates the facts but never overwrites tags you chose',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  const s = withStore();
+  try {
+    ui.load();
+    const bytes = new Uint8Array(fs.readFileSync(SAVE));
+    ui.importSave(bytes);
+
+    // Edit the proposal, the way anyone would.
+    ui.state.sel = ui.state.sel.map(() => null);
+    ui.state.sel[0] = chipIdx('Armor');
+    ui.save();
+
+    const r = ui.importSave(bytes);
+    assert.ok(r.reimported, 'the second import made a new character instead of updating');
+    assert.deepEqual(ui.state.sel.filter(x => x != null), [chipIdx('Armor')],
+      're-import replaced tags the player had edited; it reports facts, not intent');
+  } finally { s.restore(); }
+});
+
+test('each proposed tag carries its reason on the pill',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  const s = withStore();
+  try {
+    ui.load();
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    ui.render();
+
+    const whys = [...app.innerHTML.matchAll(/class="ti ti-info-circle why" title="([^"]+)"/g)];
+    assert.equal(whys.length, ui.state.sel.filter(x => x != null).length,
+      'a proposed tag with no reason is one the player has to take on trust');
+    for (const [, why] of whys) {
+      assert.match(why, /gear|at \d/, `"${why}" does not say what put the tag there`);
+    }
+
+    // Tags picked by hand explain nothing, because there is nothing to explain.
+    ui.state.tagReasons = null;
+    ui.render();
+    assert.doesNotMatch(app.innerHTML, /ti-info-circle why/,
+      'a hand-picked tag was given an explanation it never had');
   } finally { s.restore(); }
 });

@@ -232,6 +232,12 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    rather than a column away; the gap to the stars is made by the control's auto
    margin instead. flex-shrink keeps a very long tag name from pushing the stars off. */
 .slot > .sname{flex:0 1 auto}
+/* Why a save proposed this tag. Dimmed because it is an offer of an explanation rather
+   than an explanation -- the name is what you read, and this only speaks on hover. It
+   sits INSIDE .sname so it ellipsises away with a very long name instead of being the
+   one thing that survives. `cursor:help` is the only affordance it needs. */
+.why{opacity:.5;cursor:help;font-size:var(--fs-sm)}
+.slot:hover .why{opacity:.85}
 .slot.empty > span:first-child{flex:1}
 /* Rows in a list, not a stack of outlined pills. A hairline between them separates
    them where a border per row drew four sides to do the job of one, and with the

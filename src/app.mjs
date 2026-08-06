@@ -17,7 +17,9 @@ import { solveBest, blockedPowers } from './lib/solver.mjs';
 import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
-import { readCharacter, DIFFICULTIES } from './lib/gdc.mjs';
+import { readCharacter, readEquipment, equippedRecords, DIFFICULTIES } from './lib/gdc.mjs';
+import { tallyGear, strengths, chipMapper } from './lib/strengths.mjs';
+import { proposeTags } from './lib/propose.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 import { diffPaths, summarise } from './lib/diff.mjs';
 
@@ -75,6 +77,23 @@ const db = buildDb(raw);
 const classes = await fetch('../classes.json', { cache: 'no-cache' })
   .then(r => (r.ok ? r.json() : {}))
   .catch(() => ({}));
+
+// What an imported character is BUILT FOR is read from its gear, and that needs two more
+// files: the keyword definitions (which DBR fields belong to which chip) and the item
+// index (which stats each record grants). Neither is needed to plan by hand.
+//
+// Optional, like classes.json, and for the same reason: a missing or stale index must
+// degrade to "no automatic tags" rather than stop the app loading. `analyseCharacter()`
+// returns null when either is absent, and import still ticks the stars.
+//
+// Loaded up front rather than on demand. items-index.json is 1.2 MB, which sounds like a
+// reason to defer it until someone imports -- but this is served from disk beside the
+// page, and deferring would make importSave() async, which turns one straightforward
+// function into a promise every caller has to thread.
+const keywords = await fetch('../keywords.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : null)).catch(() => null);
+const itemIndex = await fetch('../items-index.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : null)).catch(() => null);
 
 const state = {
   // Sized from MAX, not a literal -- a three-slot array silently caps you at three
@@ -152,6 +171,14 @@ const state = {
   // persisted -- it describes an action, not the character, and a note about an import
   // you did last week would be noise on load.
   importNote: null,
+  // Why each proposed tag is there -- chip id -> a phrase like "62% on your gear".
+  // A Map, or null when the tags were picked by hand and there is nothing to explain.
+  // Transient like importNote: it describes a reading of the save, and a reason that
+  // outlived the gear it was read from would be a confident lie.
+  tagReasons: null,
+  // Set when a save was too low-level to analyse, carrying the explanation. Declining
+  // silently would look like a broken import.
+  tooEarly: null,
   // --- controls ---------------------------------------------------------------
   // Which controls are switched on, in the order they were switched on. Order is
   // priority: at the five-tag limit the earlier one keeps its tags.
@@ -566,6 +593,63 @@ function addChar({ from = null, name = null } = {}) {
  *
  * @returns a summary for the caller to report, or `{ error }`. Never throws at the UI.
  */
+/**
+ * Read what a character is built for off its gear, and turn that into target tags.
+ *
+ * WHY IMPORT MUST DO THIS. Without it an import sets ticks and nothing else, so the
+ * suggested column is whatever tags happened to be lying around -- on a fresh character,
+ * none, which means no plan, which means no comparison at all. The diff you saw for a
+ * moment was the previous character's plan still on screen, and the first re-solve took
+ * it away. A comparison against nothing is not a comparison.
+ *
+ * It PROPOSES. Everything it places lands in the ordinary picker slots, weighted, and
+ * can be reweighted, dropped or replaced. `reasons` is kept so each tag can say what put
+ * it there -- a proposal you cannot interrogate is one you have to take on trust.
+ *
+ * @returns null when the analysis could not run (no index, unreadable equipment), or
+ *          `{ tags, weights, reasons, tooEarly }`. Null is not an error to report: the
+ *          import itself succeeded and the player can pick tags by hand.
+ */
+function analyseCharacter(bytes, ch, difficulty) {
+  if (!keywords || !itemIndex) return null;
+  let totals;
+  try {
+    // A second pass over the same bytes rather than one combined read. Equipment sits
+    // past the skills in the file, so reaching it means parsing further -- and keeping
+    // the routes separate is what stops a change to item layout breaking devotion
+    // reading, which is the half that must not fail.
+    totals = tallyGear(equippedRecords(readEquipment(bytes)), itemIndex).totals;
+  } catch {
+    // Unreadable gear costs the analysis, not the import. The stars are already read.
+    return null;
+  }
+
+  const p = proposeTags({
+    strengths: strengths(totals, chipMapper(keywords)),
+    // RESISTANCES ARE NOT DERIVED YET, so the proposal is the strengths half only and
+    // no resistance tag is offered. `null` says unknown -- which is the truth -- rather
+    // than zero, which would have every resistance read as dire and fill all five slots
+    // with holes the tool cannot actually see.
+    resists: null,
+    max: MAX,
+    level: ch.level,
+    difficulty,
+  });
+  if (!p.tags.length) return { tags: [], weights: [], reasons: p.reasons, tooEarly: p.tooEarly };
+
+  // Into the picker's own shape: chip INDICES, because that is what state.sel holds.
+  // A tag whose chip no longer exists is dropped rather than stored as -1.
+  const tags = [];
+  const weights = [];
+  for (const { tag, weight } of p.tags) {
+    const i = chips.findIndex(c => c.id === tag);
+    if (i < 0) continue;
+    tags.push(chips[i].id);
+    weights.push(clampWeight(weight));
+  }
+  return { tags, weights, reasons: p.reasons, tooEarly: p.tooEarly };
+}
+
 function importSave(bytes) {
   let ch;
   try {
@@ -608,7 +692,36 @@ function importSave(bytes) {
   doc.chars[id].totalDevotion = ch.bio.totalDevotion;
   if (doc.chars[id].difficulty == null) doc.chars[id].difficulty = ch.difficulty?.tier ?? 'normal';
   state.done = new Set(keys);
+
+  // ANALYSE, AND ONLY WHEN THERE IS NOTHING TO TRAMPLE.
+  //
+  // A first import has no tags, so the proposal is the only thing that can fill them and
+  // it must -- see analyseCharacter(). A RE-IMPORT is a different matter: by then the
+  // tags may have been edited, and re-import exists to update what the game says (ticks,
+  // level, points), not to overrule what you decided. So it proposes only into an empty
+  // picker, and otherwise leaves your tags exactly where they are.
+  const analysis = picked().length
+    ? null
+    : analyseCharacter(bytes, ch, doc.chars[id].difficulty);
+  if (analysis?.tags.length) {
+    state.sel = Array(MAX).fill(null);
+    state.weights = Array(MAX).fill(DEFAULT_WEIGHT);
+    analysis.tags.forEach((tagId, i) => {
+      state.sel[i] = chips.findIndex(c => c.id === tagId);
+      state.weights[i] = analysis.weights[i];
+    });
+    // A proposal you cannot interrogate is one you have to take on trust. Kept beside
+    // the tags so each pill can say what put it there.
+    state.tagReasons = analysis.reasons;
+    dropOrder();
+  }
+  state.tooEarly = analysis?.tooEarly ?? null;
+
   stash();
+  // Solve NOW rather than through scheduleBuild(): the tags just changed underneath the
+  // caller, and the import message is about to be written against a plan. Deferring it
+  // would report on the previous character's.
+  if (picked().length) build();
 
   // Ticks are stored per constellation and star, but the panels only draw what the
   // CURRENT plan contains -- so an imported character whose real devotions differ from
@@ -628,6 +741,10 @@ function importSave(bytes) {
     total: ch.bio.totalDevotion,
     unmatched,
     hidden: hidden.length,
+    // How many target tags the gear analysis placed, and why it declined if it did.
+    // Both null when the picker already had tags and was left alone.
+    tags: analysis?.tags.length || null,
+    tooEarly: analysis?.tooEarly ?? null,
   };
 }
 
@@ -2265,9 +2382,18 @@ function render() {
     // Name and its remove button travel together on the left; the weight sits on the
     // right. Removing a tag is an action ON that name, so the two belong side by side --
     // stranded at the far edge the button read as if it belonged to the stars.
+    // WHY THIS TAG IS HERE, when a save put it here. A proposal you cannot interrogate
+    // is one you have to take on trust, and "Internal Trauma Damage" arriving unbidden
+    // reads as a bug until you learn it is 80% of what your gear actually grants.
+    //
+    // An icon rather than a title on the whole pill: the pill is a control with three
+    // buttons on it, and a tooltip covering all of them would fight every one.
+    const why = state.tagReasons?.get(chips[s].id);
     h += `<div class="slot full${isPower ? ' pow' : ''}">
        <span class="sname">${esc(chips[s].label)}${chips[s].ns === 'pet' ? ' <span style="font-size:var(--fs-base);opacity:.6">pet</span>' : ''}${
-         isPower ? ' <span class="cpc">CP</span>' : ''}</span>
+         isPower ? ' <span class="cpc">CP</span>' : ''}${
+         why ? ` <i class="ti ti-info-circle why" title="${esc(why)}"
+           aria-label="Why: ${esc(why)}"></i>` : ''}</span>
        <button class="rb" data-rm="${i}"${state.locked ? ' disabled' : ''}
          aria-label="Remove ${esc(chips[s].label)}"><i class="ti ti-minus"></i></button>
        ${control}</div>`;
@@ -2796,6 +2922,12 @@ app.addEventListener('change', (e) => {
         if (r.unmatched.length) {
           bits.push(`${r.unmatched.length} record${r.unmatched.length === 1 ? '' : 's'} `
             + 'could not be matched to a star');
+        }
+        // Declining to analyse is a decision, and one the player can overrule by picking
+        // tags themselves. Saying nothing would look like the analysis had failed.
+        if (r.tooEarly) bits.push(r.tooEarly);
+        else if (r.tags) {
+          bits.push(`Target tags set from your gear -- change any of them`);
         }
         state.importNote = { error: false, text: `${bits.join('. ')}.` };
       }
