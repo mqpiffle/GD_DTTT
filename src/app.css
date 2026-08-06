@@ -763,3 +763,10 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
 .scroll::-webkit-scrollbar-track{background:var(--surface-4);border-radius:6px}
 .scroll::-webkit-scrollbar-thumb{background:var(--line-4);border-radius:6px}
 .scroll::-webkit-scrollbar-thumb:hover{background:var(--ink-13)}
+
+/* Who this character is, when a save told us. Information beside the name rather than a
+   field, so it reads as given rather than as something you fill in. */
+.cmeta{font-size:var(--fs-xs);color:var(--ink-9);white-space:nowrap}
+/* The difficulty being planned for. Sized like the switcher so the bar keeps one line. */
+.dpick{font-size:var(--fs-xs);color:var(--ink-4);background:var(--surface-2);
+  border:1px solid var(--line-6);border-radius:5px;padding:3px 6px}

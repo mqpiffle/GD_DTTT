@@ -97,6 +97,7 @@ const SEL = {
   '[data-cnew]': 'cnew', '[data-cdup]': 'cdup', '[data-crename]': 'crename',
   '[data-cdel]': 'cdel', '[data-cswitch]': 'cswitch',
   '[data-ctl]': 'ctl', '[data-ctlin]': 'ctlin',
+  '[data-collapse]': 'collapse', '[data-difficulty]': 'difficulty',
 };
 
 /** Fire a `change` on an element carrying `dataset`, as a <select> does. */
@@ -2551,7 +2552,11 @@ test('the bar lists every character and marks the active one', () => {
     plan([['Fire Damage']], 1);
     ui.render();
 
-    const opts = [...app.innerHTML.matchAll(/<option value="([^"]+)"( selected)?>([^<]*)</g)];
+    // Scoped to the character switcher. Counting every <option> on the page picked up
+    // the difficulty selector too, which is a different question entirely.
+    const picker = app.innerHTML.slice(app.innerHTML.indexOf('class="cpick"'));
+    const justPicker = picker.slice(0, picker.indexOf('</select>'));
+    const opts = [...justPicker.matchAll(/<option value="([^"]+)"( selected)?>([^<]*)</g)];
     assert.equal(opts.length, 2, 'the switcher does not list both characters');
     const sel = opts.filter(o => o[2]);
     assert.equal(sel.length, 1, 'exactly one option should be selected');
@@ -2765,53 +2770,23 @@ test('switching a control off leaves your tags alone', () => {
   } finally { s.restore(); }
 });
 
-test('the resistance equaliser only acts once it has numbers', () => {
+test('a preset choice belongs to the character, not the app', () => {
+  // What you are aiming this character at is a fact about THIS character. Carrying it to
+  // another would be worse than losing it: it would look deliberate.
   const s = withStore();
   try {
     ui.load();
-    click({ ctl: 'resist-equalizer' });
-    assert.equal(ui.state.sel.filter(x => x != null).length, 0,
-      'the equaliser guessed tags before being given any resistances');
-
-    // Type a dire chaos resistance, as the form would.
-    change({ ctlin: 'chaos', value: '15' });
-    const picked = ui.state.sel.filter(x => x != null).map(i => ui.chips[i].label);
-    assert.deepEqual(picked, ['Chaos Resistance'], 'a typed resistance produced no tag');
-    assert.equal(ui.state.weights[0], 3, 'a 15% resistance should be weighted hardest');
-  } finally { s.restore(); }
-});
-
-test('control inputs belong to the character, not the app', () => {
-  // Your resistances are a fact about THIS character's gear. Carrying them to another
-  // character would be worse than losing them: they would look authoritative.
-  const s = withStore();
-  try {
-    ui.load();
-    click({ ctl: 'resist-equalizer' });
-    change({ ctlin: 'aether', value: '20' });
+    click({ ctl: 'turtle' });
     const first = ui.charList()[0].id;
 
     ui.addChar({});
-    assert.equal(ui.state.controls.length, 0, 'a new character inherited a control');
-    assert.deepEqual(ui.state.controlInputs, {}, 'a new character inherited resistances');
+    assert.equal(ui.state.controls.length, 0, 'a new character inherited a preset');
 
     ui.switchChar(first);
-    assert.deepEqual(ui.state.controls, ['resist-equalizer'], 'the control did not come back');
-    assert.equal(ui.state.controlInputs.aether, 20, 'the resistances did not come back');
+    assert.deepEqual(ui.state.controls, ['turtle'], 'the preset did not come back');
   } finally { s.restore(); }
 });
 
-test('a control\'s inputs are only shown while it is on', () => {
-  const s = withStore();
-  try {
-    ui.load();
-    ui.render();
-    assert.doesNotMatch(app.innerHTML, /data-ctlin/, 'inputs shown for a control that is off');
-    click({ ctl: 'resist-equalizer' });
-    ui.render();
-    assert.match(app.innerHTML, /data-ctlin="chaos"/, 'no inputs shown for the active control');
-  } finally { s.restore(); }
-});
 
 // --- importing a character from a save ---------------------------------------------
 //
@@ -3074,5 +3049,102 @@ test('the v2 key is LEFT IN PLACE as an undo', () => {
     assert.ok(globalThis.localStorage.getItem('gd-devotion-planner:v2'),
       'the v2 payload must survive the migration');
     assert.ok(globalThis.localStorage.getItem('gd-devotion-planner:v3'));
+  } finally { s.restore(); }
+});
+
+test('presets live in the tag picker, one at a time', () => {
+  // They moved out of their own column: a preset exists to produce tags, and the picker
+  // is where tags come from. Folding them back also returns the width that made three
+  // columns cramped.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.match(app.innerHTML, /data-tab="presets"/, 'the third tab should exist');
+    // The equaliser asked nine questions to tell you something it could work out. Gone.
+    assert.doesNotMatch(app.innerHTML, /data-ctlin/);
+
+    // `button: 1` because the tab handler reaches its target through closest('button'),
+    // which the harness only matches when the dataset says so.
+    click({ tab: 'presets', button: 1 });
+    ui.render();
+    assert.match(app.innerHTML, /data-ctl="meta-offense"/, 'presets render in the tab');
+    assert.doesNotMatch(app.innerHTML, /data-add=/, 'chips belong to the other tabs');
+  } finally { s.restore(); }
+});
+
+test('choosing a preset replaces the last one rather than stacking', () => {
+  // A UI simplification, NOT a limit of the model: applyControls() still combines any
+  // number and merges on the higher weight, and that code is kept because stacking
+  // "shore up resistances" with "push what I have" was the common case.
+  const s = withStore();
+  try {
+    ui.load();
+    click({ ctl: 'meta-offense' });
+    assert.deepEqual(ui.state.controls, ['meta-offense']);
+    click({ ctl: 'turtle' });
+    assert.deepEqual(ui.state.controls, ['turtle'], 'the second should replace the first');
+    click({ ctl: 'turtle' });
+    assert.deepEqual(ui.state.controls, [], 'clicking the active one turns it off');
+  } finally { s.restore(); }
+});
+
+test('collapse-all folds every open category, and hides when there is nothing to fold', () => {
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.match(app.innerHTML, /data-collapse/, 'should offer to collapse what is open');
+
+    click({ collapse: '1', button: 1 });
+    ui.render();
+    assert.equal([...ui.state.open].filter(k => k.startsWith('character|')).length, 0,
+      'every open category should have folded');
+    // A control that does nothing is worse than one that is absent.
+    assert.doesNotMatch(app.innerHTML, /data-collapse/);
+  } finally { s.restore(); }
+});
+
+test('an imported character shows its level and class; a hand-built one shows neither', () => {
+  // Level and class are facts a save gave us rather than anything typed, so they sit
+  // beside the name as information. A character with no save behind it has none to show,
+  // and inventing them would be worse than the gap.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.doesNotMatch(app.innerHTML, /class="cmeta"/,
+      'a hand-built character has no level or class to show');
+
+    const id = ui.charList()[0].id;
+    ui.activeChar().source = 'Farker';
+    ui.activeChar().level = 34;
+    ui.activeChar().classId = 'tagSkillClassName0410';
+    ui.render();
+    assert.match(app.innerHTML, /class="cmeta"/);
+    assert.match(app.innerHTML, /34/, 'the level should be shown');
+  } finally { s.restore(); }
+});
+
+test('the difficulty being planned for is per character', () => {
+  // Which difficulty you are aiming at is part of planning THIS build -- it changes the
+  // advice, since a resistance that is fine on Veteran is dire on Elite -- so it cannot
+  // be a preference shared across every character.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.match(app.innerHTML, /data-difficulty/, 'the selector should be in the bar');
+
+    const first = ui.charList()[0].id;
+    change({ difficulty: '1', value: 'ultimate' });
+    assert.equal(ui.activeChar().difficulty, 'ultimate');
+
+    ui.addChar({});
+    assert.notEqual(ui.activeChar().difficulty, 'ultimate',
+      'a new character inherited a difficulty');
+
+    ui.switchChar(first);
+    assert.equal(ui.activeChar().difficulty, 'ultimate', 'it did not come back');
   } finally { s.restore(); }
 });

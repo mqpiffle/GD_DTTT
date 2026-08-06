@@ -8,17 +8,18 @@
 // A control is a pure function returning weighted tags, which then land in the picker
 // where you can argue with them. It proposes; it never replaces what you chose.
 //
-// WHAT A CONTROL MAY ASK FOR. Some intents need facts a save file does not contain.
-// Resistances are the sharp case: they are decisive in this game and almost entirely
-// gear-driven, and the save stores none of them -- the character sheet computes them at
-// runtime. Deriving them would mean resolving every equipped item's base, prefix,
-// suffix, components and augments, and item affix values are rolled per item from a
-// seed, so it would mean reimplementing the game's RNG. Subtly wrong resistances are
-// worse than none.
+// NO CONTROL ASKS FOR ANYTHING ANY MORE, and the history is worth keeping because the
+// reasoning that led here was wrong twice.
 //
-// So a control declares `inputs` and simply asks. Ten numbers off your character sheet
-// are not a compromise here: they are strictly better than any derivation, because the
-// game already folded in conversions, set bonuses, augments and skill buffs.
+// The first version of this file said deriving resistances would mean reimplementing the
+// game's RNG, because affix values are rolled per item from a seed. That is false: a
+// record stores a single value plus a jitter percentage, so the stored value IS the
+// expected roll. The RNG is needed for one item's exact number, never for a sum.
+//
+// So the equaliser asked nine questions it did not need to ask, and it is gone. What it
+// taught -- the sheet's own resistance order, the elemental collapse, the 45/60/75
+// thresholds -- is below and still used. See DERIVED-STATS-PROBE.md on the derive-stats
+// branch for the measurements.
 
 /** The picker's limit, and therefore the budget every control shares. */
 export const MAX_TAGS = 5;
@@ -28,7 +29,7 @@ export const MAX_TAGS = 5;
  *
  * 80% is the hard maximum, but the practical target players aim for is 75-80 before
  * overcapping for reductions. A resistance at or above this is not worth devotion
- * points, so the equaliser ignores it entirely.
+ * points, so it is not proposed at all.
  */
 const RESIST_TARGET = 75;
 
@@ -85,8 +86,8 @@ export const EXCLUDED_RESIST = 'character:defensivePhysical';
 /**
  * How badly a resistance wants attention: 3 is dire, 0 is fine.
  *
- * Exported so the import proposal uses the SAME judgement as the equaliser rather than a
- * second copy of these thresholds. Two versions of "what counts as dire" would drift, and
+ * Exported so the import proposal uses this judgement rather than a second copy of these
+ * thresholds. Two versions of "what counts as dire" would drift, and
  * the drift would be invisible -- both would keep producing plausible numbers.
  */
 export const resistWeightOf = value => resistWeight(value);
@@ -100,6 +101,25 @@ function resistWeight(value) {
 
 const t = (tag, weight) => ({ tag, weight });
 
+/**
+ * THE RESISTANCE EQUALISER IS GONE, and its absence is the point.
+ *
+ * It asked for nine numbers off the character sheet. Once resistances are read from a
+ * save there is nothing to ask -- a control that puts nine questions to you in order to
+ * tell you something it could have worked out is worse than no control at all. A
+ * hand-built character simply picks the resistance tags directly.
+ *
+ * What it taught survives and is still used by propose.mjs: `RESISTS` (the sheet's own
+ * order, with fire, cold and lightning collapsed onto the single chip the tree offers)
+ * and `resistWeightOf` (the 45/60/75 thresholds). Deleting those and writing a second
+ * copy elsewhere would let two versions of "what counts as dire" drift apart, and the
+ * drift would be invisible because both would keep producing plausible numbers.
+ *
+ * PRESETS STILL STACK HERE. `applyControls()` combines any number of them, merging on
+ * the higher weight. Only the UI shows one at a time, and that is a simplification we
+ * agreed to rather than a limit of the model -- combining "shore up my resistances" with
+ * "push what I already have" was the common case, and the code for it is kept.
+ */
 export const CONTROLS = [
   {
     id: 'meta-offense',
@@ -150,33 +170,6 @@ export const CONTROLS = [
     ],
   },
 
-  {
-    id: 'resist-equalizer',
-    label: 'Resistance equalizer',
-    blurb: 'Raise whatever is weakest. Resistances decide whether you live, and they '
-      + 'come almost entirely from gear, so this is the control to re-run after a '
-      + 'change of kit.',
-    // Asked rather than derived. See the note at the top of this file.
-    inputs: RESISTS.map(r => ({ key: r.key, label: r.label, min: -100, max: 200 })),
-    suggest: ({ inputs = {} } = {}) => {
-      // Group first: fire, cold and lightning share one tag, and the weakest of them is
-      // what matters, since raising elemental resistance raises all three.
-      const worst = new Map();
-      for (const r of RESISTS) {
-        const v = Number(inputs[r.key]);
-        if (!Number.isFinite(v)) continue;
-        if (!worst.has(r.tag) || v < worst.get(r.tag).value) {
-          worst.set(r.tag, { value: v, label: r.label });
-        }
-      }
-      return [...worst.entries()]
-        .map(([tag, { value }]) => ({ tag, weight: resistWeight(value), value }))
-        .filter(x => x.weight > 0)
-        // Weakest first, so the budget goes where it is most needed.
-        .sort((a, b) => a.value - b.value)
-        .map(x => t(x.tag, x.weight));
-    },
-  },
 ];
 
 export const controlById = id => CONTROLS.find(c => c.id === id) ?? null;

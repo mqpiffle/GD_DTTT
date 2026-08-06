@@ -4,6 +4,30 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.5.0 — 5 Aug 2026
+
+**Back to two columns.** Everything you set and everything you read about your inputs is
+on the left; the devotion path is on the right. The separate controls column added in
+v0.3.1 is gone — presets belong in the tag picker, because a preset exists to produce tags
+and the picker is where tags come from, and folding them back returns the width that made
+three columns cramped.
+
+**Presets are a third tab beside Character and Pet**, one at a time. That is a UI
+simplification rather than a limit: `applyControls()` still combines any number and merges
+on the higher weight, because stacking "shore up my resistances" with "push what I already
+have" was the common case, and undoing this is a one-line change.
+
+**The resistance equaliser is gone.** It asked nine questions to tell you something it
+could work out. A hand-built character just picks the resistance tags directly. What it
+taught survives and is still the single source of what counts as a dire resistance.
+
+**Collapse-all** on the Tag library title, folding every open category. It disappears when
+nothing is open, since a control that does nothing is worse than one that is absent.
+
+**The top bar carries the character.** Level and class where a save told us, and the
+difficulty you are planning for — which belongs beside the character because it changes the
+advice rather than the display. Both are per character.
+
 ## 0.4.8 — 5 Aug 2026
 
 **Progress now means the build you actually have.** It used to mean progress against the

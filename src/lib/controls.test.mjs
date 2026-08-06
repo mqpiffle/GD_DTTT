@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CONTROLS, RESISTS, applyControls, controlById, MAX_TAGS, EXCLUDED_RESIST }
-  from './controls.mjs';
+import { CONTROLS, RESISTS, applyControls, controlById, MAX_TAGS, EXCLUDED_RESIST,
+  resistWeightOf } from './controls.mjs';
 
 const index = JSON.parse(
   fs.readFileSync(path.join(import.meta.dirname, '../../ui-index.json'), 'utf8'));
@@ -29,39 +29,8 @@ test('every tag a control can emit is a real, pickable chip', () => {
   }
 });
 
-test('the equaliser ignores resistances that are already capped', () => {
-  // Points spent raising a resistance past its cap do nothing, so a control that
-  // suggested them would be actively wasting the budget.
-  const all = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
-  const { tags } = applyControls(['resist-equalizer'], { inputs: all });
-  assert.equal(tags.length, 0, 'a fully capped character was told to raise resistances');
-});
 
-test('the equaliser puts the weakest resistance first and weights it hardest', () => {
-  const inputs = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
-  inputs.chaos = 12;        // dire
-  inputs.aether = 55;       // middling
-  inputs.pierce = 70;       // nearly there
-  const { tags } = applyControls(['resist-equalizer'], { inputs });
 
-  assert.equal(tags[0].tag, 'character:defensiveChaos', 'the weakest resistance is not first');
-  assert.equal(tags[0].weight, 3, 'a 12% resistance should be weighted hardest');
-  assert.equal(tags.at(-1).tag, 'character:defensivePierce', 'the least urgent should be last');
-  assert.equal(tags.at(-1).weight, 1);
-  assert.equal(tags.length, 3, 'only the three below cap should appear');
-});
-
-test('fire, cold and lightning collapse to one tag, driven by the weakest', () => {
-  // The tree has no separate Fire Resistance chip -- Elemental Resistance raises all
-  // three -- so treating them separately would spend three slots on one tag.
-  const inputs = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
-  inputs.fire = 70; inputs.cold = 20; inputs.lightning = 65;
-  const { tags } = applyControls(['resist-equalizer'], { inputs });
-
-  const elem = tags.filter(t => t.tag === 'character:defensiveElementalResistance');
-  assert.equal(elem.length, 1, 'the three elemental resistances did not collapse to one tag');
-  assert.equal(elem[0].weight, 3, 'the weakest of the three should drive the weight, not the average');
-});
 
 test('controls stack, and a shared tag keeps the higher weight', () => {
   // Wanting something for two reasons does not mean wanting it twice as much. It means
@@ -105,32 +74,29 @@ test('every control declares what it needs', () => {
   }
 });
 
-test('physical resistance is never proposed, at any value', () => {
-  // Not a calibration problem. The tree offers 58% of physical in total at a median of
-  // 4 per star, against 150-250% at a median of 15 for every other resistance -- so a
-  // low physical is not a hole devotions can plug, and flagging it proposes a fix that
-  // does not exist. It flagged DIRE on all three real characters tested, including one
-  // at 0, which is normal at level 34.
-  const c = controlById('resist-equalizer');
-
-  // It is not asked for.
-  assert.ok(!c.inputs.some(i => i.key === 'physical'),
-    'the equaliser should not ask for a number it can never act on');
-  assert.ok(!RESISTS.some(r => r.tag === EXCLUDED_RESIST));
-
-  // And even handed one, nothing comes back for it. Everything else at 0 would be dire,
-  // so this is the case that would fail loudest if physical leaked back in.
-  const zeroed = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
-  const { tags } = applyControls(['resist-equalizer'], { inputs: { ...zeroed, physical: 0 } });
-  assert.deepEqual(tags, [], 'a capped character plus a physical of 0 should propose nothing');
+// The equaliser's behaviours -- weakest resistance first, fire/cold/lightning collapsing
+// to one tag, capped ones ignored, physical never proposed -- were tested here while it
+// was a control. It is gone (a control that asks nine questions to tell you something it
+// could work out is worse than none), and every one of those is now covered against
+// proposeTags() in propose.test.mjs, which is where the logic actually runs.
+//
+// RESISTS and resistWeightOf are still exported and still the single source of "what
+// counts as dire"; only the control that asked for the numbers has been removed.
+test('the resistance vocabulary survives the control that used it', () => {
+  assert.equal(RESISTS.length, 9, 'nine resistances, physical excluded');
+  assert.ok(RESISTS.every(r => r.tag.startsWith('character:')));
+  assert.ok(!RESISTS.some(r => r.tag === EXCLUDED_RESIST), 'physical stays out');
+  // The thresholds themselves, which propose.mjs imports rather than copying.
+  assert.equal(resistWeightOf(80), 0, 'capped wants nothing');
+  assert.equal(resistWeightOf(30), 3, 'dire');
+  assert.equal(resistWeightOf(50), 2);
+  assert.equal(resistWeightOf(70), 1);
 });
 
-test('the other nine resistances still work, so the exclusion is surgical', () => {
-  // The risk in removing one entry from a list is taking its neighbours with it.
-  const inputs = Object.fromEntries(RESISTS.map(r => [r.key, 80]));
-  inputs.aether = 20;
-  const { tags } = applyControls(['resist-equalizer'], { inputs });
-  assert.equal(tags.length, 1);
-  assert.equal(tags[0].tag, 'character:defensiveAether');
-  assert.equal(tags[0].weight, 3, 'aether at 20 is dire and should say so');
+test('no preset asks the player for numbers any more', () => {
+  // The equaliser was the only one that did. If a future control grows inputs, the UI
+  // that rendered them is gone -- so this fails rather than the boxes silently vanishing.
+  for (const c of CONTROLS) {
+    assert.deepEqual(c.inputs, [], `${c.id} asks for input but nothing renders it`);
+  }
 });

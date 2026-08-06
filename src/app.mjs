@@ -17,7 +17,7 @@ import { solveBest, blockedPowers } from './lib/solver.mjs';
 import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
-import { readCharacter } from './lib/gdc.mjs';
+import { readCharacter, DIFFICULTIES } from './lib/gdc.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 
 const MAX = 5;
@@ -280,6 +280,9 @@ const STORE = 'gd-devotion-planner:v3';
 /** Fields owned by a character. Everything else in `state` is a preference or derived. */
 const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked',
   'controls', 'controlInputs'];
+
+/** Facts a save told us about a character, as opposed to anything they chose. */
+const SAVE_FACTS = ['level', 'classId', 'difficulty'];
 
 /**
  * The name of the SAVE a character came from, kept apart from the editable display name.
@@ -576,6 +579,12 @@ function importSave(bytes) {
 
   doc.chars[id].named = doc.chars[id].named || true;   // the game's name wins first time
   doc.chars[id][SOURCE_FIELD] = ch.name;
+  // Facts, not choices. The difficulty is a DEFAULT the player can then change -- a
+  // character moves freely between the ones it has unlocked, so the save only records
+  // where they last stood.
+  doc.chars[id].level = ch.level;
+  doc.chars[id].classId = ch.classId;
+  if (doc.chars[id].difficulty == null) doc.chars[id].difficulty = ch.difficulty?.tier ?? 'normal';
   state.done = new Set(keys);
   stash();
 
@@ -2039,6 +2048,30 @@ function render() {
         chars.map(c => `<option value="${esc(c.id)}"${
           c.id === doc.active ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
       }</select>`;
+  // WHO THIS CHARACTER IS, when the save told us. Level and class are facts we were
+  // given rather than anything the player typed, so they sit beside the name as
+  // information rather than as fields.
+  if (cur.source) {
+    const bits = [];
+    if (cur.level) bits.push(`${cur.level}`);
+    const cls = classes[cur.classId];
+    if (cls) bits.push(cls);
+    if (bits.length) h += `<span class="cmeta">${esc(bits.join(' '))}</span>`;
+  }
+
+  // THE DIFFICULTY BEING PLANNED FOR. It belongs up here beside the character because it
+  // is a property of how you are playing, not a setting -- and it changes the advice
+  // rather than the display: acid at 58 is fine on Veteran and dire on Elite.
+  //
+  // Defaulted from the save and then left alone. A character moves freely between
+  // difficulties once unlocked, so the stored value is only where they last stood, and
+  // the useful question is often about somewhere they have not been yet.
+  h += `<select class="dpick" data-difficulty="1" aria-label="Planning for difficulty"
+      title="Resistances are weighted for the difficulty you are planning for">${
+    DIFFICULTIES.map(d => `<option value="${d}"${d === (cur.difficulty ?? 'normal')
+      ? ' selected' : ''}>${d[0].toUpperCase()}${d.slice(1)}</option>`).join('')
+  }</select>`;
+
   h += `<span class="tbspace"></span>
     <button class="plainbtn iconbtn" data-cnew="1" title="New character"
       aria-label="New character"><i class="ti ti-plus"></i></button>
@@ -2061,40 +2094,15 @@ function render() {
     h += `<p class="impnote${state.importNote.error ? ' bad' : ''}">${esc(state.importNote.text)}</p>`;
   }
 
-  // --- controls column --------------------------------------------------------
-  // Leftmost, because a control is upstream of everything to its right: it decides the
-  // tags, which decide the path. The three columns read left to right as intent, then
-  // what you asked for, then what you got.
-  h += `<div class="col"><div class="ctlpane${state.locked ? ' locked' : ''}">
-    <p class="lbl">Controls</p>`;
-  for (const c of CONTROLS) {
-    const on = state.controls.includes(c.id);
-    h += `<button class="ctl${on ? ' on' : ''}" data-ctl="${esc(c.id)}"${
-      state.locked ? ' disabled' : ''} aria-pressed="${on}" title="${esc(c.blurb)}">
-      <b>${esc(c.label)}</b></button>`;
-    // A control's inputs appear only when it is switched on. Asking for ten numbers
-    // from a control you have not chosen would be noise.
-    if (on && c.inputs.length) {
-      h += '<div class="ctlin">';
-      for (const i of c.inputs) {
-        const v = state.controlInputs[i.key];
-        h += `<label><span>${esc(i.label)}</span><input type="number" data-ctlin="${esc(i.key)}"
-          value="${v == null ? '' : esc(String(v))}" placeholder="—"${
-          state.locked ? ' disabled' : ''}></label>`;
-      }
-      h += '</div>';
-    }
-  }
-  if (state.controls.length) {
-    const { dropped } = applyControls(state.controls, { inputs: state.controlInputs });
-    // Say what did not fit. Silently discarding half of what was asked for is the
-    // failure this exists to avoid.
-    if (dropped.length) {
-      h += `<p class="ctlnote">${dropped.length} tag${dropped.length === 1 ? '' : 's'} did
-        not fit in ${MAX}. Turn a control off, or reorder by switching them on again.</p>`;
-    }
-  }
-  h += '</div>';
+  // --- inputs column -----------------------------------------------------------
+  // Everything you SET and everything you READ about your inputs lives here: target
+  // tags, power scoring, coverage, and the tag library. The devotion path is the other
+  // column.
+  //
+  // The separate controls column from v0.3.1 is gone. Presets belong in the tag picker,
+  // because a preset exists to produce tags and the picker is where tags come from --
+  // and folding them back gives the width that made three columns cramped.
+  h += '<div class="col">';
 
   h += `<div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
     <span style="flex:1">Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
@@ -2176,13 +2184,37 @@ function render() {
   // so switching to Pet shows how much smaller that library is rather than leaving you
   // to scroll and find out.
   let tabCount = 0;
-  for (const [k, ids] of groups) if (k.startsWith(state.tab + '|')) tabCount += ids.length;
-  h += `<p class="lbl" style="margin-top:18px">Tag library <span style="color:var(--ink-13)">${
-    tabCount}</span></p>`;
+  if (state.tab === 'presets') tabCount = CONTROLS.length;
+  else for (const [k, ids] of groups) if (k.startsWith(state.tab + '|')) tabCount += ids.length;
+
+  // COLLAPSE ALL sits on the title rather than beside the tabs, because it acts on the
+  // library as a whole rather than on the tab you happen to be looking at. Hidden when
+  // nothing is open: a control that does nothing is worse than one that is absent.
+  const anyOpen = [...state.open].some(k => k.startsWith(state.tab + '|'));
+  h += `<p class="lbl" style="margin-top:18px;display:flex;align-items:center;gap:8px">
+    <span>Tag library <span style="color:var(--ink-13)">${tabCount}</span></span>
+    <span style="flex:1"></span>${anyOpen
+      ? `<button class="plainbtn iconbtn" data-collapse="1" title="Collapse every open category"
+           aria-label="Collapse all"><i class="ti ti-fold-up"></i></button>` : ''}</p>`;
   h += `<div style="display:flex;gap:6px;margin:0 0 8px">
     <button class="tab${state.tab === 'character' ? ' on' : ''}" data-tab="character">Character</button>
-    <button class="tab${state.tab === 'pet' ? ' on' : ''}" data-tab="pet">Pet</button></div><div class="scroll">`;
+    <button class="tab${state.tab === 'pet' ? ' on' : ''}" data-tab="pet">Pet</button>
+    <button class="tab${state.tab === 'presets' ? ' on' : ''}" data-tab="presets">Presets</button>
+    </div><div class="scroll">`;
+
+  // PRESETS. One at a time, unlike the stacking the library still supports -- see
+  // controls.mjs, whose applyControls() combines any number. Only this constrains it.
+  if (state.tab === 'presets') {
+    for (const c of CONTROLS) {
+      const on = state.controls.includes(c.id);
+      h += `<button class="ctl${on ? ' on' : ''}" data-ctl="${esc(c.id)}"${
+        state.locked ? ' disabled' : ''} aria-pressed="${on}" title="${esc(c.blurb)}">
+        <b>${esc(c.label)}</b></button>`;
+    }
+  }
+
   for (const [key, ids] of groups) {
+    if (state.tab === 'presets') break;
     if (!key.startsWith(state.tab + '|')) continue;
     const name = key.split('|')[1], open = state.open.has(key);
     h += `<div class="cat"><button class="cath" data-cat="${esc(key)}">
@@ -2635,6 +2667,16 @@ app.addEventListener('change', (e) => {
     return;
   }
 
+  const dif = e.target?.closest?.('[data-difficulty]');
+  if (dif && app.contains(dif)) {
+    // Stored on the character, because which difficulty you are aiming at is part of
+    // planning this build rather than a preference shared across all of them.
+    if (doc?.chars?.[doc.active]) doc.chars[doc.active].difficulty = dif.value;
+    save();
+    render();
+    return;
+  }
+
   const ci = e.target?.closest?.('[data-ctlin]');
   if (ci && app.contains(ci)) {
     const raw = String(ci.value ?? '').trim();
@@ -2709,15 +2751,26 @@ app.addEventListener('click', e => {
     return;
   }
 
+  // Fold every open category. Acts on the whole library rather than the visible tab,
+  // which is why it sits on the title and not beside the tabs.
+  const collapse = e.target.closest('[data-collapse]');
+  if (collapse && app.contains(collapse)) {
+    state.open = new Set();
+    save();
+    render();
+    return;
+  }
+
   const ct = e.target.closest('[data-ctl]');
   if (ct && app.contains(ct)) {
     if (state.locked) return;
     const id = ct.dataset.ctl;
-    // Switching a control off and on again moves it to the end, which is how you
-    // reorder priority without a second control for doing so.
-    state.controls = state.controls.includes(id)
-      ? state.controls.filter(x => x !== id)
-      : [...state.controls, id];
+    // ONE AT A TIME. `applyControls()` still combines any number of presets and merges on
+    // the higher weight -- that model is unchanged and the code for it is kept, because
+    // stacking "shore up my resistances" with "push what I already have" was the common
+    // case. This is a UI simplification we agreed to, not a limit of what the library can
+    // do, and undoing it is a one-line change here.
+    state.controls = state.controls.includes(id) ? [] : [id];
     applyControlsToTags();
     return;
   }
