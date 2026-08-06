@@ -14,10 +14,25 @@ Measured against the index that was sitting in this repository the whole time: m
 speed is on **1.9%** of the 14,008 items. It is a boots stat — 73.9% of `gearfeet`, 19.5%
 of legs, 0.3% of torso, 0.3% of weapons. Nothing rolls it by default.
 
-Worse, the character it supposedly led on "wrongly" was wearing **Mark of the Traveler**
-and **Chains of Oleron** — two components that exist for movement speed — plus movement
-boots and a movement suffix, for 29% across four sources. He had stacked it deliberately.
-The metric was right; the explanation was invented.
+The character it supposedly led on "wrongly" had 29% across four sources, and decomposing
+them settles it better than either of the stories told about it so far:
+
+| source | % | how avoidable |
+|---|---|---|
+| boots | 12 | 73.9% of boots grant run speed — near-forced |
+| Mark of the Traveler | 8 | 2 of 9 boots components available at his level |
+| Chains of Oleron | 6 | **1 of 20** chest components |
+| a suffix affix | 3 | random roll, not chosen |
+
+So about half was chosen — Chains of Oleron unambiguously, being the only chest component
+of twenty that grants it — and about half came with the slot. "He stacked it deliberately"
+was too strong; so was "the metric was reporting noise".
+
+**The sharper claim, which is the one that should have been made all along, is per-slot.**
+Not "armour rolls movement speed by default" but "some slots overwhelmingly carry certain
+stats, so the slot forces the stat": run speed is 73.9% of boots and 0.3% of torso. The
+global base rate of 1.9% averages that distinction away, which may be exactly why the
+base-rate metric failed. Worth measuring properly rather than asserting — again.
 
 Commonness doesn't separate the stats in question anyway: casting speed is on 10.2% of
 items, cold damage 11.2%, Offensive Ability 19.7%, Damage Absorption 20.4%.
