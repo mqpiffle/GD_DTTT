@@ -18,7 +18,8 @@ import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
 import { readCharacter, readEquipment, equippedRecords, DIFFICULTIES } from './lib/gdc.mjs';
-import { tallyGear, strengths, chipMapper, attributeFocus } from './lib/strengths.mjs';
+import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus }
+  from './lib/strengths.mjs';
 import { proposeTags } from './lib/propose.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 import { diffPaths, summarise } from './lib/diff.mjs';
@@ -93,6 +94,12 @@ const classes = await fetch('../classes.json', { cache: 'no-cache' })
 const keywords = await fetch('../keywords.json', { cache: 'no-cache' })
   .then(r => (r.ok ? r.json() : null)).catch(() => null);
 const itemIndex = await fetch('../items-index.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : null)).catch(() => null);
+// And the skill index, which is the other half of the same question. Gear says what a
+// character is equipped for; skills say what their points were SPENT on, and the two
+// disagree -- measured on a real save, Pierce is invisible on gear (30%, under the
+// threshold) and a clear 100 once skills count.
+const skillIndex = await fetch('../skills-index.json', { cache: 'no-cache' })
   .then(r => (r.ok ? r.json() : null)).catch(() => null);
 
 const state = {
@@ -618,7 +625,15 @@ function analyseCharacter(bytes, ch, difficulty) {
     // past the skills in the file, so reaching it means parsing further -- and keeping
     // the routes separate is what stops a change to item layout breaking devotion
     // reading, which is the half that must not fail.
-    ({ totals, sources } = tallyGear(equippedRecords(readEquipment(bytes)), itemIndex));
+    const gear = tallyGear(equippedRecords(readEquipment(bytes)), itemIndex);
+    // BOTH HALVES OF THE CHARACTER. `ch.skills` is already parsed -- the same read that
+    // found the devotions -- so this costs a lookup, not another pass over the file.
+    //
+    // A missing skill index degrades to the gear reading rather than to nothing, which is
+    // the right failure: half the character is worse than all of it and much better than
+    // an empty picker.
+    const fromSkills = skillIndex ? tallySkills(ch.skills, skillIndex) : null;
+    ({ totals, sources } = fromSkills ? mergeTallies(gear, fromSkills) : gear);
   } catch {
     // Unreadable gear costs the analysis, not the import. The stars are already read.
     return null;

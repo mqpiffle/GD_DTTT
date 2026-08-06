@@ -46,8 +46,9 @@ SOFTWARE.
 
 Not third-party *software*, but the reason for the data policy below.
 
-The derived data in this repository (`ui-index.json`, `keywords.json`) contains
-constellation names, star names, celestial power names and stat values from Grim Dawn.
+The derived data in this repository (`ui-index.json`, `keywords.json`, `items-index.json`,
+`skills-index.json`, `classes.json`) contains constellation names, star names, celestial
+power names, mastery names and stat values from Grim Dawn.
 Those remain the property of Crate Entertainment. They are included because a planner
 cannot function without them, in the same way a wiki or a build calculator cannot.
 

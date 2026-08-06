@@ -4,6 +4,41 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.6.0 — 6 Aug 2026
+
+**Skills count.** A new `skills-index.json` carries what every skill grants at every rank
+— 7,097 records, 856 KB, 125 KB gzipped — joined against the ranks already read from the
+save. Gear says what a character is *equipped* for; skill points say what they were
+*spent* on, and gear is chosen from what dropped while skill points are not.
+
+The difference is not decorative. On a real character:
+
+| damage type | gear | + skills | combined |
+|---|---|---|---|
+| Cold | 192 | +109 | 301 |
+| Frostburn | 104 | +91 | 195 |
+| **Pierce** | 30 | **+70** | **100** |
+| Bleeding | 49 | +27 | 76 |
+| Elemental | 55 | — | 55 |
+
+Pierce was invisible — 30% on gear, under the threshold — and is a clear third once skills
+count. Elemental drops out. Ranking on gear alone was ranking half the character.
+
+**Toggled buffs keep their stats somewhere else**, and missing that would have made the
+index quietly wrong exactly where it matters. Amatok's Pact and Veil of Shadows declare
+nothing themselves; they are `Skill_BuffRadiusToggled` with a pointer to a `_buff` record
+holding every number. Auras are where a build keeps its passive damage, its resistances
+and its casting speed. The build script follows the pointer and folds the buff into its
+parent, because a save names the skill and never the buff.
+
+Ranks are clamped rather than interpolated: a level past the end of a skill's value list
+takes the last one. That happens for real — gear grants +N to skills — and it means the
+reading UNDERCOUNTS a well-geared character. That's the honest direction for the error,
+and modelling effective rank is the obvious next step now the per-rank data is here.
+
+Not counted, both deliberately: shapeshift skills, whose stats apply only while
+transformed, and skill modifiers, which alter another skill rather than the character.
+
 ## 0.5.4 — 6 Aug 2026
 
 **Occurrences qualify, percentages rank.** A stat must appear on at least two equipped

@@ -164,7 +164,87 @@ export function tallyGear(records, index) {
 }
 
 /**
- * How many separate equipped items a stat must appear on to be taken seriously.
+ * Sum every stat a character's SKILLS grant, at the rank each is invested to.
+ *
+ * WHY THIS IS NOT OPTIONAL. Gear is chosen from what dropped; skill points are not. They
+ * are, with attribute points, the only thing in a save the player wrote themselves -- and
+ * on a real character they change the answer rather than decorating it. Measured: Pierce
+ * reads 30% on gear, below the threshold and therefore invisible, and 100% once skills
+ * are counted. Elemental falls out of the top four. Ranking on gear alone ranks half the
+ * character.
+ *
+ * RANKS ARE CLAMPED, NOT INTERPOLATED. A skill's values are listed per rank; a level past
+ * the end of the list takes the last one. That happens for real -- gear grants +N to
+ * skills, so an invested rank 12 can be played at 16 -- and the last value is the honest
+ * reading of a list that has run out.
+ *
+ * A single value with no rank list is a constant: it applies whatever the rank.
+ *
+ * @param skills  from `readCharacter()` -- [{ name, level }], names as record paths
+ * @param index   a parsed skills-index.json
+ * @returns { totals, sources, missing } in the same shape `tallyGear()` returns, so the
+ *          two can be merged without either knowing about the other.
+ */
+export function tallySkills(skills, index) {
+  const totals = new Map();
+  const sources = new Map();
+  const missing = [];
+  const prefix = index?.prefix ?? 'records/';
+  const fields = index?.fields ?? [];
+
+  for (const sk of skills ?? []) {
+    if (!(sk?.level > 0)) continue;
+    const key = sk.name?.startsWith(prefix) ? sk.name.slice(prefix.length) : sk.name;
+    const entry = index?.skills?.[key];
+    // Most unmatched records are skills that genuinely grant the character nothing --
+    // the default attacks, a shapeshift whose stats apply only while transformed, a
+    // modifier that alters another skill rather than you. Reported, never guessed at.
+    if (!entry) { missing.push(sk.name); continue; }
+
+    const s = entry.s ?? [];
+    for (let i = 0; i < s.length;) {
+      const field = fields[s[i]];
+      const n = s[i + 1];
+      if (!Number.isInteger(n) || n < 1) break;   // malformed; stop rather than misread
+      const at = i + 2 + Math.min(sk.level, n) - 1;
+      const value = s[at];
+      i += 2 + n;
+      if (!field || !value) continue;
+      totals.set(field, (totals.get(field) ?? 0) + value);
+      // A SKILL IS A SOURCE, like an item. Points spent on it are a vote for the stat,
+      // and a more deliberate one than a roll that happened to land on a helmet.
+      if (value > 0) {
+        if (!sources.has(field)) sources.set(field, new Set());
+        sources.get(field).add(key);
+      }
+    }
+  }
+  return { totals, sources, missing };
+}
+
+/**
+ * Merge two tallies into one, so the ranking sees the whole character.
+ *
+ * Totals add. Sources UNION -- they are sets of record keys and the two tallies draw from
+ * different trees, so nothing can collide. Written once here rather than at the call site
+ * because merging sources by adding their sizes is the obvious wrong thing, and it would
+ * be invisible: the counts would just come out a little high.
+ */
+export function mergeTallies(...tallies) {
+  const totals = new Map();
+  const sources = new Map();
+  for (const t of tallies) {
+    for (const [f, v] of t?.totals ?? []) totals.set(f, (totals.get(f) ?? 0) + v);
+    for (const [f, set] of t?.sources ?? []) {
+      if (!sources.has(f)) sources.set(f, new Set());
+      for (const k of set) sources.get(f).add(k);
+    }
+  }
+  return { totals, sources };
+}
+
+/**
+ * How many separate sources a stat must appear on to be taken seriously.
  *
  * OCCURRENCES QUALIFY, PERCENTAGES RANK, and the split is because the two numbers answer
  * different questions. A sum says how much; a count says how deliberate. One item with a

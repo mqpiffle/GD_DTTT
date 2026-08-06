@@ -127,7 +127,7 @@ export function proposeTags({
   // Reporting only the sum would hide the test the stat actually had to pass.
   for (const s of strengths) {
     push(s.chip, STRENGTH_WEIGHT, s.items
-      ? `${Math.round(s.value)}% across ${s.items} equipped items`
+      ? `${Math.round(s.value)}% across ${s.items} items and skills`
       : `${Math.round(s.value)}% on your gear`);
   }
 

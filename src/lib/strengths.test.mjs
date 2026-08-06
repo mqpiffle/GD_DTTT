@@ -8,7 +8,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { tallyGear, strengths, chipMapper, attributeFocus, STRENGTH_THRESHOLD } from './strengths.mjs';
+import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus,
+  STRENGTH_THRESHOLD } from './strengths.mjs';
 
 /** A minimal index in the shape build-items.mjs emits. */
 function idx(items, fields) {
@@ -353,5 +354,133 @@ test('a real character: the single-item stat drops out',
   for (let i = 1; i < withGate.length; i++) {
     assert.ok(withGate[i - 1].value >= withGate[i].value,
       'the list is not ordered by percentage, so occurrences leaked into the ranking');
+  }
+});
+
+// --- skills ----------------------------------------------------------------------
+//
+// The half the ranking was missing. Gear is chosen from what dropped; skill points are
+// not. Measured on a real save the difference is not decorative: Pierce reads 30% on gear
+// -- under the threshold, so invisible -- and 100% once skills count, while Elemental
+// falls out of the top four entirely.
+
+/** A skills index in the shape build-skills.mjs emits: [fieldIdx, rankCount, ...values]. */
+function sidx(records, fields = ['offensiveColdModifier', 'offensiveFireModifier']) {
+  const byName = new Map(fields.map((n, i) => [n, i]));
+  const skills = {};
+  for (const [rec, stats] of Object.entries(records)) {
+    const s = [];
+    for (const [k, vals] of Object.entries(stats)) {
+      const a = [].concat(vals);
+      s.push(byName.get(k), a.length, ...a);
+    }
+    skills[rec] = { s };
+  }
+  return { prefix: 'records/', fields, skills };
+}
+
+test('a skill contributes the value at the rank it is invested to', () => {
+  const index = sidx({ 'skills/a.dbr': { offensiveColdModifier: [10, 20, 30, 40] } });
+  const at = lvl => tallySkills([{ name: 'records/skills/a.dbr', level: lvl }], index)
+    .totals.get('offensiveColdModifier');
+  assert.equal(at(1), 10, 'rank 1 should read the first value, not the last');
+  assert.equal(at(3), 30);
+  assert.equal(at(4), 40);
+});
+
+test('a rank past the end of the list takes the last value', () => {
+  // Real, not defensive: gear grants +N to skills, so an invested rank 4 can be played
+  // at 8. The last value is the honest reading of a list that has run out; throwing or
+  // returning zero would silently delete the biggest skills on a well-geared character.
+  const index = sidx({ 'skills/a.dbr': { offensiveColdModifier: [10, 20, 30] } });
+  assert.equal(
+    tallySkills([{ name: 'records/skills/a.dbr', level: 9 }], index)
+      .totals.get('offensiveColdModifier'), 30);
+});
+
+test('a single value with no rank list is a constant', () => {
+  const index = sidx({ 'skills/a.dbr': { offensiveColdModifier: 25 } });
+  for (const level of [1, 5, 40]) {
+    assert.equal(
+      tallySkills([{ name: 'records/skills/a.dbr', level }], index)
+        .totals.get('offensiveColdModifier'), 25, `rank ${level} changed a constant`);
+  }
+});
+
+test('an uninvested skill contributes nothing', () => {
+  const index = sidx({ 'skills/a.dbr': { offensiveColdModifier: [10, 20] } });
+  const t = tallySkills([{ name: 'records/skills/a.dbr', level: 0 }], index);
+  assert.equal(t.totals.size, 0, 'a skill with no points in it was counted');
+  assert.equal(t.missing.length, 0, 'and it is not missing, it is simply not taken');
+});
+
+test('two fields on one skill are read independently', () => {
+  // The flat [idx, n, ...values] encoding is walked by length, so a wrong stride would
+  // read the second field's values as the first field's ranks -- and produce numbers
+  // that look entirely plausible.
+  const index = sidx({
+    'skills/a.dbr': { offensiveColdModifier: [10, 20, 30], offensiveFireModifier: [5, 6] },
+  });
+  const t = tallySkills([{ name: 'records/skills/a.dbr', level: 2 }], index);
+  assert.equal(t.totals.get('offensiveColdModifier'), 20);
+  assert.equal(t.totals.get('offensiveFireModifier'), 6);
+});
+
+test('a skill is a source, like an item', () => {
+  const index = sidx({
+    'skills/a.dbr': { offensiveColdModifier: [10] },
+    'skills/b.dbr': { offensiveColdModifier: [10] },
+  });
+  const t = tallySkills([
+    { name: 'records/skills/a.dbr', level: 1 },
+    { name: 'records/skills/b.dbr', level: 1 },
+  ], index);
+  assert.equal(t.sources.get('offensiveColdModifier').size, 2,
+    'points spent on a skill are a vote for the stat, and a more deliberate one than a roll');
+});
+
+test('a skill the index does not know is reported, not guessed at', () => {
+  const t = tallySkills([{ name: 'records/skills/nope.dbr', level: 3 }],
+    sidx({ 'skills/a.dbr': { offensiveColdModifier: [1] } }));
+  assert.deepEqual(t.missing, ['records/skills/nope.dbr']);
+  assert.equal(t.totals.size, 0);
+});
+
+test('merging adds totals and UNIONS sources', () => {
+  // Adding the source COUNTS instead would be the obvious wrong thing and an invisible
+  // one: the numbers would just come out a little high.
+  const a = { totals: new Map([['x', 10]]), sources: new Map([['x', new Set(['i1', 'i2'])]]) };
+  const b = { totals: new Map([['x', 5]]), sources: new Map([['x', new Set(['i2', 's1'])]]) };
+  const m = mergeTallies(a, b);
+  assert.equal(m.totals.get('x'), 15);
+  assert.deepEqual([...m.sources.get('x')].sort(), ['i1', 'i2', 's1'],
+    'a record counted in both tallies should still be one source');
+});
+
+test('skills change the answer on a real character',
+  { skip: !haveBoth && 'needs player.gdc and items-index.json' }, async () => {
+  const SKILLS = path.join(import.meta.dirname, '../../skills-index.json');
+  if (!fs.existsSync(SKILLS)) return;
+  const { readCharacter, readEquipment, equippedRecords } = await import('./gdc.mjs');
+  const bytes = new Uint8Array(fs.readFileSync(SAVE));
+  const chipOf = chipMapper(JSON.parse(fs.readFileSync(
+    path.join(import.meta.dirname, '../../keywords.json'), 'utf8')));
+
+  const gear = tallyGear(equippedRecords(readEquipment(bytes)),
+    JSON.parse(fs.readFileSync(INDEX, 'utf8')));
+  const skl = tallySkills(readCharacter(bytes).skills,
+    JSON.parse(fs.readFileSync(SKILLS, 'utf8')));
+  assert.ok(skl.totals.size > 0, 'the skill index resolved nothing for a real character');
+
+  const both = mergeTallies(gear, skl);
+  const names = t => strengths(t.totals, chipOf, { sources: t.sources }).map(s => s.chip);
+  assert.notDeepEqual(names(both), names(gear),
+    'counting skills changed nothing, so they are not reaching the ranking');
+  // Every combined total is at least the gear total: skills add, they never subtract a
+  // stat out of existence.
+  for (const [chip, v] of strengths(both.totals, chipOf, { sources: both.sources })
+    .map(s => [s.chip, s.value])) {
+    const g = strengths(gear.totals, chipOf).find(s => s.chip === chip);
+    if (g) assert.ok(v >= g.value, `${chip} shrank when skills were added`);
   }
 });

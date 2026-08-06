@@ -3373,7 +3373,7 @@ test('each proposed tag carries its reason on the pill',
     for (const [, why] of whys) {
       // Gear percentages, a resistance reading, or an attribute allocation -- each of
       // the three signals states its own evidence, and all of them carry a number.
-      assert.match(why, /gear|equipped items|attribute point|at \d/,
+      assert.match(why, /gear|items and skills|attribute point|at \d/,
         `"${why}" does not say what put the tag there`);
       assert.match(why, /\d/, `"${why}" asserts rather than shows`);
     }
