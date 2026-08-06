@@ -285,6 +285,98 @@ category, so wedging them above the tabs is not the answer.
 
 ---
 
+## The UI, as agreed 5 Aug — SPECIFIED, not built
+
+Settled in conversation. Recorded in full because the reasoning is what will be needed
+when the details are re-litigated.
+
+### Layout
+
+**Two columns.** The left holds everything you SET and everything you READ about your
+inputs — target tags, power scoring, coverage stats, tag library. The right holds the
+devotion path. That is the split that already existed; what changes is that the separate
+controls column from v0.3.1 goes away.
+
+**The right side splits in two for an imported character**: ACTUAL in-game picks beside
+SUGGESTED. One column when there is nothing to compare against — the second appears
+because there is something real to show, not because a mode was switched.
+
+### Top bar
+
+Character name, then **level and class** when imported (`Farker · 34 Reaver`). The
+**difficulty selector** lives here too, beside the character, because it is a property of
+how you are playing rather than a setting. **Re-import** is here as well.
+
+### Tag picker
+
+A **third tab beside Character and Pets: Presets.** They stop stacking -- one at a time
+for now. That is a real capability lost (combining "shore up resistances" with "push what
+I have" was the common case) so `applyControls()` keeps its stacking logic; only the UI
+constrains it.
+
+A **collapse-all button inline with the Tag library title**, folding every open category.
+
+### The resistance equaliser GOES
+
+Once resistances are read from the save there is nothing to ask for, and a control that
+asks nine questions to tell you something it could have worked out is worse than none.
+Hand-built characters simply pick resistance tags themselves.
+
+**CONSEQUENCE, and it is not optional:** deriving resistances becomes REQUIRED rather
+than a nice-to-have. `tallyGear()` already sums the `defensive*` fields, but the model
+validated in `DERIVED-STATS-PROBE.md` also needs devotion grants and skills at their
+EFFECTIVE rank (gear grants "+N to skill", so the save's stored rank is not the one in
+play). Without that half, `proposeTags()` gets no resistances and proposes strengths only.
+
+### The diff: two columns, three markers, one summary line
+
+Two plain columns invite eyeballing -- you can see both paths and still not know what
+changing costs. So each row carries its relationship to the other side:
+
+```
+  Keeping 6 · buying 4 · giving up 2 · 18 points to switch          [ Adopt ]
+
+  ACTUAL  (52 pts)                    SUGGESTED  (55 pts)
+  -------------------------           -------------------------
+  ok Crossroads (Order)               ok Crossroads (Order)
+  ok Owl                       5      ok Owl                       5
+  ok Rhowan's Crown            6      ok Rhowan's Crown            6
+  X  Wraith                    3      +  Amatok's Breath           7
+  ok Vulture                   5      ok Vulture                   5
+  X  Quill                     4      +  Tsunami                   6
+  ok Ultos                     8      ok Ultos                     8
+```
+
+- **ok** in both -- kept, no cost
+- **+** only in suggested -- would be bought, with dots showing which tags it serves
+- **X** only in actual -- would be given up, and those points come back
+
+**The summary line is what makes it a decision rather than a comparison.** "18 points to
+switch" is the respec cost. **Adopt** is the single action that turns the suggestion into
+the plan.
+
+**Rows align where they match**, so the eye reads across; the + and X rows are what break
+the alignment, which is exactly where attention belongs.
+
+**Adopt CLEARS the ticks**, the way accepting the rush-offer already does. They recorded
+progress against the old plan, and carrying them into a new one would show you part-way
+through something you never started. Undo covers it.
+
+### Tag reasons
+
+Every proposed tag carries one -- "184% on your gear", "Vitality at 36, which is 11 on
+ultimate". Shown as a **tooltip on an info icon beside the pill**, so the proposal can be
+interrogated rather than taken on trust.
+
+### `state.done` changes meaning -- v2 to v3
+
+Today it is progress ticked against the current plan, rendered only where the plan
+overlaps. It becomes THE ACTUAL BUILD, independent of any plan. Stored characters hold
+`done` sets written under the old meaning, so this is a deliberate migration rather than
+something to discover later.
+
+---
+
 ## Saved state: profiles and shareable builds
 
 Right now the tool keeps a single saved state in `localStorage` under
