@@ -4,6 +4,33 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.6.2 — 6 Aug 2026
+
+**Retaliation is a damage type**, and leaving it out meant misreading an entire archetype.
+The pattern was `^offensive…Modifier$` — every kind of damage a character deals on attack,
+and nothing about damage dealt on being hit. Total Retaliation Damage spans **29 stars** in
+this tree, with Physical, Acid and Fire Retaliation beside it. It is not a fringe pick.
+
+Found by measuring three characters instead of one. A level 100 carries **1540%
+retaliation across 20 sources** — more than double his next stat — and was being proposed
+Internal Trauma, Physical, Lightning, Electrocute and Total Damage, with no retaliation tag
+anywhere. He now reads *Total Retaliation Damage, Internal Trauma, Physical*: a coherent
+retaliation build, and three tags rather than five, because a real lead at 1540 correctly
+cuts what was noise beside it.
+
+Checked rather than assumed: the scale test that justifies the whole restriction passes.
+Median rolls are `retaliationTotalDamageModifier` 40 against cold 50, physical 42,
+elemental 40.
+
+Two other things three characters showed that one could not:
+
+- **Casting speed scores below average on all three** under base-rate correction — 0.8x,
+  0.7x, 0.3x. That metric is dead, confirmed.
+- **Run speed scores high on all three** — 6.8x, 4.7x, 6.6x — for characters with nothing
+  in common. Everyone wears boots and 73.9% of boots carry it, so dividing by a *global*
+  1.9% prevalence makes every character look focused on it. That's direct evidence for the
+  per-slot hypothesis recorded in 0.6.1, and against the global one.
+
 ## 0.6.1 — 6 Aug 2026
 
 **A claim repeated three times in this codebase was false.** The justification for ranking

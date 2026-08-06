@@ -87,7 +87,28 @@ const MODIFIER = /Modifier$/;
  * Note the category is not enough: `Offense` also holds offensive ability, attack speed
  * and crit damage, none of which are damage types. The test is the field name.
  */
-const DAMAGE_TYPE = /^offensive([A-Za-z]+)Modifier$/;
+/**
+ * RETALIATION COUNTS, and leaving it out made the tool misread an entire archetype.
+ *
+ * The pattern was `^offensive...Modifier$` alone, which is every damage type a character
+ * DEALS on attack and nothing about damage they deal on being hit. Retaliation is a real
+ * build in Grim Dawn and a well-supported one in this very tree: Total Retaliation Damage
+ * spans 29 stars, with Physical, Acid and Fire Retaliation beside it.
+ *
+ * Found by measuring three characters instead of one. A level 100 carries 1540%
+ * retaliation damage across 20 sources -- more than double his next stat -- and was being
+ * proposed Internal Trauma, Lightning and Electrocute, with no retaliation tag at all. On
+ * one character this never came up, because neither of the others is a retaliation build.
+ *
+ * It is safe to put in the same ranking, which is not an assumption: the scale test that
+ * justifies this whole restriction passes. Median rolls are retaliationTotalDamageModifier
+ * 40 against cold 50, physical 42, elemental 40. Commensurable, so summing is sound.
+ *
+ * The narrower retaliation modifiers (physical 70, poison 80, fire 60) sit on tiny samples
+ * -- 8, 3 and 4 items -- so their medians are noisy, but they are the same order of
+ * magnitude and nothing here depends on the exact figure.
+ */
+const DAMAGE_TYPE = /^(?:offensive|retaliation)([A-Za-z]+)Modifier$/;
 
 /** The game's damage types, shared with the keyword pipeline so the two cannot drift. */
 const DEFAULT_DAMAGE_TYPES = new Set(BODY_DAMAGE_TYPES);

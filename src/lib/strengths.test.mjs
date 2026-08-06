@@ -545,3 +545,67 @@ test('the reason damage types are ranked alone is SCALE, and the numbers say so'
     'damage type medians are further apart than assumed; the commensurability claim needs '
     + 're-measuring');
 });
+
+test('retaliation is a damage type for this purpose', () => {
+  // Leaving it out made the tool misread an entire archetype, and one character never
+  // showed it. Measured on three: a level 100 carries 1540% retaliation across 20 sources
+  // -- more than double his next stat -- and was proposed Internal Trauma, Lightning and
+  // Electrocute with no retaliation tag at all.
+  //
+  // Total Retaliation Damage spans 29 stars in this tree. It is not a fringe pick.
+  const index = idx({
+    'items/a.dbr': { retaliationTotalDamageModifier: 400 },
+    'items/b.dbr': { offensiveColdModifier: 50 },
+  }, ['retaliationTotalDamageModifier', 'offensiveColdModifier']);
+  const { totals } = tallyGear(['records/items/a.dbr', 'records/items/b.dbr'], index);
+  const out = strengths(totals, f => `character:${f.replace('Modifier', '')}`);
+  assert.equal(out[0].chip, 'character:retaliationTotalDamage',
+    'a retaliation build should read as one');
+  // And cold at 50 against a lead of 400 is 12.5% -- correctly cut as noise beside it.
+  assert.equal(out.length, 1);
+});
+
+test('retaliation rolls on the same scale as offensive damage',
+  { skip: !haveBoth && 'needs items-index.json' }, () => {
+  // The scale argument is what justifies ranking anything together, so adding a family
+  // to the ranking means checking it, not assuming it.
+  const index = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
+  const median = (field) => {
+    const j = index.fields.indexOf(field);
+    if (j < 0) return null;
+    const vals = [];
+    for (const e of Object.values(index.items)) {
+      const s = e.s ?? [];
+      for (let i = 0; i < s.length; i += 2) if (s[i] === j && s[i + 1] > 0) vals.push(s[i + 1]);
+    }
+    if (!vals.length) return null;
+    vals.sort((a, b) => a - b);
+    return vals[Math.floor((vals.length - 1) / 2)];
+  };
+  const ret = median('retaliationTotalDamageModifier');
+  const cold = median('offensiveColdModifier');
+  assert.ok(ret && cold, 'both fields should be present in the index');
+  assert.ok(ret > cold / 3 && ret < cold * 3,
+    `retaliation median ${ret} against cold ${cold} is too far apart to share a ranking`);
+});
+
+test('a real retaliation character reads as one',
+  { skip: !fs.existsSync(path.join(import.meta.dirname, '../../../chphthzhmh.gdc'))
+    && 'needs chphthzhmh.gdc', concurrency: false }, async () => {
+  const SKILLS = path.join(import.meta.dirname, '../../skills-index.json');
+  const save = path.join(import.meta.dirname, '../../../chphthzhmh.gdc');
+  if (!fs.existsSync(SKILLS) || !fs.existsSync(INDEX)) return;
+  const { readCharacter, readEquipment, equippedRecords } = await import('./gdc.mjs');
+  const bytes = new Uint8Array(fs.readFileSync(save));
+  const chipOf = chipMapper(JSON.parse(fs.readFileSync(
+    path.join(import.meta.dirname, '../../keywords.json'), 'utf8')));
+
+  const t = mergeTallies(
+    tallyGear(equippedRecords(readEquipment(bytes)),
+      JSON.parse(fs.readFileSync(INDEX, 'utf8'))),
+    tallySkills(readCharacter(bytes).skills,
+      JSON.parse(fs.readFileSync(SKILLS, 'utf8'))));
+  const out = strengths(t.totals, chipOf, { sources: t.sources });
+  assert.equal(out[0]?.chip, 'character:retaliationTotalDamage',
+    `the strongest signal read as ${out[0]?.chip}, not retaliation`);
+});
