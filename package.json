@@ -1,6 +1,6 @@
 {
   "name": "gd-dttt",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "private": true,
   "description": "GD_DTTT \u2014 Grim Dawn Devotion Theory-craft and Tracker Tool. Pick keyword tags or name a celestial power, get an ordered devotion path you can follow in game.",
   "type": "module",

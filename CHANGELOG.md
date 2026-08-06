@@ -4,6 +4,27 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.4.8 — 5 Aug 2026
+
+**Progress now means the build you actually have.** It used to mean progress against the
+current plan, and was only ever drawn where the plan happened to contain that star — so a
+character whose real devotions differed from their tags appeared to have lost them. That
+is what makes an actual-versus-suggested comparison possible at all.
+
+Stored characters migrate from v2 to v3. The shape does not change, and every tick was a
+star really bought, so the set carries across unchanged — what changes is what the app is
+entitled to conclude from it. The v2 key is left in place as a free undo, for the same
+reason v1 was.
+
+**Re-importing a save updates that character instead of creating another.** Matched on the
+game's own name, which is unique because Grim Dawn names the save folder after the
+character and a filesystem cannot hold two folders alike. Never on the display name, which
+this app lets you edit and the game does not — matching on that would mean the first rename
+orphans a character from its save and the next import silently duplicates it.
+
+That is what makes re-import the tracking action: play, re-import, and your progress is
+whatever the game says it is.
+
 ## 0.4.7 — 5 Aug 2026
 
 **The cost of switching builds can be computed.** `diffPaths()` reduces two devotion

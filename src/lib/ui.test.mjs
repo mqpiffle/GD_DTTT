@@ -2269,7 +2269,9 @@ function withStore(seed = {}) {
   };
   return {
     store,
-    read: () => JSON.parse(store.get('gd-devotion-planner:v2') ?? 'null'),
+    // The CURRENT store key. Bumped with the document version, since a helper left
+    // pointing at the old one reads null and every assertion built on it goes strange.
+    read: () => JSON.parse(store.get('gd-devotion-planner:v3') ?? 'null'),
     restore: () => { globalThis.localStorage = real; },
   };
 }
@@ -2300,7 +2302,7 @@ test('a v1 save migrates into one character, and v1 is left alone', () => {
     ui.save();
     assert.equal(s.store.get('gd-devotion-planner:v1'), v1, 'the v1 key was modified or deleted');
     const d = s.read();
-    assert.equal(d.v, 2);
+    assert.equal(d.v, 3, 'a v1 document migrates straight to the current version');
     assert.ok(d.prefs.lockWarnSeen, 'preferences should live outside any character');
     assert.equal(d.chars[d.active].lockWarnSeen, undefined,
       'a preference leaked into the character');
@@ -2983,5 +2985,94 @@ test('an outdated save reaches the UI as advice, not as a parse failure', () => 
     assert.equal(r.outdated, true, 'the UI needs to distinguish this from corruption');
     assert.match(r.error, /Load it once in Grim Dawn and save/);
     assert.equal(ui.charList().length, before, 'a refused import must leave no character');
+  } finally { s.restore(); }
+});
+
+test('re-importing the same save UPDATES the character rather than duplicating it',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // This is what makes re-import the tracking action: play, re-import, and the ticks are
+  // whatever the game says. Creating a second character each time would make it useless.
+  const s = withStore();
+  try {
+    ui.load();
+    const before = ui.charList().length;
+    const bytes = new Uint8Array(fs.readFileSync(SAVE));
+
+    const first = ui.importSave(bytes);
+    assert.ok(!first.error);
+    assert.equal(first.reimported, false, 'the first import creates');
+    assert.equal(ui.charList().length, before + 1);
+
+    const again = ui.importSave(bytes);
+    assert.equal(again.reimported, true, 'the second updates');
+    assert.equal(ui.charList().length, before + 1, 're-import must not duplicate');
+    assert.equal(again.id, first.id, 'and must land on the same character');
+  } finally { s.restore(); }
+});
+
+test('re-import matches on the SAVE name, not the editable one',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // The app allows renaming and the game does not. Matching on the display name would
+  // mean the first rename orphans a character from its save, and the next import
+  // silently creates a duplicate instead of updating it.
+  const s = withStore();
+  try {
+    ui.load();
+    const bytes = new Uint8Array(fs.readFileSync(SAVE));
+    const first = ui.importSave(bytes);
+    const before = ui.charList().length;
+
+    ui.renameChar(first.id, 'Farker (cold build)');
+    const again = ui.importSave(bytes);
+
+    assert.equal(again.reimported, true, 'a renamed character is still the same save');
+    assert.equal(ui.charList().length, before, 'renaming must not cause a duplicate');
+    assert.equal(again.id, first.id);
+  } finally { s.restore(); }
+});
+
+test('a v2 document migrates to v3 with its progress intact', () => {
+  // `done` changed MEANING -- progress against a plan becomes the actual build -- but not
+  // shape, and every v2 tick was a star really bought. So carrying the set across is
+  // correct rather than lossy.
+  const v2 = JSON.stringify({
+    v: 2, active: 'c1', order: ['c1'],
+    chars: { c1: {
+      name: 'Old', named: true,
+      tags: Array(5).fill(null), weights: [2, 2, 2, 2, 2], mode: 2,
+      order: null, done: ['constellation01:1', 'constellation01:2'], locked: true,
+    } },
+    prefs: { tab: 'pet', open: [], plain: true, lockWarnSeen: true },
+  });
+  const s = withStore({ 'gd-devotion-planner:v2': v2 });
+  try {
+    ui.load();
+    assert.deepEqual([...ui.state.done].sort(), ['constellation01:1', 'constellation01:2']);
+    assert.equal(ui.state.mode, 2, 'a deliberately chosen mode survives');
+    assert.equal(ui.state.locked, true);
+    assert.equal(ui.activeChar().name, 'Old');
+    // Not imported, so it has no save behind it -- and guessing one from the display
+    // name would let a later rename orphan it.
+    assert.equal(ui.activeChar().source, null);
+  } finally { s.restore(); }
+});
+
+test('the v2 key is LEFT IN PLACE as an undo', () => {
+  // Same reasoning as v1: a few hundred bytes against being able to recover if this
+  // reinterpretation turns out wrong, when the thing reinterpreted is the only record of
+  // someone's progress.
+  const v2 = JSON.stringify({
+    v: 2, active: 'c1', order: ['c1'],
+    chars: { c1: { name: 'Old', named: true, tags: Array(5).fill(null),
+      weights: [2, 2, 2, 2, 2], mode: 1, order: null, done: ['x:1'], locked: false } },
+    prefs: {},
+  });
+  const s = withStore({ 'gd-devotion-planner:v2': v2 });
+  try {
+    ui.load();
+    ui.save();
+    assert.ok(globalThis.localStorage.getItem('gd-devotion-planner:v2'),
+      'the v2 payload must survive the migration');
+    assert.ok(globalThis.localStorage.getItem('gd-devotion-planner:v3'));
   } finally { s.restore(); }
 });

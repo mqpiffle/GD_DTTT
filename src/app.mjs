@@ -253,11 +253,46 @@ const picked = () => state.sel.filter(x => x != null);
 // costs nothing measurable -- where a key-per-character scheme would need an index and
 // could drift out of step with it.
 const STORE_V1 = 'gd-devotion-planner:v1';
-const STORE = 'gd-devotion-planner:v2';
+const STORE_V2 = 'gd-devotion-planner:v2';
+const STORE = 'gd-devotion-planner:v3';
+
+/**
+ * WHY v3 EXISTS: `done` changed meaning.
+ *
+ * In v2 it was PROGRESS AGAINST THE CURRENT PLAN. The panels only ever drew a tick where
+ * the plan happened to contain that star, so a character whose real devotions differed
+ * from their tags appeared to have lost them.
+ *
+ * In v3 it is THE ACTUAL BUILD -- what the character owns, independent of any plan. That
+ * is what makes the actual-versus-suggested comparison possible at all, and it is also
+ * what an imported save fills in.
+ *
+ * THE STORED DATA DOES NOT CHANGE SHAPE. Both are a set of `constellation:star` keys, and
+ * every v2 tick was a star the player really had bought. So the migration is a rename of
+ * intent rather than a transformation, and copying the set across is correct rather than
+ * lossy. What changes is what the app is entitled to conclude from it.
+ *
+ * The v2 key is left in place, for the same reason v1 was: it costs a few hundred bytes
+ * and is a free undo if this reading turns out wrong, which matters when the thing being
+ * reinterpreted is the only record of someone's progress.
+ */
 
 /** Fields owned by a character. Everything else in `state` is a preference or derived. */
 const CHAR_FIELDS = ['tags', 'weights', 'mode', 'order', 'done', 'locked',
   'controls', 'controlInputs'];
+
+/**
+ * The name of the SAVE a character came from, kept apart from the editable display name.
+ *
+ * Grim Dawn names a character's save folder after the character and a filesystem cannot
+ * hold two folders with the same name, so the game's name is unique by construction --
+ * which makes it a sound key for matching a re-import back to the character it belongs to.
+ *
+ * But this app lets you rename and the game does not. Matching on the DISPLAY name would
+ * mean the first rename orphans a character from its save, and the next import silently
+ * creates a duplicate instead of updating it.
+ */
+const SOURCE_FIELD = 'source';
 
 let doc = null;      // { v, active, order: [id], chars: { id: {...} }, prefs: {...} }
 let charSeq = 0;
@@ -328,14 +363,14 @@ const blankChar = () => ({
   name: 'New character', named: false,
   tags: Array(MAX).fill(null), weights: Array(MAX).fill(DEFAULT_WEIGHT),
   mode: DEFAULT_MODE, order: null, done: [], locked: false,
-  controls: [], controlInputs: {},
+  controls: [], controlInputs: {}, source: null,
 });
 
 /** A fresh document with one empty character. */
 function emptyDoc() {
   const id = newId();
   return {
-    v: 2, active: id, order: [id], chars: { [id]: blankChar() },
+    v: 3, active: id, order: [id], chars: { [id]: blankChar() },
     prefs: { tab: 'character', open: ['character|Offense'], plain: false, lockWarnSeen: false },
   };
 }
@@ -350,14 +385,28 @@ function emptyDoc() {
 function readDoc() {
   let raw;
   try { raw = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { raw = null; }
-  if (raw && raw.v === 2 && raw.chars && raw.active) return raw;
+  if (raw && raw.v === 3 && raw.chars && raw.active) return raw;
+
+  // v2 -> v3. `done` meant progress against a plan and now means the actual build; the
+  // stored shape is identical and every tick was a star really bought, so the set carries
+  // across unchanged. `source` is added empty: these characters were never imported, and
+  // guessing one from the display name would let a later rename orphan them.
+  let two;
+  try { two = JSON.parse(localStorage.getItem(STORE_V2) || 'null'); } catch { two = null; }
+  if (two && two.v === 2 && two.chars && two.active) {
+    const chars = {};
+    for (const [id, c] of Object.entries(two.chars)) {
+      chars[id] = { ...c, done: Array.isArray(c.done) ? c.done : [], source: c.source ?? null };
+    }
+    return { ...two, v: 3, chars };
+  }
 
   let old;
   try { old = JSON.parse(localStorage.getItem(STORE_V1) || 'null'); } catch { old = null; }
   if (old && old.v === 1) {
     const id = newId();
     return {
-      v: 2, active: id, order: [id],
+      v: 3, active: id, order: [id],
       chars: {
         [id]: {
           name: 'My build', named: false,
@@ -367,6 +416,7 @@ function readDoc() {
           order: old.order ?? null,
           done: old.done ?? [],
           locked: old.locked === true,
+          source: null,
         },
       },
       prefs: {
@@ -506,10 +556,26 @@ function importSave(bytes) {
   }
 
   const { keys, unmatched } = mapDevotions(ch.devotions, raw.constellations);
-  const id = addChar({ name: ch.name });
-  if (!id) return { error: 'could not create a character' };
 
-  doc.chars[id].named = true;          // the game's name wins over auto-naming
+  // RE-IMPORT UPDATES IN PLACE; a new save creates a character.
+  //
+  // Matched on `source` -- the game's own name -- never on the display name, which this
+  // app lets you edit and the game does not. Matching on the editable one would mean the
+  // first rename orphans a character from its save, and the next import silently makes a
+  // duplicate instead of updating it.
+  //
+  // This is what makes re-import the tracking action: play, re-import, and your ticks are
+  // whatever the game says they are. It is also why the lock does not block it -- the
+  // lock protects INTENT, and this is reporting facts.
+  const existing = Object.entries(doc.chars)
+    .find(([, c]) => c[SOURCE_FIELD] && c[SOURCE_FIELD] === ch.name)?.[0];
+
+  const id = existing ?? addChar({ name: ch.name });
+  if (!id) return { error: 'could not create a character' };
+  if (existing) switchChar(existing);
+
+  doc.chars[id].named = doc.chars[id].named || true;   // the game's name wins first time
+  doc.chars[id][SOURCE_FIELD] = ch.name;
   state.done = new Set(keys);
   stash();
 
@@ -520,7 +586,11 @@ function importSave(bytes) {
 
   return {
     id,
+    reimported: Boolean(existing),
     label: characterLabel(ch, classes),
+    level: ch.level,
+    classId: ch.classId,
+    difficulty: ch.difficulty?.tier ?? 'normal',
     stars: keys.length,
     spent: ch.bio.totalDevotion - ch.bio.devotionPoints,
     unspent: ch.bio.devotionPoints,
