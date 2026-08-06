@@ -131,17 +131,16 @@
 body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-family:system-ui,sans-serif;
   font-size:var(--fs-base);line-height:1.5}
 *{box-sizing:border-box}
-.wrap{max-width:1160px;margin:0 auto}
-/* Three columns: intent, then what you asked for, then what you got. The controls
-   column is fixed and narrow because it is a list of switches, not content -- letting
-   it flex would take width from the two panes that actually hold things. The 900px
-   canvas grew to 1160 to pay for it, which leaves the original two panes their width. */
-.col{display:grid;grid-template-columns:236px minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
-/* Controls decide the tags, which decide the path, so the lock freezes them along with
-   everything else that shapes the build. Same scrim as the selection column. */
-.ctlpane{position:relative}
-.ctlpane.locked::after{content:'';position:absolute;inset:-4px;z-index:2;
-  background:var(--overlay-locked);border-radius:10px;pointer-events:none}
+.wrap{max-width:900px;margin:0 auto}
+/* TWO columns, 1:1, as it was before the controls column existed.
+   Everything you SET and everything you READ about your inputs on the left; the devotion
+   path on the right.
+   v0.3.1 put presets in a third fixed 236px column and widened the canvas to 1160 to pay
+   for it. v0.5.0 folded presets into the tag picker and removed that column -- but left
+   this rule alone, so the INPUTS pane inherited the narrow slot the switches had been
+   sitting in. The 236px was never about the left column; it was about a list of buttons.
+   Neither pane is fixed, because both hold content whose width matters. */
+.col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
 .ctl{display:block;width:100%;text-align:left;margin:0 0 6px;padding:9px 11px;border-radius:8px;
   border:1px solid var(--line-4);background:var(--surface-2);color:var(--ink-3);
   font:inherit;cursor:pointer}
