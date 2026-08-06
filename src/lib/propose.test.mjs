@@ -274,3 +274,27 @@ test('an attribute already earned as a strength is not proposed twice', () => {
   assert.equal(p.tags.filter(t => t.tag === 'character:characterIntelligence').length, 1,
     'the same chip was placed twice, wasting a slot on a duplicate');
 });
+
+test('the same resistance is a problem at 100 and not at 35', () => {
+  // The level has to REACH the weighting, not just gate the analysis. Without it the
+  // endgame thresholds apply to everybody, and a levelling character is told to spend
+  // devotion points fixing a resistance that is fine for where they are.
+  const resists = { ...CAPPED, aether: 32 };
+
+  const young = proposeTags({ strengths: [], resists, level: 35, difficulty: 'normal' });
+  assert.deepEqual(young.tags, [],
+    '32 aether on a level 35 in Normal is ordinary progress, not a hole');
+
+  const old = proposeTags({ strengths: [], resists, level: 100, difficulty: 'normal' });
+  assert.deepEqual(old.tags.map(t => t.tag), ['character:defensiveAether'],
+    '32 aether at level 100 is a hole and should be proposed');
+});
+
+test('a dire resistance is dire at any level', () => {
+  // The scale must not become an excuse. Single digits are lethal whenever they happen.
+  const p = proposeTags({
+    strengths: [], resists: { ...CAPPED, pierce: 6 }, level: 30, difficulty: 'normal',
+  });
+  assert.deepEqual(p.tags.map(t => t.tag), ['character:defensivePierce']);
+  assert.equal(p.tags[0].weight, 3, 'six percent should carry the heaviest weight');
+});

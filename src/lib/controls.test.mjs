@@ -100,3 +100,45 @@ test('no preset asks the player for numbers any more', () => {
     assert.deepEqual(c.inputs, [], `${c.id} asks for input but nothing renders it`);
   }
 });
+
+// --- thresholds scale with level ---------------------------------------------------
+
+test('the resistance thresholds are ENDGAME thresholds, scaled by level', () => {
+  // 45/60/75 describe a level 100. Applied to a levelling character they call normal
+  // progress an emergency: a level 35 on 32 aether is fine, because gear turns over every
+  // few levels and Normal hits nothing hard enough to care.
+  assert.equal(resistWeightOf(32, 35), 0, 'a level 35 on 32 resistance is not in trouble');
+  assert.equal(resistWeightOf(32, 100), 3, 'a level 100 on 32 resistance is dying');
+
+  // At Farker's level the line falls where a player would put it -- single digits, or
+  // under twenty at a push.
+  assert.equal(resistWeightOf(9, 35), 3, 'single digits are dire at any level');
+  assert.equal(resistWeightOf(15, 35), 3);
+  assert.equal(resistWeightOf(27, 35), 0, 'and the high twenties are fine at 35');
+});
+
+test('no level means no scaling', () => {
+  // A hand-built character has not told us one, and guessing low would quietly stop
+  // proposing resistances at all -- a control that silently does nothing.
+  assert.equal(resistWeightOf(32), 3);
+  assert.equal(resistWeightOf(32, null), 3);
+});
+
+test('the scale is clamped, so an impossible level cannot invert it', () => {
+  assert.equal(resistWeightOf(80, 500), 0, 'a level past endgame should not raise the bar');
+  assert.equal(resistWeightOf(0, 1), 3, 'zero resistance is dire even at level 1');
+  assert.equal(resistWeightOf(0, -5), 3, 'a negative level should not flip the comparison');
+});
+
+test('scaling preserves the ordering of the three bands', () => {
+  // Whatever the level, worse is never weighted lower than better. Getting the scale on
+  // the wrong side of the comparison would silently reverse the whole judgement.
+  for (const level of [25, 40, 60, 80, 100]) {
+    let prev = 3;
+    for (let v = 0; v <= 90; v++) {
+      const w = resistWeightOf(v, level);
+      assert.ok(w <= prev, `at level ${level}, ${v} resistance scored above ${v - 1}`);
+      prev = w;
+    }
+  }
+});

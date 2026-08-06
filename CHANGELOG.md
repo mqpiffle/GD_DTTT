@@ -4,6 +4,38 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.7.1 — 6 Aug 2026
+
+**The resistance thresholds were endgame thresholds applied to everybody.** 45/60/75
+describe a level 100. Applied to a levelling character they call ordinary progress an
+emergency — a level 35 sitting on 32 aether is fine, because gear turns over every few
+levels and Normal hits nothing hard enough to care.
+
+The whole scale now slides with level:
+
+| level | dire below | fine at or above |
+|---|---|---|
+| 25 | 12 | 19 |
+| 35 | 16 | 27 |
+| 50 | 23 | 38 |
+| 80 | 36 | 60 |
+| 100 | 45 | 75 |
+
+At level 35 that puts the line where a player would put it — single digits, or under
+twenty at a push. Sparkles and Chphthzhmh are untouched; Farker stops being told about a
+resistance that was never a problem.
+
+Linear, and deliberately not a curve fitted to anything. There is no measurement behind a
+particular shape — what there is, is the judgement that the targets are endgame targets,
+and linear says "proportionally less of a concern earlier" without inventing precision.
+Level scales the bar, difficulty scales the value; a level 80 in Elite gets both, which is
+right, because both are true of her.
+
+Caught while writing the tests: a non-positive level collapsed every threshold to zero, so
+`value >= 0` held and a character with **no resistance at all** read as comfortable. The
+most dangerous possible input scoring as the safest is precisely the failure this scale
+exists to prevent. A level that isn't a level now means no scaling.
+
 ## 0.7.0 — 6 Aug 2026
 
 **Resistances are derived.** The last unbuilt piece of the analysis pipeline. Import now

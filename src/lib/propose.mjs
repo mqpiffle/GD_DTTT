@@ -152,7 +152,11 @@ export function proposeTags({
     .map(([tag, { value, label }]) => {
       const field = tag.replace(/^character:/, '');
       const effective = value + resistPenalty(field, difficulty);
-      return { tag, value, effective, label, weight: resistWeightOf(effective) };
+      // LEVEL SCALES THE BAR, difficulty scales the value, and they are different
+      // corrections to different things. Without the level the thresholds are endgame
+      // ones applied to everybody, which calls a level 35 on 32 aether an emergency when
+      // it is simply a level 35.
+      return { tag, value, effective, label, weight: resistWeightOf(effective, level) };
     })
     .filter(x => x.weight > 0)
     .sort((a, b) => a.effective - b.effective);

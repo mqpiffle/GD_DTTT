@@ -90,12 +90,45 @@ export const EXCLUDED_RESIST = 'character:defensivePhysical';
  * thresholds. Two versions of "what counts as dire" would drift, and
  * the drift would be invisible -- both would keep producing plausible numbers.
  */
-export const resistWeightOf = value => resistWeight(value);
+/**
+ * The level at which the thresholds above are the right ones.
+ *
+ * THEY ARE ENDGAME NUMBERS, and applying them to a levelling character calls normal
+ * progress an emergency. A level 35 sitting on 32 aether is fine -- gear turns over every
+ * few levels and Normal hits nothing hard enough to care. A level 100 on 32 aether in
+ * Ultimate is dying.
+ *
+ * So the whole scale slides with level. At 35 the dire line falls from 45 to about 16,
+ * which puts it where a player would put it: single digits, or under twenty at a push.
+ * At 100 nothing moves.
+ *
+ * LINEAR, and deliberately not a curve fitted to anything. There is no measurement behind
+ * a particular shape -- what there is, is a judgement that the targets are endgame
+ * targets, and linear is the honest way to say "proportionally less of a concern earlier"
+ * without inventing precision.
+ *
+ * The difficulty penalty is a SEPARATE and complementary correction: that adjusts the
+ * value, this adjusts the bar. A level 80 in Elite gets both, which is right, because
+ * both things are true of her.
+ */
+const ENDGAME_LEVEL = 100;
 
-function resistWeight(value) {
-  if (value >= RESIST_TARGET) return 0;
-  if (value < 45) return 3;
-  if (value < 60) return 2;
+export const resistWeightOf = (value, level = null) => resistWeight(value, level);
+
+function resistWeight(value, level) {
+  // No level means no scaling. A hand-built character has not told us one, and guessing
+  // low would quietly stop proposing resistances at all.
+  //
+  // A NON-POSITIVE LEVEL IS NOT A LEVEL, and clamping it to zero rather than rejecting it
+  // was a real bug: every threshold became zero, so `value >= 0` held and a character with
+  // NO RESISTANCE AT ALL read as comfortable. The most dangerous possible input scoring
+  // as the safest is exactly the failure this scale exists to prevent.
+  const scale = Number.isFinite(level) && level > 0
+    ? Math.min(1, level / ENDGAME_LEVEL)
+    : 1;
+  if (value >= RESIST_TARGET * scale) return 0;
+  if (value < 45 * scale) return 3;
+  if (value < 60 * scale) return 2;
   return 1;
 }
 
