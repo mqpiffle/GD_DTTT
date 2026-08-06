@@ -26,15 +26,15 @@ function idx(items, fields) {
 }
 
 test('only DAMAGE TYPES are ranked', () => {
-  // Four metrics were measured against real characters before this filter existed. The
-  // first summed every percentage modifier and put Movement Speed +35% in the same sort
-  // as Physical Damage +92%, which are not the same kind of number. Counting items
-  // instead favoured whatever is common on gear. Dividing by base rate measured UNUSUAL
-  // rather than INTENTIONAL -- a player deliberately stacking casting speed scored
-  // exactly average.
+  // The reason is SCALE, and it is the only reason. Median rolls across the 14,008
+  // indexed items: cold 50%, physical 42%, elemental 40% -- against casting speed 8% and
+  // attack speed 8%. Sorting those together puts +35% movement speed above +30% physical
+  // damage, which is nonsense in both directions. Within damage types a sum means
+  // something.
   //
-  // Percentages were never the problem; mixing kinds was. Within damage types they are
-  // commensurable.
+  // This comment used to give a second reason -- that armour rolls movement speed by
+  // default -- and it was false. Movement speed is on 1.9% of items, almost all boots.
+  // See the note on DAMAGE_TYPE in strengths.mjs.
   const index = idx({
     'items/a.dbr': { offensiveColdModifier: 100, characterRunSpeedModifier: 5000 },
   }, ['offensiveColdModifier', 'characterRunSpeedModifier']);
@@ -483,4 +483,65 @@ test('skills change the answer on a real character',
     const g = strengths(gear.totals, chipOf).find(s => s.chip === chip);
     if (g) assert.ok(v >= g.value, `${chip} shrank when skills were added`);
   }
+});
+
+test('the reason damage types are ranked alone is SCALE, and the numbers say so',
+  { skip: !haveBoth && 'needs items-index.json' }, () => {
+  // A regression test on a CLAIM rather than on behaviour, because the claim is what
+  // went wrong. The comment on DAMAGE_TYPE once justified the restriction by saying
+  // armour rolls movement speed by default. It does not, and nobody checked -- the index
+  // that disproves it was sitting in this repository the whole time.
+  const index = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
+  const total = Object.keys(index.items).length;
+
+  const carrying = (field) => {
+    const j = index.fields.indexOf(field);
+    if (j < 0) return 0;
+    let n = 0;
+    for (const e of Object.values(index.items)) {
+      const s = e.s ?? [];
+      for (let i = 0; i < s.length; i += 2) if (s[i] === j && s[i + 1] > 0) { n++; break; }
+    }
+    return n;
+  };
+  const medianRoll = (field) => {
+    const j = index.fields.indexOf(field);
+    const vals = [];
+    for (const e of Object.values(index.items)) {
+      const s = e.s ?? [];
+      for (let i = 0; i < s.length; i += 2) if (s[i] === j && s[i + 1] > 0) vals.push(s[i + 1]);
+    }
+    vals.sort((a, b) => a - b);
+    return vals[Math.floor((vals.length - 1) / 2)];
+  };
+
+  // THE FALSE CLAIM. Movement speed is a boots stat, not a default.
+  const runShare = carrying('characterRunSpeedModifier') / total;
+  assert.ok(runShare < 0.05,
+    `movement speed is on ${(runShare * 100).toFixed(1)}% of items, so "armour rolls it `
+    + 'by default" is false -- do not put that reasoning back');
+
+  // And commonness cannot be what separates casting speed from a damage type: they are
+  // about equally common.
+  const cast = carrying('characterSpellCastSpeedModifier') / total;
+  const cold = carrying('offensiveColdModifier') / total;
+  assert.ok(Math.abs(cast - cold) < 0.05,
+    'casting speed and cold damage are about equally common, so commonness is not the reason');
+
+  // THE REASON THAT SURVIVES. Damage types roll on one scale; speeds on another.
+  const damage = ['offensiveColdModifier', 'offensivePhysicalModifier',
+    'offensiveElementalModifier'].map(medianRoll);
+  const speed = ['characterSpellCastSpeedModifier', 'characterAttackSpeedModifier']
+    .map(medianRoll);
+  for (const d of damage) {
+    for (const s of speed) {
+      assert.ok(d > s * 3,
+        `a damage median of ${d} against a speed median of ${s} is not a wide enough gap `
+        + 'to justify keeping them in separate rankings');
+    }
+  }
+  // Whereas damage types agree with each other, which is what makes summing them sound.
+  assert.ok(Math.max(...damage) < Math.min(...damage) * 2,
+    'damage type medians are further apart than assumed; the commensurability claim needs '
+    + 're-measuring');
 });

@@ -4,6 +4,37 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.6.1 — 6 Aug 2026
+
+**A claim repeated three times in this codebase was false.** The justification for ranking
+only damage types said, in a code comment, a test and two changelog entries, that
+count-based metrics fail because *armour rolls movement speed by default*.
+
+Measured against the index that was sitting in this repository the whole time: movement
+speed is on **1.9%** of the 14,008 items. It is a boots stat — 73.9% of `gearfeet`, 19.5%
+of legs, 0.3% of torso, 0.3% of weapons. Nothing rolls it by default.
+
+Worse, the character it supposedly led on "wrongly" was wearing **Mark of the Traveler**
+and **Chains of Oleron** — two components that exist for movement speed — plus movement
+boots and a movement suffix, for 29% across four sources. He had stacked it deliberately.
+The metric was right; the explanation was invented.
+
+Commonness doesn't separate the stats in question anyway: casting speed is on 10.2% of
+items, cold damage 11.2%, Offensive Ability 19.7%, Damage Absorption 20.4%.
+
+**What survives is the scale argument, alone, and it is measured.** Median rolls are cold
+50%, physical 42%, elemental 40% against casting speed 8% and attack speed 8%. Damage
+types agree with each other within a factor of 1.25 and disagree with speeds by more than
+6×. Restricting the ranking to damage types is sound for that reason and no other — it is
+a limit of what a sum can compare, not a claim that speed stats are noise.
+
+The base-rate failure is real and still holds: re-measured on values rather than counts, a
+deliberate casting-speed build scores **0.8x** — below average — because caster gear rolls
+casting speed, so the base rate already contains the intent.
+
+There is now a test asserting the prevalence figures directly, so the reasoning can't drift
+back into fiction.
+
 ## 0.6.0 — 6 Aug 2026
 
 **Skills count.** A new `skills-index.json` carries what every skill grants at every rank
@@ -54,7 +85,8 @@ dynamic range; the counts have the meaning.
 
 The note in the code claiming count-based ranking had already been rejected was answering
 a different question: that measurement was over *all* modifiers, where movement speed
-dominates because armour rolls it by default. Within damage types it had never been run.
+dominated. Within damage types it had never been run. (The *reason* given for movement
+speed dominating was also wrong — see 0.6.1.)
 
 Reasons now carry both numbers — "192% across 8 equipped items" — because the count is the
 test the stat had to pass, and reporting only the sum hides it.
@@ -271,10 +303,13 @@ against real characters.
 Summing every percentage modifier put Movement Speed +35% in the same ranking as Physical
 Damage +92% — not the same kind of number, since +35% movement speed is enormous and +35%
 damage is modest. Counting how many items carry a stat instead rewarded whatever is
-*common* on gear: movement speed led on a character not built for it, because armour rolls
-it by default. Dividing that count by how often the stat appears across all 14,000 indexed
-items measured *unusual* rather than *intentional* — a player deliberately stacking casting
-speed scored exactly average.
+*common* on gear. Dividing that count by how often the stat appears across all 14,000
+indexed items measured *unusual* rather than *intentional* — a player deliberately stacking
+casting speed scored exactly average.
+
+> **Corrected in 0.6.1.** This entry originally said movement speed led "because armour
+> rolls it by default". That is false — it is on 1.9% of items — and the character it led
+> on had genuinely stacked it.
 
 Percentages were never the problem; mixing kinds of stat was. Within damage types the
 numbers are commensurable, and a mid-level cold caster reads as Cold, Frostburn and

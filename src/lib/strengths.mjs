@@ -49,30 +49,40 @@ export const STRENGTH_THRESHOLD = 0.25;
 const MODIFIER = /Modifier$/;
 
 /**
- * ONLY DAMAGE TYPES ARE RANKED, and this is the conclusion of four measured attempts
- * rather than a simplification.
+ * ONLY DAMAGE TYPES ARE RANKED, and the reason is SCALE. Nothing else.
  *
- * The first version summed every percentage modifier and put Movement Speed +35% in the
- * same sort as Physical Damage +92%. Those are not the same kind of number: +35% movement
- * speed is enormous for that stat, +35% damage is modest. Two other metrics were tried
- * against real characters and each had its own bias:
+ * Damage types are commensurable with each other and with nothing else. Median rolls,
+ * measured across the 14,008 indexed items:
  *
- *   sum of every modifier   biased by SCALE      -- speed percentages dwarf damage ones
- *   count of items          biased by COMMONNESS -- armour rolls movement speed by default,
- *                                                  so it led on a character not built for it
- *   count / base rate       measures UNUSUAL, not INTENTIONAL
+ *   offensiveColdModifier              50%      offensivePhysicalModifier    42%
+ *   offensiveElementalModifier         40%      characterOffensiveAbility    40
+ *   characterSpellCastSpeedModifier     8%      characterAttackSpeedModifier  8
  *
- * The third is the instructive failure. A player deliberately building for casting speed
- * scored exactly 1.0x -- statistically unremarkable -- because a stat can be both common
- * and wanted. No count-based metric can separate those.
+ * Summing across those and sorting puts +35% movement speed above +30% physical damage,
+ * which is nonsense in both directions: 35% is enormous for movement and modest for
+ * damage. Within damage types the medians sit at 40-50 and a sum means something.
  *
- * Restricting to damage types fixes it, and the reason is that percentages were never the
- * problem: MIXING KINDS was. Within damage types the numbers are commensurable, so summing
- * is sound.
+ * A PREVIOUS VERSION OF THIS COMMENT GAVE A SECOND REASON AND IT WAS FALSE. It said count-
+ * based metrics fail because "armour rolls movement speed by default", so movement speed
+ * led on a character not built for it. Measured: movement speed appears on 1.9% of items.
+ * It is a BOOTS stat -- 73.9% of gearfeet, 19.5% of legs, 0.3% of torso, 0.3% of weapons.
+ * Nothing rolls it by default.
  *
- * Everything else a player deliberately pursues -- casting speed, attack speed, armour,
- * attributes -- is what the PRESETS exist for. Those are intent, and intent is the thing
- * only the player can supply.
+ * The character it "wrongly" led on turned out to be wearing Mark of the Traveler and
+ * Chains of Oleron, two components whose reason for existing is movement speed, plus
+ * movement-speed boots and a suffix. The player HAD stacked it deliberately. The metric
+ * was right and the explanation was invented -- an assertion never checked against the
+ * index sitting in the same repository.
+ *
+ * Commonness does not separate these stats anyway: casting speed is on 10.2% of items and
+ * cold damage on 11.2%. What survives, measured, is that a base-rate metric scores a
+ * deliberate casting-speed build at 0.8x -- below average -- because caster gear rolls
+ * casting speed, so the base rate already contains the intent. That failure is real.
+ *
+ * Everything a player pursues that is not a damage type -- casting speed, attack speed,
+ * armour -- is what the PRESETS exist for, and attribute points are read directly (see
+ * attributeFocus). This is a limit of the SCALE argument, not a claim that those stats
+ * are noise.
  *
  * Note the category is not enough: `Offense` also holds offensive ability, attack speed
  * and crit damage, none of which are damage types. The test is the field name.
