@@ -211,12 +211,35 @@ export function tallyGear(records, index) {
  *
  * A single value with no rank list is a constant: it applies whatever the rank.
  *
+ * WHAT COUNTS DEPENDS ON WHAT YOU ARE ASKING, which is why `targets` is a parameter and
+ * not a constant. The index marks each record with who its numbers land on:
+ *
+ *   SELF_TARGET   the character. Always counted.
+ *   SKILL_TARGET  one skill -- "+30% cold damage to Nightblade attacks".
+ *   ENEMY_TARGET  a debuff. Never counted, in either reading.
+ *
+ * A skill-scoped bonus is NOT a character stat and IS a statement of intent, and those
+ * two facts pull in opposite directions:
+ *
+ *   RESISTANCES must take SELF only. +15% pierce resistance that applies while one skill
+ *   is active is not 15% pierce resistance, and adding it would report armour the
+ *   character does not have.
+ *
+ *   STRENGTHS should take both. Points spent on a modifier that adds cold damage to your
+ *   main attack say "this is a cold build" exactly as loudly as a character-wide bonus --
+ *   arguably more loudly, since nobody invests in a modifier by accident.
+ *
  * @param skills  from `readCharacter()` -- [{ name, level }], names as record paths
  * @param index   a parsed skills-index.json
  * @returns { totals, sources, missing } in the same shape `tallyGear()` returns, so the
  *          two can be merged without either knowing about the other.
  */
-export function tallySkills(skills, index) {
+export const SELF_TARGET = 0;
+export const ENEMY_TARGET = 1;
+export const SKILL_TARGET = 2;
+
+export function tallySkills(skills, index, { targets = [SELF_TARGET] } = {}) {
+  const allowed = new Set(targets);
   const totals = new Map();
   const sources = new Map();
   const missing = [];
@@ -231,6 +254,10 @@ export function tallySkills(skills, index) {
     // the default attacks, a shapeshift whose stats apply only while transformed, a
     // modifier that alters another skill rather than you. Reported, never guessed at.
     if (!entry) { missing.push(sk.name); continue; }
+    // WHOSE STATS ARE THESE. Bone Chilling Cry's `defensivePierce: -4` strips four pierce
+    // resistance FROM ENEMIES, and counting it took four off the caster -- an aura that
+    // makes you stronger, read as a penalty. That one is arithmetic, not judgement.
+    if (!allowed.has(entry.t ?? SELF_TARGET)) continue;
 
     const s = entry.s ?? [];
     for (let i = 0; i < s.length;) {
@@ -272,6 +299,49 @@ export function mergeTallies(...tallies) {
     }
   }
   return { totals, sources };
+}
+
+/**
+ * The character sheet's nine resistances, from a tally.
+ *
+ * THE THREE SOURCES ARE ALL HERE, and the third arrived by accident. Gear and skills are
+ * the obvious two. The third -- what your devotion stars already grant -- turned out to be
+ * free: devotion stars ARE skills, they sit in the save's own skill list, and the skill
+ * index picked all 52 of one character's up without being asked. The piece recorded for
+ * weeks as "needs new index data" needed none.
+ *
+ * FIRE, COLD AND LIGHTNING READ FROM THE ELEMENTAL FIELD, and this is a known
+ * approximation with a measured size. Single-element resistance exists on items but is
+ * rare -- 11 of 1218 base items across weapons, rings, torso and head, against 284
+ * carrying `defensiveElementalResistance` -- and those fields belong to chips the picker
+ * cannot offer, so the index does not carry them. The effect is to UNDERSTATE whichever
+ * element a character has topped up individually, which errs towards proposing elemental
+ * resistance slightly too eagerly. That is the safe direction: the cost is a tag you can
+ * remove, not a hole you were never told about.
+ *
+ * RAW, NOT CAPPED, and not penalised. The game caps the displayed figure at 80% and
+ * subtracts a penalty on the higher difficulties, but both belong to the caller: overcap
+ * is exactly what decides whether a resistance survives stepping up a difficulty, so
+ * flattening 170 to 80 here would destroy the thing the number is for. `proposeTags()`
+ * applies the difficulty penalty itself.
+ */
+export function resistancesFrom(totals) {
+  const at = f => Math.round(totals?.get(f) ?? 0);
+  const elemental = at('defensiveElementalResistance');
+  return {
+    fire: elemental + at('defensiveFire'),
+    cold: elemental + at('defensiveCold'),
+    lightning: elemental + at('defensiveLightning'),
+    acid: at('defensivePoison'),
+    pierce: at('defensivePierce'),
+    bleeding: at('defensiveBleeding'),
+    vitality: at('defensiveLife'),
+    aether: at('defensiveAether'),
+    chaos: at('defensiveChaos'),
+    // Not proposed -- the tree cannot meaningfully move it -- but read, because the
+    // turtle preset and the player both care. See EXCLUDED_RESIST in controls.mjs.
+    physical: at('defensivePhysical'),
+  };
 }
 
 /**

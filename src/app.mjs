@@ -18,8 +18,8 @@ import { schedulePath } from './lib/schedule.mjs';
 import { DEFAULT_WEIGHT, MAX_WEIGHT, clampWeight } from './lib/wanted.mjs';
 import { CONTROLS, RESISTS, applyControls } from './lib/controls.mjs';
 import { readCharacter, readEquipment, equippedRecords, DIFFICULTIES } from './lib/gdc.mjs';
-import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus }
-  from './lib/strengths.mjs';
+import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus,
+  resistancesFrom, SELF_TARGET, SKILL_TARGET } from './lib/strengths.mjs';
 import { proposeTags } from './lib/propose.mjs';
 import { mapDevotions, offPlan, characterLabel } from './lib/import.mjs';
 import { diffPaths, summarise } from './lib/diff.mjs';
@@ -619,7 +619,7 @@ function addChar({ from = null, name = null } = {}) {
  */
 function analyseCharacter(bytes, ch, difficulty) {
   if (!keywords || !itemIndex) return null;
-  let totals; let sources;
+  let totals; let sources; let defence;
   try {
     // A second pass over the same bytes rather than one combined read. Equipment sits
     // past the skills in the file, so reaching it means parsing further -- and keeping
@@ -632,8 +632,20 @@ function analyseCharacter(bytes, ch, difficulty) {
     // A missing skill index degrades to the gear reading rather than to nothing, which is
     // the right failure: half the character is worse than all of it and much better than
     // an empty picker.
-    const fromSkills = skillIndex ? tallySkills(ch.skills, skillIndex) : null;
-    ({ totals, sources } = fromSkills ? mergeTallies(gear, fromSkills) : gear);
+    //
+    // TWO READINGS, because the two questions differ. Resistances take only what applies
+    // to the character; strengths also take what applies to a single skill, because
+    // points spent on a modifier that adds cold damage to your main attack say "cold
+    // build" as loudly as any character-wide bonus. Nobody invests in a modifier by
+    // accident. See tallySkills.
+    const selfOnly = skillIndex ? tallySkills(ch.skills, skillIndex) : null;
+    const withScoped = skillIndex
+      ? tallySkills(ch.skills, skillIndex, { targets: [SELF_TARGET, SKILL_TARGET] })
+      : null;
+    ({ totals, sources } = withScoped ? mergeTallies(gear, withScoped) : gear);
+    // Resistances are read from the narrower tally: a bonus that applies while one skill
+    // is active is not armour the character is wearing.
+    defence = selfOnly ? mergeTallies(gear, selfOnly).totals : gear.totals;
   } catch {
     // Unreadable gear costs the analysis, not the import. The stars are already read.
     return null;
@@ -647,11 +659,10 @@ function analyseCharacter(bytes, ch, difficulty) {
     // Read off the BASE attributes in the bio, which is why it needs `ch` and not the
     // gear tally: the sheet's numbers already have the gear added on.
     attribute: attributeFocus(ch.bio),
-    // RESISTANCES ARE NOT DERIVED YET, so the proposal is the strengths half only and
-    // no resistance tag is offered. `null` says unknown -- which is the truth -- rather
-    // than zero, which would have every resistance read as dire and fill all five slots
-    // with holes the tool cannot actually see.
-    resists: null,
+    // DERIVED, at last, from all three sources at once -- gear, skills, and the devotion
+    // stars already bought, which are themselves skills and came along with them. This is
+    // what the resistance equaliser used to ask nine questions to learn.
+    resists: resistancesFrom(defence),
     max: MAX,
     level: ch.level,
     difficulty,

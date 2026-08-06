@@ -4,6 +4,48 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.7.0 — 6 Aug 2026
+
+**Resistances are derived.** The last unbuilt piece of the analysis pipeline. Import now
+reads all nine sheet resistances and proposes the weak ones, weighted against the
+difficulty you're planning for. This is what the resistance equaliser used to ask nine
+questions to learn.
+
+Sparkles, level 80 in Elite, reads:
+
+```
+fire 170  cold 170  lightning 170  chaos 148  bleeding 69
+aether 63  vitality 33  acid 32  pierce 30  physical 6
+```
+
+and gets **Pierce Resistance — "Pierce at 30, which is 5 on elite"** and **Acid Resistance
+— "32, which is 7 on elite"** alongside her Lightning build. Chphthzhmh at level 100 in
+Ultimate is overcapped everywhere but chaos, and gets exactly one resistance tag for it.
+
+**The third source cost nothing.** Gear and skills were the obvious two; what your devotion
+stars already grant was recorded for weeks as "needs new index data". It needed none —
+devotion stars *are* skills, they sit in the save's own skill list, and the skill index
+picked up all 52 of Sparkles' without being asked.
+
+**Enemy debuffs were being subtracted from the player**, which is the bug that made this
+worth doing carefully. Grim Dawn writes a debuff exactly like a buff — same fields, same
+per-rank arrays — and distinguishes them only by class. Bone Chilling Cry carries
+`defensivePierce: -4`, meaning four pierce resistance stripped from *enemies*; folding it
+into the caster took four off their own. Veil of Shadows did the same with −3 to −35. Each
+record now carries who its numbers land on: the character, one skill, or the enemy.
+
+**Skill-scoped bonuses count for strengths but not for resistances**, and the two rules
+disagree on purpose. "+15% pierce resistance while this skill is active" is not armour on
+the sheet. But points spent on a modifier adding cold damage to your main attack say "cold
+build" as loudly as anything character-wide — nobody invests in a modifier by accident.
+
+Known approximation: fire, cold and lightning are read from the single elemental field.
+Single-element resistance exists on items but is rare — 11 of 1218 base items against 284
+carrying elemental — and belongs to chips the picker can't offer, so the index doesn't
+carry it. The effect is to understate an individually topped-up element, which errs
+towards proposing elemental resistance slightly too eagerly. The cost is a tag you can
+remove rather than a hole you were never told about.
+
 ## 0.6.2 — 6 Aug 2026
 
 **Retaliation is a damage type**, and leaving it out meant misreading an entire archetype.

@@ -15,8 +15,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readCharacter, readEquipment, equippedRecords } from '../src/lib/gdc.mjs';
-import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus }
-  from '../src/lib/strengths.mjs';
+import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus,
+  resistancesFrom, SELF_TARGET, SKILL_TARGET } from '../src/lib/strengths.mjs';
 import { proposeTags } from '../src/lib/propose.mjs';
 
 const dir = import.meta.dirname;
@@ -47,7 +47,10 @@ for (const file of files) {
   }
 
   const gear = tallyGear(equippedRecords(readEquipment(bytes)), items);
-  const skl = skillIdx ? tallySkills(ch.skills, skillIdx) : null;
+  // Strengths see skill-scoped bonuses too; resistances do not. See tallySkills.
+  const skl = skillIdx
+    ? tallySkills(ch.skills, skillIdx, { targets: [SELF_TARGET, SKILL_TARGET] }) : null;
+  const selfOnly = skillIdx ? tallySkills(ch.skills, skillIdx) : null;
   const both = skl ? mergeTallies(gear, skl) : gear;
   const attr = attributeFocus(ch.bio);
 
@@ -70,10 +73,15 @@ for (const file of files) {
   if (skl) line('skills', skl);
   line('combined', both);
 
+  const res = resistancesFrom(
+    selfOnly ? mergeTallies(gear, selfOnly).totals : gear.totals);
+  console.log(`  resists   ${Object.entries(res)
+    .map(([k, v]) => `${k} ${v}`).join('  ')}`);
+
   const p = proposeTags({
     strengths: strengths(both.totals, chipOf, { sources: both.sources }),
     attribute: attr,
-    resists: null,
+    resists: res,
     level: ch.level,
     difficulty: ch.difficulty?.tier ?? 'normal',
   });

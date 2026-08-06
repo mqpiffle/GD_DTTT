@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { tallyGear, tallySkills, mergeTallies, strengths, chipMapper, attributeFocus,
-  STRENGTH_THRESHOLD } from './strengths.mjs';
+  resistancesFrom, SELF_TARGET, SKILL_TARGET, STRENGTH_THRESHOLD } from './strengths.mjs';
 
 /** A minimal index in the shape build-items.mjs emits. */
 function idx(items, fields) {
@@ -608,4 +608,115 @@ test('a real retaliation character reads as one',
   const out = strengths(t.totals, chipOf, { sources: t.sources });
   assert.equal(out[0]?.chip, 'character:retaliationTotalDamage',
     `the strongest signal read as ${out[0]?.chip}, not retaliation`);
+});
+
+// --- resistances ------------------------------------------------------------------
+
+test('elemental resistance feeds fire, cold and lightning alike', () => {
+  // The tree offers one elemental chip, not three, so the three sheet rows are read from
+  // the one field. Getting this wrong in either direction is invisible: split it three
+  // ways and every elemental resistance reads as dire, or read only one and two rows
+  // silently stay at zero.
+  const r = resistancesFrom(new Map([['defensiveElementalResistance', 60]]));
+  assert.equal(r.fire, 60);
+  assert.equal(r.cold, 60);
+  assert.equal(r.lightning, 60);
+});
+
+test('a single-element bonus adds on top of the elemental one', () => {
+  const r = resistancesFrom(new Map([
+    ['defensiveElementalResistance', 40], ['defensiveFire', 22],
+  ]));
+  assert.equal(r.fire, 62, 'fire resistance from an item should stack with elemental');
+  assert.equal(r.cold, 40, 'and not leak into the other two');
+});
+
+test('every sheet row is present even when nothing grants it', () => {
+  // A missing key and a zero mean different things to proposeTags: missing is UNKNOWN and
+  // is skipped, zero is dire and is proposed. Once the tally is real, absent means zero.
+  const r = resistancesFrom(new Map());
+  for (const k of ['fire', 'cold', 'lightning', 'acid', 'pierce', 'bleeding', 'vitality',
+    'aether', 'chaos', 'physical']) {
+    assert.equal(r[k], 0, `${k} is missing from the reading`);
+  }
+});
+
+test('resistances are raw, not capped at the game maximum', () => {
+  // Overcap is the whole point. 170 elemental is not "80 with spare" -- it is what decides
+  // whether the resistance survives an Ultimate penalty, and flattening it here would
+  // destroy exactly the information the number exists to carry.
+  const r = resistancesFrom(new Map([['defensiveElementalResistance', 170]]));
+  assert.equal(r.fire, 170);
+});
+
+test('the three sources agree with a real character',
+  { skip: !fs.existsSync(path.join(import.meta.dirname, '../../../sparkles.gdc'))
+    && 'needs sparkles.gdc' }, async () => {
+  // Sparkles is lopsided on purpose: elemental and chaos massively overcapped, acid and
+  // pierce dire. If the derivation cannot see that, it cannot see anything.
+  const SKILLS = path.join(import.meta.dirname, '../../skills-index.json');
+  if (!fs.existsSync(SKILLS) || !fs.existsSync(INDEX)) return;
+  const { readCharacter, readEquipment, equippedRecords } = await import('./gdc.mjs');
+  const bytes = new Uint8Array(fs.readFileSync(
+    path.join(import.meta.dirname, '../../../sparkles.gdc')));
+
+  const t = mergeTallies(
+    tallyGear(equippedRecords(readEquipment(bytes)), JSON.parse(fs.readFileSync(INDEX, 'utf8'))),
+    tallySkills(readCharacter(bytes).skills, JSON.parse(fs.readFileSync(SKILLS, 'utf8'))));
+  const r = resistancesFrom(t.totals);
+
+  assert.ok(r.fire > 100, `elemental read as ${r.fire}, but she is overcapped on it`);
+  assert.ok(r.chaos > 100, `chaos read as ${r.chaos}, but she is overcapped on it`);
+  assert.ok(r.pierce < 45, `pierce read as ${r.pierce}, but it is one of her holes`);
+  assert.ok(r.acid < 45, `acid read as ${r.acid}, but it is one of her holes`);
+
+  // NOTHING NEGATIVE. Enemy debuffs are written in the same fields as self-buffs and
+  // were being subtracted from the caster -- Bone Chilling Cry took 4 pierce off its own
+  // user. A negative resistance here means the target classification has broken.
+  for (const [k, v] of Object.entries(r)) {
+    assert.ok(v >= 0, `${k} came out negative (${v}); an enemy debuff is being counted`);
+  }
+});
+
+test('an enemy debuff is not subtracted from the character', () => {
+  // The bug in miniature. `t: 1` marks a record whose numbers land on enemies.
+  const index = { prefix: 'records/', fields: ['defensivePierce'], skills: {
+    'skills/aura.dbr': { s: [0, 1, -4], t: 1 },      // strips 4 pierce FROM ENEMIES
+    'skills/passive.dbr': { s: [0, 1, 10] },         // gives 10 to you
+  } };
+  const t = tallySkills([
+    { name: 'records/skills/aura.dbr', level: 1 },
+    { name: 'records/skills/passive.dbr', level: 1 },
+  ], index);
+  assert.equal(t.totals.get('defensivePierce'), 10,
+    'an aura that strips enemy resistance was read as a penalty on its caster');
+});
+
+test('a skill-scoped bonus is excluded by default and included on request', () => {
+  // The two readings pull opposite ways and both are right. "+30% pierce resistance while
+  // this skill is active" is not 15 points of armour on the sheet, so RESISTANCES must not
+  // see it. But points spent on a modifier that adds cold damage to your main attack say
+  // "cold build" as loudly as anything character-wide -- nobody invests in a modifier by
+  // accident -- so STRENGTHS should.
+  const index = { prefix: 'records/', fields: ['offensiveColdModifier'], skills: {
+    'skills/attack.dbr': { s: [0, 1, 300], t: 2 },
+  } };
+  const taken = [{ name: 'records/skills/attack.dbr', level: 1 }];
+
+  assert.equal(tallySkills(taken, index).totals.size, 0,
+    'the default reading is character-wide stats only');
+  assert.equal(
+    tallySkills(taken, index, { targets: [SELF_TARGET, SKILL_TARGET] })
+      .totals.get('offensiveColdModifier'), 300,
+    'asking for skill-scoped bonuses should include them');
+});
+
+test('an enemy debuff is excluded even when skill-scoped ones are asked for', () => {
+  // Widening the reading must not widen it to the one thing that is never yours.
+  const index = { prefix: 'records/', fields: ['defensivePierce'], skills: {
+    'skills/aura.dbr': { s: [0, 1, -4], t: 1 },
+  } };
+  const t = tallySkills([{ name: 'records/skills/aura.dbr', level: 1 }], index,
+    { targets: [SELF_TARGET, SKILL_TARGET, 2] });
+  assert.equal(t.totals.size, 0, 'an enemy debuff leaked into the widened reading');
 });

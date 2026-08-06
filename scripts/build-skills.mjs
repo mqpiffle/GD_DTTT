@@ -110,6 +110,7 @@ const idxOf = (f) => {
 
 const skills = { ...(prior.skills ?? {}) };
 let scanned = 0, kept = 0, maxRanks = 0, followed = 0;
+const byTarget = [0, 0, 0];
 
 /**
  * A TOGGLED BUFF KEEPS ITS STATS SOMEWHERE ELSE, and missing this would have made the
@@ -132,18 +133,55 @@ let scanned = 0, kept = 0, maxRanks = 0, followed = 0;
  * ONE HOP, and cycles are refused. `petSkillName` is deliberately not followed: those
  * stats belong to a pet, and this index is character-only.
  */
+/**
+ * WHO DOES THIS SKILL'S NUMBERS APPLY TO? The `Class` says, and ignoring it produced
+ * numbers that were not merely wrong but backwards.
+ *
+ * Grim Dawn writes a debuff exactly like a buff -- same fields, same per-rank arrays --
+ * and distinguishes them only by class. Bone Chilling Cry carries `defensivePierce: -4`;
+ * that is FOUR PIERCE RESISTANCE STRIPPED FROM ENEMIES, and folding it into the caster
+ * subtracted it from their own. Veil of Shadows does the same with a Skill_Modifier
+ * carrying -3 to -35 pierce. Measured on a real character: -4 pierce and -3 chaos, on a
+ * character whose auras are in fact making them stronger.
+ *
+ *   SELF    Skill_Passive, Skill_Mastery, any BuffSelf, SkillBuff_Passive
+ *           -- character-wide stats, which is what a build reading wants
+ *   ENEMY   SkillBuff_Debuf and the skills that apply one
+ *           -- resistance reduction on the target, never on you
+ *   SKILL   attack skills and skill modifiers
+ *           -- "+30% cold damage" on one attack is not +30% cold damage on the character
+ *
+ * ANYTHING UNRECOGNISED IS TREATED AS SKILL, not SELF. The failure that matters here is
+ * counting something that does not apply, and an unknown class is exactly the case where
+ * that is most likely.
+ */
+const SELF = 0, ENEMY = 1, SKILL = 2;
+const CLASS_TARGET = [
+  [/^SkillBuff_Debuf/i, ENEMY],
+  [/^SkillBuff_/i, SELF],
+  [/^Skill_Passive/i, SELF],
+  [/^Skill_Mastery/i, SELF],
+  [/BuffSelf/i, SELF],
+];
+function targetOf(className) {
+  for (const [re, t] of CLASS_TARGET) if (re.test(className)) return t;
+  return SKILL;
+}
+
 function statsOf(file, depth = 0, seenFiles = new Set()) {
-  if (depth > 2 || seenFiles.has(file)) return [];
+  if (depth > 2 || seenFiles.has(file)) return { stats: [], target: SKILL };
   seenFiles.add(file);
   const text = fs.readFileSync(file, 'latin1');
   const stats = [];
   let buff = null;
+  let className = '';
 
   for (const line of text.split('\n')) {
     const i = line.indexOf(',');
     if (i < 0) continue;
     const key = line.slice(0, i);
 
+    if (key === 'Class') { className = String(line.slice(i + 1)).split(',')[0].trim(); continue; }
     if (key === 'buffSkillName') {
       const p = String(line.slice(i + 1)).split(',')[0].trim();
       if (p) buff = path.join(ROOT, p);
@@ -163,11 +201,23 @@ function statsOf(file, depth = 0, seenFiles = new Set()) {
     stats.push(idxOf(key), rounded.length, ...rounded);
   }
 
+  let target = targetOf(className);
+
   if (buff && fs.existsSync(buff)) {
-    if (depth === 0) followed++;
-    stats.push(...statsOf(buff, depth + 1, seenFiles));
+    const inner = statsOf(buff, depth + 1, seenFiles);
+    // THE BUFF DECIDES. A toggled aura's own class says nothing about direction --
+    // Amatok's Pact and Veil of Shadows are both Skill_BuffRadiusToggled, and one blesses
+    // you while the other curses everything nearby. Only the record they point at knows,
+    // and it says so plainly: SkillBuff_Passive against SkillBuff_Debuf.
+    if (inner.target === ENEMY) {
+      target = ENEMY;
+    } else {
+      if (depth === 0) followed++;
+      stats.push(...inner.stats);
+      if (inner.stats.length) target = inner.target;
+    }
   }
-  return stats;
+  return { stats, target };
 }
 
 const LIMIT = Number(process.env.LIMIT ?? 0);
@@ -185,14 +235,17 @@ for (const base of roots) {
     if (scanned % 2000 === 0) {
       console.log(`  ${scanned} scanned, ${kept} kept  (${((Date.now() - started) / 1000).toFixed(0)}s)`);
     }
-    const stats = statsOf(file);
+    const { stats, target } = statsOf(file);
 
     if (!stats.length) continue;
     kept++;
+    byTarget[target] = (byTarget[target] ?? 0) + 1;
     // Keys are the bulk of the payload, so the shared prefix goes once. Save files name
     // skills by exactly this path, so the key is the join and must not be reshaped.
     const rec = path.relative(ROOT, file).replace(/\\/g, '/').replace(/^records\//, '');
-    skills[rec] = { s: stats };
+    // `t` is who the numbers apply to -- 0 self, 1 enemy, 2 one skill. Omitted when 0,
+    // which is the common case and keeps the file smaller.
+    skills[rec] = target ? { s: stats, t: target } : { s: stats };
   }
 }
 
@@ -203,4 +256,5 @@ const size = fs.statSync(outPath).size;
 console.log(`scanned ${scanned} records this run, kept ${kept}; ${Object.keys(skills).length} in the index`);
 console.log(`${fieldNames.length} distinct fields used, longest rank list ${maxRanks}`);
 console.log(`${followed} records had their toggled buff folded in`);
+console.log(`targets: ${byTarget[0]} self, ${byTarget[1]} enemy, ${byTarget[2]} skill-only`);
 console.log(`skills-index.json: ${(size / 1024).toFixed(1)} KB`);
