@@ -4,6 +4,39 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.7.2 — 6 Aug 2026
+
+**The suggested column said 57 stars for a character whose maximum is 55.** The path buys
+two Crossroads as stepping stones and refunds them once what they unlocked is paid for;
+the total was summing what the path *spends* rather than what it ends up *holding*. Those
+are different numbers and only one of them can be compared against a build. Refunds are
+now applied, and anything netting to nothing is not a row at all — showing "Crossroads 0"
+beside a build reports a decision nobody made.
+
+The test guarding this contradicted its own name: it was called *refunded Crossroads are
+NOT part of what you own* and asserted that they were. The name had it right.
+
+That fix needed a matching one, because the two questions differ. The columns compare END
+STATES. But *is there a decision here* has to be asked of the path AS WALKED — someone
+part-way through, holding a Crossroads the plan will refund later, is following the plan,
+and measuring them against the end state made them look like they were giving something
+up. They'd have lost their tickable path to a diff saying so.
+
+**The devotions header is icons only, and shows only what you can act on.** It used to mix
+two word-buttons with two icons and render the dead ones greyed, making a five-button strip
+out of what is usually two or three live controls — with every word competing with the
+heading beside it. A disabled button is an offer you can't accept: same space, same
+attention, to tell you no.
+
+- Overview — aeroplane, for the whole path at a glance
+- Detail — magnifying glass
+- Compare — columns
+- Adopt — checkmark, and the only one keeping an outline, because it is the one action
+  that changes the build rather than the view
+- Clear order and Clear progress appear only when there is something to clear
+
+The lock is the exception and always shows: a mode you can enter but not leave is a trap.
+
 ## 0.7.1 — 6 Aug 2026
 
 **The resistance thresholds were endgame thresholds applied to everybody.** 45/60/75

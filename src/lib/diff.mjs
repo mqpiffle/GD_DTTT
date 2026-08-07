@@ -13,18 +13,29 @@
 // carried on the row rather than split into its own category.
 
 /**
- * Constellation id -> points committed, from a scheduled path.
+ * Constellation id -> points committed AT THE END, from a scheduled path.
  *
- * Refund steps carry no stars and are dropped: a Crossroads bought as a stepping stone
- * and later refunded is not part of what you own, and counting it would inflate both
- * sides equally while making the numbers wrong.
+ * REFUNDS ARE APPLIED, NOT SKIPPED, and the difference showed up on screen as a
+ * suggestion of 57 stars for a character whose maximum is 55.
+ *
+ * A Crossroads is often bought as a stepping stone and refunded once the constellation it
+ * unlocked is paid for. Skipping the refund step left the Crossroads in the total, so the
+ * column summed what the path SPENDS rather than what it ends up holding. Those are
+ * different numbers, and only one of them can be compared against a build.
+ *
+ * The comparison is about STATES -- these constellations, this many stars -- so anything
+ * that nets to nothing was never really taken and is not a row. A refund step carries
+ * negative points, so applying it is simply addition.
  */
 function pointsById(path) {
   const out = new Map();
   for (const p of path ?? []) {
-    if (p.kind === 'refund') continue;
     out.set(p.id, (out.get(p.id) ?? 0) + (p.points ?? 0));
   }
+  // Bought and given back is not owned. Dropping the entry rather than leaving a zero
+  // keeps it out of the rows entirely, which is what it deserves: showing "Crossroads 0"
+  // beside a build would be reporting a decision nobody made.
+  for (const [id, pts] of out) if (pts <= 0) out.delete(id);
   return out;
 }
 

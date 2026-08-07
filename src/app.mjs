@@ -2074,8 +2074,9 @@ function comparisonHtml() {
 
   let h = `<div class="cmp">
     <p class="cmpsum">${esc(summarise(d, { available }))}
-      <button class="plainbtn adopt" data-adopt="1"
-        title="Make the suggestion this character's plan. Your ticks are cleared, because they recorded progress against the old one -- Ctrl+Z undoes it.">Adopt</button></p>
+      <button class="plainbtn iconbtn adopt" data-adopt="1" aria-label="Adopt the suggestion"
+        title="Adopt: make the suggestion this character's plan. Your ticks are cleared, because they recorded progress against the old one -- Ctrl+Z undoes it."><i
+        class="ti ti-check"></i></button></p>
     <div class="cmphead"><span>Actual <b>${d.rows.reduce((n, r) => n + r.actualPoints, 0)}</b></span>
       <span>Suggested <b>${d.rows.reduce((n, r) => n + r.suggestedPoints, 0)}</b></span></div>`;
 
@@ -2155,7 +2156,17 @@ function hasComparison() {
   // planned, at a depth the plan means to exceed, so there is nothing to give up and
   // nothing to decide, and turning that into a diff would take the tickable path away
   // from someone who is simply using it.
-  return diffPaths(actualPath(), state.plan.schedule.path)
+  // AGAINST THE PATH AS WALKED, not as it ends. The columns show the END STATE, because
+  // that is what you compare a build against -- but "is there a decision here" is a
+  // different question, and asking it of the end state gets it wrong in one specific way.
+  //
+  // The path buys a Crossroads as a stepping stone and refunds it later. Someone part-way
+  // through, holding that Crossroads right now, is FOLLOWING THE PLAN -- the refund is a
+  // step they have not reached yet. Measured against the end state they appear to be
+  // giving something up, and the tickable path would be replaced by a diff telling them
+  // so, which is precisely the trap this function exists to avoid.
+  const asWalked = state.plan.schedule.path.filter(p => p.kind !== 'refund');
+  return diffPaths(actualPath(), asWalked)
     .rows.some(r => r.status === 'lose' || r.deeper < 0);
 }
 
@@ -2552,43 +2563,49 @@ function render() {
   h += `<p class="lbl" style="display:flex;justify-content:space-between;align-items:center">
     <span>Devotions</span>
     <span style="display:flex;gap:6px">
-    <button class="plainbtn orderbtn${state.order ? ' on' : ''}" data-clearorder="1"${
-      state.order ? '' : ' disabled'}
+    ${
+    // ICONS ONLY, AND ONLY WHEN THEY DO SOMETHING.
+    //
+    // The row used to mix two word-buttons with two icons and render the disabled ones
+    // greyed out, which made a five-button strip out of what is usually two or three live
+    // controls -- and every word competed with the heading beside it. A disabled button is
+    // an offer you cannot accept: it takes the same space and the same attention as a real
+    // one to tell you no.
+    //
+    // The exception is the LOCK, which is always shown because it is always actionable and
+    // because a mode you can enter but not find your way out of is a trap.
+    ''}${state.order ? `<button class="plainbtn iconbtn orderbtn on" data-clearorder="1"
       title="${state.orderNote === 'failed'
         ? 'Your saved order does not fit this build and was dropped -- the constellations it arranged are not all here any more'
-        : state.order
-        ? 'Your own order. Click to go back to the one the solver chose'
-        : state.plain
-          ? 'Drag a row to move it. The path re-plans around it, pulling in whatever it needs first'
-          : 'Switch to Overview to drag steps into your own order'}"
-      aria-label="${state.order ? 'Clear your custom order' : 'Custom order'}"><i
-      class="ti ti-arrows-sort"></i> ${state.order ? 'Custom order' : 'Order'}</button>
+        : 'Your own order. Click to go back to the one the solver chose'}"
+      aria-label="Clear your custom order"><i class="ti ti-arrows-sort"></i></button>` : ''}
     <button class="plainbtn iconbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
       aria-pressed="${state.locked}"
       aria-label="${state.locked ? 'Unlock the build' : 'Lock the build'}"
       title="${state.locked
         ? 'Locked -- tick the next star or un-tick the last one. Click to unlock and change the build'
         : 'Lock the build: everything goes read-only except ticking off the next star'}"><i
-      class="ti ti-lock${state.locked ? '' : '-open'}"></i></button>
-    <button class="plainbtn iconbtn" data-resetprogress="1"${state.locked || !state.done.size ? ' disabled' : ''}
-      aria-label="Clear progress"
-      title="${state.locked ? 'Locked' : state.done.size
-        ? `Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'} bought) -- tags and plan stay`
-        : 'No progress to clear'}"><i class="ti ti-refresh"></i></button>
-    <button class="plainbtn${state.plain ? ' on' : ''}" data-plain="1"
+      class="ti ti-lock${state.locked ? '' : '-open'}"></i></button>${
+    !state.locked && state.done.size ? `
+    <button class="plainbtn iconbtn" data-resetprogress="1" aria-label="Clear progress"
+      title="Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'
+        } bought) -- tags and plan stay"><i class="ti ti-refresh"></i></button>` : ''}
+    <button class="plainbtn iconbtn" data-plain="1"
+      aria-label="${state.plain ? 'Detail view' : 'Overview'}"
       title="${state.plain
-        ? 'Back to one card per step, with the stars to click'
-        : 'The whole path in one column -- every pick in order, at a glance'}">${
-      state.plain ? 'Detail' : 'Overview'}</button>${
+        ? 'Detail: one card per step, with the stars to click'
+        : 'Overview: the whole path in one column, every pick in order at a glance'}"><i
+      class="ti ti-${state.plain ? 'zoom-in' : 'plane'}"></i></button>${
     // Only offered when there is a disagreement to look at. A Compare button that
     // showed you two identical columns would be a button that lies about having
     // something to say.
-    hasComparison() ? `<button class="plainbtn cmpbtn${showComparison() ? ' on' : ''}"
+    hasComparison() ? `<button class="plainbtn iconbtn cmpbtn${showComparison() ? ' on' : ''}"
       data-compare="1" aria-pressed="${showComparison()}"
+      aria-label="Compare with your build"
       title="${showComparison()
         ? 'Back to the path, with the stars to tick'
-        : 'Your actual build beside the suggestion, and what changing would cost'}"><i
-      class="ti ti-columns"></i> Compare</button>` : ''}</span></p>`;
+        : 'Compare: your actual build beside the suggestion, and what changing would cost'}"><i
+      class="ti ti-columns"></i></button>` : ''}</span></p>`;
   // The comparison is a VIEW you can leave, not a mode that takes the path away. See
   // showComparison() -- it opens on its own when there is something to decide, and one
   // click puts the tickable path back.

@@ -3455,3 +3455,87 @@ test('Adopt ends the comparison, and ticking does not bring it back',
     assert.match(app.innerHTML, /data-compare/);
   } finally { s.restore(); }
 });
+
+// --- the devotions header ---------------------------------------------------------
+//
+// Icons only, and only when they do something. The row used to mix two word-buttons with
+// two icons and render the dead ones greyed out, which made a five-button strip out of
+// what is usually two or three live controls. A disabled button is an offer you cannot
+// accept: it takes the same space and the same attention as a real one, to tell you no.
+
+/** The devotions heading row, which is the one with data-plain in it. */
+const headerRow = () =>
+  /<p class="lbl" style="display:flex;justify-content:space-between[\s\S]*?<\/p>/
+    .exec(app.innerHTML)?.[0] ?? '';
+
+test('the devotions header carries no button labels, only icons', () => {
+  plan([['Cold Damage']], 2);
+  const row = headerRow();
+  assert.ok(row, 'the header row should render');
+  // Every button in it must contain an icon and no text of its own.
+  for (const btn of row.match(/<button[\s\S]*?<\/button>/g) ?? []) {
+    assert.match(btn, /class="ti ti-/, `a header button has no icon: ${btn.slice(0, 60)}`);
+    const text = btn.replace(/<[^>]*>/g, '').trim();
+    assert.equal(text, '', `a header button still carries the label "${text}"`);
+  }
+  // And each one says what it is, for the pointer and for a screen reader.
+  for (const btn of row.match(/<button[\s\S]*?>/g) ?? []) {
+    assert.match(btn, /title="/, 'a header button has no tooltip');
+    assert.match(btn, /aria-label="/, 'a header button has no accessible name');
+  }
+});
+
+test('no header button is ever rendered disabled', () => {
+  plan([['Cold Damage']], 2);
+  for (const setup of [
+    () => {},
+    () => { ui.state.locked = true; },
+    () => { ui.state.locked = false; ui.state.done = new Set(); },
+  ]) {
+    setup(); ui.render();
+    assert.doesNotMatch(headerRow(), /disabled/,
+      'a disabled header button should be absent, not greyed');
+  }
+  ui.state.locked = false;
+});
+
+test('Clear progress appears only when there is progress to clear', () => {
+  plan([['Cold Damage']], 2);
+  ui.state.done = new Set();
+  ui.render();
+  assert.doesNotMatch(headerRow(), /data-resetprogress/, 'nothing to clear, so no button');
+
+  ui.state.done = new Set(ui.pathStarKeys().slice(0, 2));
+  ui.render();
+  assert.match(headerRow(), /data-resetprogress/, 'progress exists but no way to clear it');
+
+  // Locked, it is not an action you can take, so it is not shown -- but the LOCK stays,
+  // because a mode you can enter and not leave is a trap.
+  ui.state.locked = true; ui.render();
+  assert.doesNotMatch(headerRow(), /data-resetprogress/, 'locked, so it is not actionable');
+  assert.match(headerRow(), /data-lock/, 'the way out of the lock must always be there');
+  ui.state.locked = false;
+});
+
+test('Clear order appears only when there is a custom order', () => {
+  plan([['Cold Damage'], ['Armor']], 2);
+  assert.doesNotMatch(headerRow(), /data-clearorder/,
+    'with no custom order there is nothing to clear');
+
+  ui.state.order = ui.currentOrder();
+  ui.reorderNow();
+  ui.render();
+  assert.match(headerRow(), /data-clearorder/, 'a custom order should be clearable');
+  ui.state.order = null;
+});
+
+test('Adopt is a checkmark and keeps its outline', () => {
+  // It is the one consequential action on screen -- it replaces the plan and clears your
+  // ticks -- so it should not look like the view toggles beside it.
+  withOffPlanBuild();
+  const btn = /<button[^>]*data-adopt[\s\S]*?<\/button>/.exec(app.innerHTML)?.[0];
+  assert.ok(btn, 'Adopt should render in the comparison');
+  assert.match(btn, /ti-check/, 'Adopt should be a checkmark');
+  assert.match(btn, /class="[^"]*\badopt\b/, 'Adopt should keep its own class for the outline');
+  assert.match(css, /\.adopt\{[^}]*border:/, 'the .adopt rule should still draw a border');
+});

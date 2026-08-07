@@ -62,14 +62,32 @@ test('and taken SHALLOWER gives points back', () => {
 });
 
 test('refunded Crossroads are NOT part of what you own', () => {
-  // A Crossroads bought as a stepping stone and refunded later is not something you have.
-  // Counting it would inflate both sides and make every number wrong -- and it would look
-  // entirely reasonable, since the step really is in the path.
+  // THIS TEST USED TO CONTRADICT ITS OWN NAME. It asserted that a bought-and-refunded
+  // Crossroads was still owned, which is what the code did and is not what the name says.
+  // The name was right: a stepping stone you have already been given back is not part of
+  // the build, and counting it made the suggested column read 57 stars for a character
+  // whose maximum is 55 -- it was summing what the path SPENDS, not what it ends holding.
   const withRefund = p(['crossroads', 1, 'bootstrap'], ['owl', 5], ['crossroads', -1, 'refund']);
   const d = diffPaths(withRefund, p(['owl', 5]));
-  assert.equal(d.lose, 1, 'the bootstrap Crossroads is still owned until refunded');
-  assert.equal(d.rows.find(r => r.id === 'crossroads').actualPoints, 1,
-    'the refund step must not be summed in');
+
+  assert.equal(d.lose, 0, 'there is nothing to give up -- the Crossroads was handed back');
+  assert.equal(d.rows.find(r => r.id === 'crossroads'), undefined,
+    'a constellation that nets to nothing should not be a row at all');
+  assert.equal(d.rows.reduce((n, r) => n + r.actualPoints, 0), 5,
+    'the total must be the END STATE, not the gross spend');
+  assert.equal(d.net, 0, 'the two builds are identical, so switching costs nothing');
+});
+
+test('a path that buys and refunds is compared on where it ENDS', () => {
+  // The real shape from a level 100: two Crossroads bought as bootstraps and refunded
+  // once what they unlocked was paid for. Gross spend 57, final holding 55.
+  const suggested = p(['crossroads1', 1, 'bootstrap'], ['owl', 5],
+    ['crossroads2', 1, 'bootstrap'], ['vulture', 5],
+    ['crossroads1', -1, 'refund'], ['crossroads2', -1, 'refund']);
+  const d = diffPaths([], suggested);
+  assert.equal(d.rows.reduce((n, r) => n + r.suggestedPoints, 0), 10,
+    'the suggested total counted stepping stones the path gives back');
+  assert.equal(d.buy, 2, 'only the two real constellations are bought');
 });
 
 test('an empty side means everything on the other is new, or all of it goes', () => {

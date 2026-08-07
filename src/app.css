@@ -784,8 +784,10 @@ body{margin:0;padding:24px;background:var(--surface-1);color:var(--ink-1);font-f
    what changing would cost. */
 .cmpsum{display:flex;align-items:center;gap:10px;margin:0 0 12px;
   font-size:var(--fs-sm);color:var(--ink-3)}
-.adopt{margin-left:auto;padding:5px 12px;border:1px solid var(--ink-9);border-radius:6px;
-  color:var(--ink-1);white-space:nowrap}
+/* Adopt keeps its outline where the header icons do not: it is the one CONSEQUENTIAL
+   action on screen -- it replaces the plan and clears your ticks -- and an action that
+   changes the build should not look like the view toggles beside it. */
+.adopt{margin-left:auto;border:1px solid var(--ink-9);border-radius:6px;color:var(--ink-1)}
 .adopt:hover{background:var(--tone-bright);color:var(--surface-2)}
 .cmphead{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 6px;
   font-size:var(--fs-xs);color:var(--ink-10);text-transform:uppercase;letter-spacing:.06em}
