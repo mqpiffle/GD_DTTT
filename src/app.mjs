@@ -429,6 +429,13 @@ function applyChar(c = {}) {
   // character's build against THIS plan; a different character, or the same one freshly
   // re-imported, is a new question and deserves to be asked.
   state.compare = null;
+  // A REASON IS ABOUT ONE CHARACTER'S GEAR AND NOTHING ELSE. These were never cleared, so
+  // "192% across 8 items and skills" followed you to the next character and sat on any
+  // chip that happened to share an id -- a confident, specific, false number about
+  // somebody else's equipment. The comment beside `tagReasons` warned that a reason
+  // outliving the gear it was read from would be a lie; this was the case that did it.
+  state.tagReasons = null;
+  state.tooEarly = null;
   state.locked = c.locked === true;
   state.controls = Array.isArray(c.controls) ? [...c.controls] : [];
   state.controlInputs = (c.controlInputs && typeof c.controlInputs === 'object')
@@ -704,6 +711,42 @@ function analyseCharacter(bytes, ch, difficulty) {
   return { tags, weights, reasons: p.reasons, tooEarly: p.tooEarly };
 }
 
+/**
+ * Save-file handles, by character id, so a re-import is one click.
+ *
+ * IN MEMORY ONLY, and that is a limit of the platform rather than a choice. A
+ * FileSystemFileHandle is a live capability, not data: it cannot be serialised into
+ * localStorage, and persisting one means IndexedDB plus a permission prompt on every
+ * reload. Within a session -- import, play, alt-tab back, click -- it just works, which is
+ * the loop this exists for. After a reload you pick the file once more.
+ *
+ * KEYED BY CHARACTER, because a handle refreshes ONE character. Keeping a single "last
+ * file" would offer a refresh button on a character it would then overwrite with somebody
+ * else's save, and the button would look identical in both cases.
+ */
+const saveHandles = new Map();
+
+/** Whether this browser can hand back a re-readable handle rather than just bytes. */
+const canPickFile = () => typeof globalThis.showOpenFilePicker === 'function';
+
+/**
+ * Read a handle again, asking for permission if it has lapsed.
+ *
+ * Permission survives within a session but not across reloads, and `requestPermission`
+ * needs a user gesture -- which a click on the refresh button is.
+ */
+async function readHandle(handle) {
+  if (handle.queryPermission) {
+    let state = await handle.queryPermission({ mode: 'read' });
+    if (state === 'prompt' && handle.requestPermission) {
+      state = await handle.requestPermission({ mode: 'read' });
+    }
+    if (state !== 'granted') throw new Error('permission to read that file was declined');
+  }
+  const file = await handle.getFile();
+  return new Uint8Array(await file.arrayBuffer());
+}
+
 function importSave(bytes) {
   let ch;
   try {
@@ -747,28 +790,34 @@ function importSave(bytes) {
   if (doc.chars[id].difficulty == null) doc.chars[id].difficulty = ch.difficulty?.tier ?? 'normal';
   state.done = new Set(keys);
 
-  // ANALYSE, AND ONLY WHEN THERE IS NOTHING TO TRAMPLE.
+  // ALWAYS ANALYSE. Only sometimes APPLY.
   //
-  // A first import has no tags, so the proposal is the only thing that can fill them and
-  // it must -- see analyseCharacter(). A RE-IMPORT is a different matter: by then the
-  // tags may have been edited, and re-import exists to update what the game says (ticks,
-  // level, points), not to overrule what you decided. So it proposes only into an empty
-  // picker, and otherwise leaves your tags exactly where they are.
-  const analysis = picked().length
-    ? null
-    : analyseCharacter(bytes, ch, doc.chars[id].difficulty);
-  if (analysis?.tags.length) {
+  // The two used to be one decision, which meant a re-import skipped the reading entirely
+  // and left last time's reasons on the pills -- "192% across 8 items and skills" describing
+  // gear that had since been replaced. Reading is what re-import is FOR; overwriting is
+  // what it must not do.
+  const analysis = analyseCharacter(bytes, ch, doc.chars[id].difficulty);
+  const empty = !picked().length;
+
+  // TAGS ONLY INTO AN EMPTY PICKER. A first import has nothing, so the proposal is the
+  // only thing that can fill it and it must. By a re-import the tags may have been edited,
+  // and re-import exists to update what the GAME says -- ticks, level, points earned --
+  // not to overrule what you decided.
+  if (empty && analysis?.tags.length) {
     state.sel = Array(MAX).fill(null);
     state.weights = Array(MAX).fill(DEFAULT_WEIGHT);
     analysis.tags.forEach((tagId, i) => {
       state.sel[i] = chips.findIndex(c => c.id === tagId);
       state.weights[i] = analysis.weights[i];
     });
-    // A proposal you cannot interrogate is one you have to take on trust. Kept beside
-    // the tags so each pill can say what put it there.
-    state.tagReasons = analysis.reasons;
     dropOrder();
   }
+
+  // REASONS ALWAYS REFRESH, because they describe the gear as it is now. A tag you kept
+  // that the new reading no longer supports simply loses its icon -- which is a quiet,
+  // honest signal that your kit has moved away from what you asked for, and better than a
+  // stale number stating the opposite with confidence.
+  state.tagReasons = analysis?.reasons ?? null;
   state.tooEarly = analysis?.tooEarly ?? null;
 
   stash();
@@ -814,6 +863,9 @@ function renameChar(id, name) {
 function deleteChar(id) {
   if (!doc?.chars[id]) return false;
   delete doc.chars[id];
+  // The handle went with the character. Ids are minted fresh, so a stale entry could not
+  // be reached again anyway -- but leaving one would hold a file open for nothing.
+  saveHandles.delete(id);
   doc.order = doc.order.filter(x => x !== id);
   if (!doc.order.length) {
     // Never leave zero characters: the app has nowhere to put your tags if you do.
@@ -2388,6 +2440,16 @@ function render() {
     const cls = classes[cur.classId];
     if (cls) bits.push(cls);
     if (bits.length) h += `<span class="cmeta">${esc(bits.join(' '))}</span>`;
+    // RE-IMPORT IN ONE CLICK, beside the facts it refreshes. Play, alt-tab, click: level,
+    // points earned and every ticked star come back as the game has them, and the reading
+    // of your gear is taken again. Only offered when we are holding a handle for THIS
+    // character -- see saveHandles. Without one it would be an ordinary import wearing a
+    // refresh icon, which is a worse lie than not having the button.
+    if (saveHandles.has(doc.active)) {
+      h += `<button class="plainbtn iconbtn" data-crefresh="1" aria-label="Refresh from save"
+        title="Refresh from ${esc(saveHandles.get(doc.active).name ?? 'the save file')} -- ticked stars, level and points come back as the game has them, and your gear is read again. Your tags are left alone."><i
+        class="ti ti-reload"></i></button>`;
+    }
   }
 
   // THE DIFFICULTY BEING PLANNED FOR. It belongs up here beside the character because it
@@ -2414,12 +2476,23 @@ function render() {
     <button class="plainbtn iconbtn" data-cdel="1"${chars.length > 1 ? '' : ' disabled'}
       title="${chars.length > 1 ? 'Delete this character' : 'The only character cannot be deleted'}"
       aria-label="Delete character"><i class="ti ti-trash"></i></button>`;
-  // A real <input type="file"> rather than a button calling .click(), because the file
-  // dialog needs a genuine user gesture on the input itself in some browsers. The label
-  // is the visible control; the input is hidden but still focusable through it.
-  h += `<label class="plainbtn iconbtn imp" title="Import a character from a Grim Dawn save (player.gdc)"
-      aria-label="Import a save file"><i class="ti ti-file-import"></i>
-      <input type="file" data-cimport="1" accept=".gdc"></label>`;
+  // TWO WAYS IN, because only one of them can be re-read.
+  //
+  // A browser is never told where a file came from. `<input type="file">` hands over a
+  // name and some bytes and nothing else -- no path, by design -- so a second read means a
+  // second trip through the dialog. `showOpenFilePicker` instead returns a HANDLE: an
+  // opaque capability that can be read again later, which is what makes one-click refresh
+  // possible at all.
+  //
+  // So the picker is used where it exists, and the input stays as the fallback for
+  // browsers without it. Same import either way; only the refresh differs.
+  h += canPickFile()
+    ? `<button class="plainbtn iconbtn imp" data-cpick="1"
+        title="Import a character from a Grim Dawn save (player.gdc)"
+        aria-label="Import a save file"><i class="ti ti-file-import"></i></button>`
+    : `<label class="plainbtn iconbtn imp" title="Import a character from a Grim Dawn save (player.gdc)"
+        aria-label="Import a save file"><i class="ti ti-file-import"></i>
+        <input type="file" data-cimport="1" accept=".gdc"></label>`;
   h += '</div>';
   if (state.importNote) {
     h += `<p class="impnote${state.importNote.error ? ' bad' : ''}">${esc(state.importNote.text)}</p>`;
@@ -3003,46 +3076,54 @@ app.addEventListener('dragend', () => {
 // A <select> announces itself with `change`, not `click`. Registered separately rather
 // than folded into the click handler, because a click anywhere on a select would fire
 // before the value has moved.
+/**
+ * What to say about an import, shared by all three routes into one.
+ *
+ * There are three -- the file input, the picker, and the one-click refresh -- and they
+ * differ only in how the bytes arrived. Writing the message once is what stops them
+ * drifting into saying slightly different things about the same event.
+ */
+function noteImport(r, { refreshed = false } = {}) {
+  if (r.error) {
+    // An outdated save is not a fault to apologise for -- it is an instruction. The
+    // message already says what to do, so prefixing it with "could not read" would bury
+    // the useful half.
+    state.importNote = r.outdated
+      ? { error: true, text: r.error }
+      : { error: true, text: `Could not read that save: ${r.error}` };
+    return;
+  }
+  const bits = [`${refreshed ? 'Refreshed' : 'Imported'} ${r.label} with ${r.stars} devotion `
+    + `star${r.stars === 1 ? '' : 's'} ticked`];
+  // The bio counts the points spent by completely separate code, hundreds of bytes
+  // earlier in the file. If it disagrees with the stars we ticked, say so rather than
+  // picking one -- that mismatch is the signal that the parse went wrong.
+  if (r.spent !== r.stars) {
+    bits.push(`but the save says ${r.spent} points are spent, which does not match`);
+  }
+  if (r.unspent) bits.push(`${r.unspent} point${r.unspent === 1 ? '' : 's'} unspent`);
+  if (r.hidden) {
+    bits.push(`${r.hidden} of them are not in the current plan, so they are stored `
+      + 'but not shown -- change your tags to see them');
+  }
+  if (r.unmatched.length) {
+    bits.push(`${r.unmatched.length} record${r.unmatched.length === 1 ? '' : 's'} `
+      + 'could not be matched to a star');
+  }
+  // Declining to analyse is a decision, and one the player can overrule by picking tags
+  // themselves. Saying nothing would look like the analysis had failed.
+  if (r.tooEarly) bits.push(r.tooEarly);
+  else if (r.tags) bits.push('Target tags set from your gear -- change any of them');
+  state.importNote = { error: false, text: `${bits.join('. ')}.` };
+}
+
 app.addEventListener('change', (e) => {
   const file = e.target?.closest?.('[data-cimport]');
   if (file && app.contains(file)) {
     const f = file.files?.[0];
     if (!f) return;
     f.arrayBuffer().then((buf) => {
-      const r = importSave(new Uint8Array(buf));
-      if (r.error) {
-        // An outdated save is not a fault to apologise for -- it is an instruction. The
-        // message already says what to do, so prefixing it with "could not read" would
-        // bury the useful half.
-        state.importNote = r.outdated
-          ? { error: true, text: r.error }
-          : { error: true, text: `Could not read that save: ${r.error}` };
-      } else {
-        const bits = [`Imported ${r.label} with ${r.stars} devotion `
-          + `star${r.stars === 1 ? '' : 's'} ticked`];
-        // The bio counts the points spent by completely separate code, hundreds of bytes
-        // earlier in the file. If it disagrees with the stars we ticked, say so rather
-        // than picking one -- that mismatch is the signal that the parse went wrong.
-        if (r.spent !== r.stars) {
-          bits.push(`but the save says ${r.spent} points are spent, which does not match`);
-        }
-        if (r.unspent) bits.push(`${r.unspent} point${r.unspent === 1 ? '' : 's'} unspent`);
-        if (r.hidden) {
-          bits.push(`${r.hidden} of them are not in the current plan, so they are stored `
-            + 'but not shown -- change your tags to see them');
-        }
-        if (r.unmatched.length) {
-          bits.push(`${r.unmatched.length} record${r.unmatched.length === 1 ? '' : 's'} `
-            + 'could not be matched to a star');
-        }
-        // Declining to analyse is a decision, and one the player can overrule by picking
-        // tags themselves. Saying nothing would look like the analysis had failed.
-        if (r.tooEarly) bits.push(r.tooEarly);
-        else if (r.tags) {
-          bits.push(`Target tags set from your gear -- change any of them`);
-        }
-        state.importNote = { error: false, text: `${bits.join('. ')}.` };
-      }
+      noteImport(importSave(new Uint8Array(buf)));
       // Clear the input, or picking the same file twice fires no change event.
       file.value = '';
       render();
@@ -3129,6 +3210,49 @@ app.addEventListener('click', e => {
     if (state.renaming) commitRename();
     else state.renaming = true;
     render();
+    return;
+  }
+
+  // IMPORT VIA THE PICKER, which is the only route that yields a re-readable handle.
+  // Everything else about it is identical to the file input.
+  const pick = e.target.closest('[data-cpick]');
+  if (pick && app.contains(pick)) {
+    globalThis.showOpenFilePicker({
+      types: [{ description: 'Grim Dawn character', accept: { '*/*': ['.gdc'] } }],
+      multiple: false,
+    }).then(async ([handle]) => {
+      const r = importSave(await readHandle(handle));
+      // Only remember it if the import actually produced a character -- `id` is absent on
+      // every failure path. A handle kept for a file that could not be read would put a
+      // refresh button on screen that fails the same way every time it is pressed.
+      if (r.id) saveHandles.set(r.id, handle);
+      noteImport(r);
+      render();
+    }).catch((err) => {
+      // AbortError is the dialog being dismissed, which is not an event worth reporting.
+      if (err?.name === 'AbortError') return;
+      state.importNote = { error: true, text: `Could not read that save: ${err?.message ?? err}` };
+      render();
+    });
+    return;
+  }
+
+  // ONE-CLICK RE-IMPORT. The whole point of holding the handle.
+  const refresh = e.target.closest('[data-crefresh]');
+  if (refresh && app.contains(refresh)) {
+    const handle = saveHandles.get(doc?.active);
+    if (!handle) return;
+    readHandle(handle).then((bytes) => {
+      const r = importSave(bytes);
+      // The handle is keyed by character, so a save that now reads as somebody else is a
+      // file that has been replaced under us. Report it rather than silently retargeting.
+      if (!r.error && r.id && r.id !== doc.active) saveHandles.set(r.id, handle);
+      noteImport(r, { refreshed: true });
+      render();
+    }).catch((err) => {
+      state.importNote = { error: true, text: `Could not re-read that save: ${err?.message ?? err}` };
+      render();
+    });
     return;
   }
 

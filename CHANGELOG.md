@@ -4,6 +4,39 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.8.0 — 6 Aug 2026
+
+**Re-import in one click.** A refresh button appears beside an imported character's level
+and class. Play, alt-tab back, click: ticked stars, level and points earned come back as
+the game has them, and your gear is read again. Your tags are left alone.
+
+The obvious approach doesn't work — a browser is never told where a file came from.
+`<input type="file">` hands over a name and some bytes and nothing else, by design, so a
+second read means a second trip through the dialog. `showOpenFilePicker` returns a
+**handle** instead: an opaque capability that can be read again. So import now goes through
+the picker where it exists, with the file input kept as the fallback. Same import either
+way; only the refresh differs.
+
+Handles are held in memory and keyed by character. In memory because a handle is a live
+capability rather than data — it can't be serialised into localStorage, and persisting one
+means IndexedDB plus a permission prompt on every reload. Within a session, which is the
+loop this exists for, it just works. Keyed by character because a single "last file" would
+offer a refresh button on a character it would then overwrite with somebody else's save,
+and the button would look identical in both cases.
+
+Two bugs found while checking whether re-import already worked:
+
+- **Reasons followed you to the next character.** `state.tagReasons` was never cleared, so
+  "192% across 8 items and skills" sat on any chip sharing an id — a confident, specific,
+  false number about somebody else's equipment. The note beside `tagReasons` warned that a
+  reason outliving the gear it was read from would be a lie; this was the case that did it.
+- **Re-import never refreshed the reasons.** Analysing and applying were one decision, so
+  skipping the overwrite skipped the reading too, leaving last time's numbers describing
+  gear you may have replaced. They are now two decisions: always analyse, apply the tags
+  only into an empty picker. A tag you kept that the new reading no longer supports simply
+  loses its icon — a quiet, honest signal that your kit has moved away from what you asked
+  for.
+
 ## 0.7.3 — 6 Aug 2026
 
 **Adopting and locking are one action.** They were two buttons pressed one after the other

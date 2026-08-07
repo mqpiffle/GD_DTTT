@@ -99,6 +99,7 @@ const SEL = {
   '[data-ctl]': 'ctl', '[data-ctlin]': 'ctlin',
   '[data-collapse]': 'collapse', '[data-difficulty]': 'difficulty',
   '[data-compare]': 'compare', '[data-adopt]': 'adopt',
+  '[data-cpick]': 'cpick', '[data-crefresh]': 'crefresh',
 };
 
 /** Fire a `change` on an element carrying `dataset`, as a <select> does. */
@@ -3632,4 +3633,167 @@ test('the lock still freezes undo for everything except the adopt itself', () =>
     'undo reached past the lock for a tick made while locked');
 
   ui.state.locked = false;
+});
+
+test('a reason belongs to one character and does not follow you to the next',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // These were never cleared, so "192% across 8 items and skills" followed you to the next
+  // character and sat on any chip sharing an id -- a confident, specific, false number
+  // about somebody else's equipment. The note beside `tagReasons` warned that a reason
+  // outliving the gear it was read from would be a lie. This was the case that did it.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    assert.ok(ui.state.tagReasons?.size, 'the import should explain its tags');
+
+    ui.addChar({});
+    assert.equal(ui.state.tagReasons, null,
+      'a new character inherited the last one\'s explanations');
+  } finally { s.restore(); }
+});
+
+test('re-import refreshes the reasons but not the tags',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, () => {
+  // Reading is what re-import is FOR; overwriting is what it must not do. The two used to
+  // be one decision, so a re-import skipped the reading entirely and left last time's
+  // numbers on the pills, describing gear that may since have been replaced.
+  const s = withStore();
+  try {
+    ui.load();
+    const bytes = new Uint8Array(fs.readFileSync(SAVE));
+    ui.importSave(bytes);
+
+    // Edit the tags, the way anyone would, and lose the reasons by switching away.
+    ui.state.sel = ui.state.sel.map(() => null);
+    ui.state.sel[0] = chipIdx('Armor');
+    ui.save();
+    ui.addChar({});
+    ui.switchChar(ui.charList().find(c => c.source)?.id);
+    assert.equal(ui.state.tagReasons, null, 'switching should clear them');
+
+    const r = ui.importSave(bytes);
+    assert.ok(r.reimported, 'the second import should update in place');
+    assert.deepEqual(ui.state.sel.filter(x => x != null), [chipIdx('Armor')],
+      're-import overwrote tags the player had edited');
+    assert.ok(ui.state.tagReasons?.size,
+      're-import left the pills with no explanation of the current gear');
+  } finally { s.restore(); }
+});
+
+// --- one-click re-import ----------------------------------------------------------
+//
+// A browser is never told where a file came from. `<input type="file">` hands over a name
+// and some bytes and nothing else, by design, so a second read means a second trip through
+// the dialog. `showOpenFilePicker` returns a HANDLE instead -- an opaque capability that
+// can be read again -- and that is the whole reason one-click refresh is possible.
+
+/** A handle shaped the way the File System Access API hands one back. */
+function fakeHandle(file, { permission = 'granted' } = {}) {
+  let reads = 0;
+  return {
+    name: 'player.gdc',
+    get reads() { return reads; },
+    queryPermission: async () => permission,
+    requestPermission: async () => permission,
+    getFile: async () => {
+      reads++;
+      return { arrayBuffer: async () => fs.readFileSync(file).buffer.slice(0) };
+    },
+  };
+}
+
+/** Install a picker returning `handle`, and put the real global back afterwards. */
+function withPicker(handle) {
+  const real = globalThis.showOpenFilePicker;
+  globalThis.showOpenFilePicker = async () => [handle];
+  return { restore: () => { globalThis.showOpenFilePicker = real; } };
+}
+
+test('the import control is a picker where one exists, and a file input where not', () => {
+  // Same import either way. Only the refresh differs, so the fallback must stay.
+  const s = withStore();
+  try {
+    ui.load();
+    ui.render();
+    assert.match(app.innerHTML, /data-cimport/,
+      'with no picker the file input is the only way in and must be there');
+
+    const p = withPicker(fakeHandle(SAVE));
+    try {
+      ui.render();
+      assert.match(app.innerHTML, /data-cpick/, 'the picker should be preferred when available');
+      assert.doesNotMatch(app.innerHTML, /data-cimport/, 'two import controls would be one too many');
+    } finally { p.restore(); }
+  } finally { s.restore(); }
+});
+
+test('refresh is offered only for a character we hold a handle for',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, async () => {
+  // Without one it would be an ordinary import wearing a refresh icon, which is a worse
+  // lie than not having the button.
+  const s = withStore();
+  const p = withPicker(fakeHandle(SAVE));
+  try {
+    ui.load();
+    // Imported through the ordinary route: facts, but no handle.
+    ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));
+    ui.render();
+    assert.doesNotMatch(app.innerHTML, /data-crefresh/,
+      'no handle, so nothing to refresh from');
+
+    click({ cpick: '1' });
+    await new Promise(r => setTimeout(r, 0));
+    ui.render();
+    assert.match(app.innerHTML, /data-crefresh/, 'a picked file should be refreshable');
+  } finally { p.restore(); s.restore(); }
+});
+
+test('refreshing re-reads the file and updates in place',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, async () => {
+  const s = withStore();
+  const handle = fakeHandle(SAVE);
+  const p = withPicker(handle);
+  try {
+    ui.load();
+    click({ cpick: '1' });
+    await new Promise(r => setTimeout(r, 0));
+    const chars = ui.charList().length;
+    const ticks = ui.state.done.size;
+    assert.ok(ticks > 0, 'the fixture should have ticked stars');
+
+    // Progress drifts, the way it does when you play.
+    ui.state.done = new Set();
+    click({ crefresh: '1' });
+    await new Promise(r => setTimeout(r, 0));
+
+    assert.equal(handle.reads, 2, 'refresh should read the file again');
+    assert.equal(ui.charList().length, chars, 'refresh made a second character');
+    assert.equal(ui.state.done.size, ticks, 'refresh did not bring the ticked stars back');
+    assert.match(ui.state.importNote?.text ?? '', /^Refreshed/,
+      'the note should say this was a refresh, not a first import');
+  } finally { p.restore(); s.restore(); }
+});
+
+test('a declined permission is reported, not swallowed',
+  { skip: !haveSave && 'no player.gdc alongside the repo' }, async () => {
+  const s = withStore();
+  const p = withPicker(fakeHandle(SAVE));
+  try {
+    ui.load();
+    click({ cpick: '1' });
+    await new Promise(r => setTimeout(r, 0));
+
+    // Permission lapses -- which it does across a reload -- and is refused.
+    const denied = fakeHandle(SAVE, { permission: 'denied' });
+    const p2 = withPicker(denied);
+    try {
+      ui.importSave(new Uint8Array(fs.readFileSync(SAVE)));   // same character
+      click({ cpick: '1' });
+      await new Promise(r => setTimeout(r, 0));
+      assert.match(ui.state.importNote?.text ?? '', /Could not read/,
+        'a refused file should say so rather than appearing to do nothing');
+      assert.equal(ui.state.importNote?.error, true);
+    } finally { p2.restore(); }
+  } finally { s.restore(); }
 });
