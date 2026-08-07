@@ -227,10 +227,31 @@ let renderedTab = state.tab;
 const HISTORY_MAX = 60;
 let history = [];
 
-const pushHistory = () => {
-  history.push(new Set(state.done));
+// THE LOCK IS PART OF THE SNAPSHOT, because one action now sets it. Adopt makes the
+// suggestion your plan AND locks it, and an undo that restored the ticks but left the
+// lock engaged would undo half of what it was asked to -- while promising, on the button
+// itself, that Ctrl+Z reverses it.
+const pushHistory = (adopt = false) => {
+  history.push({ done: new Set(state.done), locked: state.locked, adopt });
   if (history.length > HISTORY_MAX) history.shift();
 };
+
+/**
+ * Can this be undone right now?
+ *
+ * UNLOCKED, ALWAYS. Locked, only if the thing on top of the stack is an ADOPT.
+ *
+ * The general rule is the older one and it is sound: undo restores a whole snapshot, so
+ * one keystroke can reach far past the frontier -- and stopping exactly that is what the
+ * lock is for. A tick made while locked stays frozen.
+ *
+ * An adopt is the exception because an adopt is what ENGAGED the lock, and its own button
+ * promises Ctrl+Z reverses it. Refusing would make the promise false in the one case
+ * anybody would test. It also cannot reach past the frontier in any meaningful sense:
+ * adopting cleared every tick, so the state it restores is the one you were in a moment
+ * ago, not an arbitrary point in a playthrough.
+ */
+const canUndo = () => !state.locked || history[history.length - 1]?.adopt === true;
 const clearHistory = () => { history = []; };
 
 /**
@@ -256,7 +277,8 @@ function dropOrder() {
 function undo() {
   const prev = history.pop();
   if (!prev) return false;
-  state.done = prev;
+  state.done = prev.done;
+  state.locked = prev.locked;
   return true;
 }
 
@@ -2074,8 +2096,13 @@ function comparisonHtml() {
 
   let h = `<div class="cmp">
     <p class="cmpsum">${esc(summarise(d, { available }))}
-      <button class="plainbtn iconbtn adopt" data-adopt="1" aria-label="Adopt the suggestion"
-        title="Adopt: make the suggestion this character's plan. Your ticks are cleared, because they recorded progress against the old one -- Ctrl+Z undoes it."><i
+      ${
+    // ONE ACTION, not two. Adopt and Lock were pressed one after the other in every case
+    // that mattered -- and it works while locked, because re-importing a build you are
+    // already following is exactly when the suggestion moves under you.
+    ''}<button class="plainbtn iconbtn adopt" data-adopt="1"
+        aria-label="Follow the suggestion"
+        title="Follow this: make the suggestion this character's plan and lock it. Your ticks are cleared, because they recorded progress against the old one -- Ctrl+Z undoes that."><i
         class="ti ti-check"></i></button></p>
     <div class="cmphead"><span>Actual <b>${d.rows.reduce((n, r) => n + r.actualPoints, 0)}</b></span>
       <span>Suggested <b>${d.rows.reduce((n, r) => n + r.suggestedPoints, 0)}</b></span></div>`;
@@ -2408,11 +2435,29 @@ function render() {
   // and folding them back gives the width that made three columns cramped.
   h += '<div class="col">';
 
-  h += `<div class="selpane${state.locked ? ' locked' : ''}"><p class="lbl" style="display:flex;align-items:center;gap:8px">
+  // THE LOCK BELONGS HERE, over the things it freezes. It spent its life in the Devotions
+  // header on the right, which was always the wrong side: what it makes read-only is tags,
+  // weights, power scoring and Reset -- every one of them in THIS pane. The scrim it draws
+  // when engaged has always fallen over this column, so the button was sitting apart from
+  // the only visible sign of its own effect.
+  //
+  // It renders OUTSIDE .selpane, above the scrim, because a control that dims itself along
+  // with what it disabled is the one control that must not.
+  h += `<p class="lbl" style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
     <span style="flex:1">Target tags <span style="color:var(--ink-13)">${chosenCount}/${MAX}</span></span>
-    <button class="plainbtn iconbtn" data-reset="1"${state.locked || !(chosenCount || state.plan) ? ' disabled' : ''}
-      title="${state.locked ? 'Locked' : 'Reset everything: tags, path and progress'}"
-      aria-label="Reset all"><i class="ti ti-refresh"></i></button></p>`;
+    <button class="plainbtn iconbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
+      aria-pressed="${state.locked}"
+      aria-label="${state.locked ? 'Unlock the build' : 'Lock the build'}"
+      title="${state.locked
+        ? 'Locked -- tick the next star or un-tick the last one. Click to unlock and change the build'
+        : 'Lock the build: everything goes read-only except ticking off the next star'}"><i
+      class="ti ti-lock${state.locked ? '' : '-open'}"></i></button>${
+    // Reset is not offered while locked, for the same reason nothing else destructive is.
+    !state.locked && (chosenCount || state.plan) ? `
+    <button class="plainbtn iconbtn" data-reset="1"
+      title="Reset everything: tags, path and progress"
+      aria-label="Reset all"><i class="ti ti-refresh"></i></button>` : ''}</p>`;
+  h += `<div class="selpane${state.locked ? ' locked' : ''}">`;
   for (let i = 0; i < MAX; i++) {
     const s = state.sel[i];
     if (s == null) continue;
@@ -2572,20 +2617,14 @@ function render() {
     // an offer you cannot accept: it takes the same space and the same attention as a real
     // one to tell you no.
     //
-    // The exception is the LOCK, which is always shown because it is always actionable and
-    // because a mode you can enter but not find your way out of is a trap.
+    // THE LOCK IS NOT HERE ANY MORE. It moved to the Target tags header, over the things
+    // it actually freezes -- tags, weights, scoring, Reset -- and beside the scrim that is
+    // the only visible sign it is engaged.
     ''}${state.order ? `<button class="plainbtn iconbtn orderbtn on" data-clearorder="1"
       title="${state.orderNote === 'failed'
         ? 'Your saved order does not fit this build and was dropped -- the constellations it arranged are not all here any more'
         : 'Your own order. Click to go back to the one the solver chose'}"
-      aria-label="Clear your custom order"><i class="ti ti-arrows-sort"></i></button>` : ''}
-    <button class="plainbtn iconbtn lockbtn${state.locked ? ' on' : ''}" data-lock="1"
-      aria-pressed="${state.locked}"
-      aria-label="${state.locked ? 'Unlock the build' : 'Lock the build'}"
-      title="${state.locked
-        ? 'Locked -- tick the next star or un-tick the last one. Click to unlock and change the build'
-        : 'Lock the build: everything goes read-only except ticking off the next star'}"><i
-      class="ti ti-lock${state.locked ? '' : '-open'}"></i></button>${
+      aria-label="Clear your custom order"><i class="ti ti-arrows-sort"></i></button>` : ''}${
     !state.locked && state.done.size ? `
     <button class="plainbtn iconbtn" data-resetprogress="1" aria-label="Clear progress"
       title="Clear all progress (${state.done.size} star${state.done.size === 1 ? '' : 's'
@@ -2801,7 +2840,8 @@ if (typeof window !== 'undefined') {
     // move the lock exists to prevent. It is also no longer needed: locked ticking
     // can't cascade, so there is nothing to recover from.
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-      if (state.locked) return;
+      // Frozen by the lock, EXCEPT for undoing the adopt that engaged it -- see canUndo.
+      if (!canUndo()) return;
       if (undo()) { e.preventDefault(); render(); }
     }
   });
@@ -2823,8 +2863,13 @@ if (typeof window !== 'undefined') {
 // and re-renders without re-solving), [data-tab] and [data-cat] (browsing the tag
 // library changes nothing). Freezing those would protect nothing and would take
 // away the second view exactly when you are following the path and want it.
+//
+// [data-undo] came OFF this list when Adopt started engaging the lock, and the gate moved
+// into canUndo() instead -- because the answer is no longer a flat yes or no. A tick made
+// while locked stays frozen; the adopt that DID the locking does not, because its own
+// button promises Ctrl+Z reverses it.
 const LOCKED_OUT = ['data-reset', 'data-rm', 'data-setw', 'data-add', 'data-score',
-  'data-resetprogress', 'data-undo', 'data-clearorder'];
+  'data-resetprogress', 'data-clearorder'];
 
 /** Should the lock swallow this click? Raises the dialog unless it's been dismissed. */
 function lockSwallows(e) {
@@ -3039,6 +3084,10 @@ app.addEventListener('click', e => {
     // Locking is immediate; unlocking asks. The asymmetry is the point -- putting the
     // guard up should be frictionless, taking it down is the thing you might be doing
     // by accident.
+    //
+    // While a suggestion is on screen this means "lock what I HAVE" -- Adopt is the other
+    // answer, and it locks too. Two buttons, one question, no dialog: the choice is made
+    // by which one you press rather than by a box that appears to ask you afterwards.
     if (state.locked) state.dialog = 'unlock';
     else { state.locked = true; state.dialog = null; }
     render();
@@ -3099,9 +3148,18 @@ app.addEventListener('click', e => {
   // first, so Ctrl+Z puts them back.
   const adopt = e.target.closest('[data-adopt]');
   if (adopt && app.contains(adopt)) {
-    if (state.locked) return;
-    pushHistory();
+    // ADOPTING IS LOCKING. They were two buttons pressed one after the other in every
+    // case that mattered, and the gap between them was pure hazard: adopting clears your
+    // ticks and hands you a fresh path to walk, which IS the locked workflow, so anyone
+    // who adopted and did not think to lock was one stray click from wrecking the build
+    // they had just committed to.
+    //
+    // Not gated on the lock either, and for the same reason it now sets it: this is the
+    // act of choosing a build, not of editing one. The lock exists to stop accidents, and
+    // a labelled button in a view you had to open is the opposite of an accident.
+    pushHistory(true);      // an adopt, so Ctrl+Z can reach it through the lock
     state.done = new Set();
+    state.locked = true;
     // Adopting IS the decision the comparison was asking for. Wanting the suggestion to
     // be the plan means wanting the path to tick, not a diff -- and without this an
     // imported character, which always has a comparison, would be handed one again the
@@ -3213,7 +3271,7 @@ app.addEventListener('click', e => {
   }
 
   const un = e.target.closest('[data-undo]');
-  if (un && app.contains(un)) { if (undo()) render(); return; }
+  if (un && app.contains(un)) { if (canUndo() && undo()) render(); return; }
 
   const rp = e.target.closest('[data-resetprogress]');
   if (rp && app.contains(rp)) { if (resetProgress()) render(); return; }

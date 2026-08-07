@@ -4,6 +4,37 @@ Versions start at 0.2.0, which is the state the tool had reached when numbering 
 rather than a release. Patch numbers move with each commit; the minor number moves when
 a piece of work is finished and agreed.
 
+## 0.7.3 — 6 Aug 2026
+
+**Adopting and locking are one action.** They were two buttons pressed one after the other
+in every case that mattered, and the gap between them was pure hazard: adopting clears
+your ticks and hands you a fresh path to walk, which *is* the locked workflow — so anyone
+who adopted and didn't think to lock was one stray click from wrecking the build they had
+just committed to. The checkmark now means *follow this*.
+
+It also works while locked, which is exactly when you want it: you lock a build to follow
+it, play, re-import — which the lock already allows, since that reports facts rather than
+changing intent — and find the suggestion has moved. It used to refuse **silently**: a
+live-looking button that took the click and did nothing.
+
+**The lock moved to the left column**, over the things it freezes. It spent its life in the
+Devotions header on the right, which was always the wrong side — what it makes read-only is
+tags, weights, scoring and Reset, every one of them in the left pane, and the scrim it
+draws when engaged falls over that column. The button sat apart from the only visible sign
+of its own effect. It renders outside the pane it dims, because a control that fades along
+with what it disabled is the one control that must not.
+
+With both, no dialog is needed: the two buttons *are* the choice. The checkmark follows the
+suggestion, the lock keeps your own build.
+
+**Undo now reaches the adopt, and nothing else past the lock.** The general rule stands and
+is right — undo restores a whole snapshot, so one keystroke can reach far past the frontier,
+and stopping that is what the lock is for. But the adopt is what *engaged* the lock, and its
+own tooltip promises Ctrl+Z reverses it; refusing made the promise false in the one case
+anybody would test. A tick made while locked stays frozen even with an adopt underneath it
+in the stack. Snapshots carry the lock with them, so undoing restores it as it was rather
+than leaving it stuck either way.
+
 ## 0.7.2 — 6 Aug 2026
 
 **The suggested column said 57 stars for a character whose maximum is 55.** The path buys

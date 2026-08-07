@@ -209,6 +209,10 @@ function plan(labels, mode, { keep = false } = {}) {
   // so the next test looking for a tickable path found a diff instead.
   const c = ui.activeChar?.();
   if (c && !keep) delete c.source;
+  // Fifth instance. Adopt now engages the lock, so a test that adopted left every fixture
+  // after it read-only -- and a locked fixture hides half the header and swallows clicks,
+  // which reads as a bug in whatever the next test was actually about.
+  if (!keep) ui.state.locked = false;
   ui.build();
   return ui.state.plan;
 }
@@ -3509,12 +3513,30 @@ test('Clear progress appears only when there is progress to clear', () => {
   ui.render();
   assert.match(headerRow(), /data-resetprogress/, 'progress exists but no way to clear it');
 
-  // Locked, it is not an action you can take, so it is not shown -- but the LOCK stays,
-  // because a mode you can enter and not leave is a trap.
+  // Locked, it is not an action you can take, so it is not shown.
   ui.state.locked = true; ui.render();
   assert.doesNotMatch(headerRow(), /data-resetprogress/, 'locked, so it is not actionable');
-  assert.match(headerRow(), /data-lock/, 'the way out of the lock must always be there');
   ui.state.locked = false;
+});
+
+test('the lock lives over the things it freezes, not beside the path', () => {
+  // It spent its life in the Devotions header on the right, which was always the wrong
+  // side: what it makes read-only is tags, weights, scoring and Reset -- every one of them
+  // in the LEFT pane -- and the scrim it draws when engaged falls over that column. The
+  // button was sitting apart from the only visible sign of its own effect.
+  plan([['Cold Damage']], 2);
+  assert.doesNotMatch(headerRow(), /data-lock/, 'the lock should not be in the path header');
+
+  const left = /<p class="lbl"[^>]*>[\s\S]*?Target tags[\s\S]*?<\/p>/.exec(app.innerHTML)?.[0];
+  assert.ok(left, 'the Target tags header should render');
+  assert.match(left, /data-lock/, 'the lock belongs with what it locks');
+
+  // And it renders OUTSIDE the pane it dims. A control that fades along with everything
+  // it disabled is the one control that must not.
+  const paneAt = app.innerHTML.indexOf('class="selpane');
+  const lockAt = app.innerHTML.indexOf('data-lock');
+  assert.ok(lockAt < paneAt,
+    'the lock is inside the scrimmed pane, so engaging it dims the way back out');
 });
 
 test('Clear order appears only when there is a custom order', () => {
@@ -3538,4 +3560,76 @@ test('Adopt is a checkmark and keeps its outline', () => {
   assert.match(btn, /ti-check/, 'Adopt should be a checkmark');
   assert.match(btn, /class="[^"]*\badopt\b/, 'Adopt should keep its own class for the outline');
   assert.match(css, /\.adopt\{[^}]*border:/, 'the .adopt rule should still draw a border');
+});
+
+test('adopting IS locking, and one Ctrl+Z reverses both', () => {
+  // They were two buttons pressed one after the other in every case that mattered, and
+  // the gap between them was pure hazard: adopting clears your ticks and hands you a
+  // fresh path to walk, which IS the locked workflow, so anyone who adopted and did not
+  // think to lock was one stray click from wrecking what they had just committed to.
+  withOffPlanBuild();
+  const before = [...ui.state.done].sort();
+  assert.equal(ui.state.locked, false, 'the fixture should start unlocked');
+
+  click({ adopt: '1' });
+  assert.equal(ui.state.done.size, 0, 'adopting should clear the ticks');
+  assert.equal(ui.state.locked, true, 'adopting should lock the build it just chose');
+
+  // The button PROMISES Ctrl+Z reverses it. Undo used to be frozen by the lock, which
+  // made the promise false in the one case anybody would test.
+  click({ undo: '1' });
+  assert.deepEqual([...ui.state.done].sort(), before, 'undo did not bring the build back');
+  assert.equal(ui.state.locked, false, 'undo restored the ticks but left the lock on');
+});
+
+test('adopting works while already locked', () => {
+  // Exactly when you want it: you lock a build to follow it, play, re-import -- which the
+  // lock allows, because that reports facts rather than changing intent -- and find the
+  // suggestion has moved. It used to refuse SILENTLY: a live-looking button that took the
+  // click and did nothing.
+  withOffPlanBuild();
+  ui.state.locked = true;
+  ui.render();
+  assert.match(app.innerHTML, /data-adopt/, 'Adopt should still be offered while locked');
+
+  click({ adopt: '1' });
+  assert.equal(ui.state.done.size, 0, 'the lock swallowed a deliberate, labelled action');
+  assert.equal(ui.state.locked, true, 'and it should still be locked afterwards');
+  ui.state.locked = false;
+});
+
+test('undo restores the lock as it was, not merely off', () => {
+  // The snapshot carries the lock, so undoing cannot leave it stuck either way.
+  plan([['Cold Damage']], 2);
+  ui.state.locked = true;
+  ui.state.plain = false; ui.render();
+  click({ star: /data-star="([^"]+)"/.exec(app.innerHTML)[1] });
+  click({ undo: '1' });
+  assert.equal(ui.state.locked, true,
+    'undoing a tick made while locked should leave the build locked');
+  ui.state.locked = false;
+});
+
+test('the lock still freezes undo for everything except the adopt itself', () => {
+  // The exception has to be narrow. Undo restores a whole snapshot, so one keystroke can
+  // reach far past the frontier -- which is the thing the lock exists to stop. Only the
+  // adopt that ENGAGED the lock is reachable through it, and only while it is on top.
+  withOffPlanBuild();
+  click({ adopt: '1' });               // adopts, locks, and is undoable
+  assert.equal(ui.state.locked, true);
+
+  // Tick a star while locked. That snapshot is an ordinary one and must stay frozen,
+  // even though an adopt is sitting underneath it in the stack.
+  ui.state.plain = false; ui.render();
+  const star = /data-star="([^"]+)"/.exec(app.innerHTML)?.[1];
+  assert.ok(star, 'the adopted plan should be tickable');
+  ui.state.lockWarnSeen = true;
+  click({ star });
+  const afterTick = [...ui.state.done].sort();
+
+  click({ undo: '1' });
+  assert.deepEqual([...ui.state.done].sort(), afterTick,
+    'undo reached past the lock for a tick made while locked');
+
+  ui.state.locked = false;
 });
